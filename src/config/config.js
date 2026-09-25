@@ -25,10 +25,16 @@ export const CONFIG = {
   //  regen         — доля полоски бега, что восполняется за секунду отдыха
   //  mass          — вес при толкании (тяжёлый почти не сдвигается)
   //  dash          — рывок: во сколько раз быстрее бега, сколько длится, перезарядка
+  //                  (charges/recharge — ограниченные заряды: сколько рывков и за сколько сек копится один)
+  //  reach         — докуда дотягиваются руки над ногами, м (подтягивание на уступ/крышу)
+  //  climb         — скорость подъёма по лестнице, м/с
   heroes: {
-    masha:  { walk: 5.2, run: 9.0,  accel: 60, decel: 42, air: 20, jump: 2.2, gravity: 1.0,  turn: 16, stamina: 6.5, regen: 0.22, mass: 1.0, dash: { mul: 1.45, time: 0.35, cooldown: 4 } },
-    catbus: { walk: 5.8, run: 11.0, accel: 32, decel: 22, air: 10, jump: 1.8, gravity: 1.15, turn: 7,  stamina: 5.0, regen: 0.18, mass: 3.0, dash: { mul: 1.3,  time: 0.6,  cooldown: 6 } },
-    moti:   { walk: 4.6, run: 8.2,  accel: 26, decel: 30, air: 8,  jump: 1.6, gravity: 1.3,  turn: 9,  stamina: 8.0, regen: 0.25, mass: 4.0, dash: { mul: 1.25, time: 0.5,  cooldown: 7 } },
+    masha:  { walk: 5.2, run: 9.0,  accel: 60, decel: 42, air: 20, jump: 2.2, gravity: 1.0,  turn: 16, stamina: 6.5, regen: 0.22, mass: 1.0, reach: 1.25, climb: 3.6, dash: { mul: 1.45, time: 0.35, cooldown: 4 } },
+    catbus: { walk: 5.8, run: 11.0, accel: 32, decel: 22, air: 10, jump: 1.8, gravity: 1.15, turn: 7,  stamina: 5.0, regen: 0.18, mass: 3.0, reach: 1.0,  climb: 2.6, dash: { mul: 1.3,  time: 0.6,  cooldown: 6 } },
+    moti:   { walk: 4.6, run: 8.2,  accel: 26, decel: 30, air: 8,  jump: 1.6, gravity: 1.3,  turn: 9,  stamina: 8.0, regen: 0.25, mass: 4.0, reach: 1.35, climb: 2.4, dash: { mul: 1.25, time: 0.5,  cooldown: 7 } },
+    // Безлик ездит на той же физике. Скорость — как у героев; бег тоже тратит силы.
+    // Рывков ограниченно: 3 заряда, новый копится 12 с. Не прыгает — парит вверх (fly), пока есть силы.
+    noface: { walk: 4.6, run: 8.4,  accel: 14, decel: 12, air: 8,  jump: 0,   gravity: 1.0,  turn: 5,  stamina: 9.0, regen: 0.16, mass: 5.0, reach: 0,    climb: 0,   dash: { mul: 1.55, time: 0.8, cooldown: 1.2, charges: 3, recharge: 12 }, fly: { speed: 2.6, time: 2.6, regen: 0.25 } },
   },
 
   camera: {
@@ -45,21 +51,17 @@ export const CONFIG = {
 
   ghost: {
     count: 1,              // сколько Безликов (меняется на экране выбора)
-    spawnDelay: 10,        // сек до появления Безлика
-    spawnGap: 6,           // следующие Безлики появляются с таким интервалом
-    walkSpeed: 4.2,        // когда ищет
-    huntSpeed: 6.4,        // когда видит
-    huntSpeedMax: 7.6,     // разгоняется к концу раунда
-    accel: 9,              // как быстро набирает скорость (плывёт — поэтому мягко)
-    burstMul: 1.45,        // РЫВОК: увидел близко — резко ускоряется
-    burstRange: 8,         // с какого расстояния делает рывок
-    burstTime: 1.1,
-    burstCooldown: 5,
+    spawnGap: 4,           // Безлики выходят по очереди с таким интервалом (после форы)
+    lateBoost: 0.08,       // к концу раунда становится быстрее на столько (доля)
+    burstRange: 7,         // с какого расстояния делает рывок (бот-Безлик)
     catchRadius: 1.05,     // радиус поимки
-    sightRange: 20,        // дальше не видит
+    catchHeight: 2.2,      // достаёт по высоте (если ты выше — не поймает, надо подлететь)
+    sightRange: 22,        // дальше не видит
     hearRunRange: 9,       // слышит бег на таком расстоянии даже за стеной
-    loseSightTime: 1.8,    // сек без прямой видимости — потерял
+    loseSightTime: 2.2,    // сек без прямой видимости — потерял
     repathEvery: 0.35,
+    disguise: { cd: 18, time: 9, noticeRange: 2.6 },  // 1 — маскировка под героя; вблизи боты раскусят
+    grab: 1.1,             // сек замирает, когда забирает героя
   },
 
   // Способности (сейчас — у Дядюшки Моти по его карточке). cd — перезарядка, сек.
@@ -71,6 +73,7 @@ export const CONFIG = {
     swing:   { cd: 2.5, range: 2.6, stun: 1.6, knock: 3.5 }, // F — удар фонарём: оглушает и отбрасывает
     wave:    { cd: 1.5 },                             // G — приветствие
     dash:    {},                                      // E — рывок (цифры в heroes.*.dash)
+    prop:    { cd: 4, walk: 0.45 },                   // Q — маскировка под предмет (Маша, НэкоБус); walk — скорость «ползущего» предмета
   },
 
   bots: {
@@ -79,10 +82,21 @@ export const CONFIG = {
     think: 0.25,           // как часто принимают решение, сек
     restless: [7, 15],     // сколько сек бот высидит в кусте, если никто не ищет, — потом перебегает
     helpRange: 20,         // с какого расстояния герой-помощник (Моти) бежит выручать друга
+    calmRun: 0.55,         // бот бежит «про запас», только если сил больше этой доли и Безлик рядом
+    jukeRange: 3.2,        // Безлик ближе — бот делает финт вбок с рывком
+    roofChance: 0.45,      // как часто бот лезет на крышу, если лестница рядом
   },
 
+  // Раунд, как придумала Маша: сначала ПРЯТКИ (Безлики ищут, герои прячутся и превращаются в предметы),
+  // потом ДОГОНЯЛКИ: все пойманные возвращаются, Безликом становится тот, кого нашли первым, + ещё 3 Безлика-бота.
   round: {
-    duration: 90,          // сек — продержаться до конца раунда
+    hide: 120,             // сек — прятки
+    headStart: 15,         // сек — фора: Безлики ещё не вышли, беги прятаться
+    chase: 60,             // сек — догонялки
+    chaseGhosts: 4,        // сколько Безликов в догонялках (вместе с «новым»)
+    chaseBotSpeed: 0.9,    // Безлики-боты в догонялках чуть медленнее: их много, от них должно быть реально убежать
+    pumpkins: 14,          // тыковок-монеток на карте
+    reward: { found: 3, survive: 5, catch: 2 },   // тыковки за: найденного Безликом героя (ему), продержался фазу, поймал в догонялках
   },
 
   graphics: {
@@ -95,4 +109,4 @@ export const CONFIG = {
 };
 
 // Заводские значения — для кнопки «Сбросить» в настройках физики
-export const DEFAULTS = JSON.parse(JSON.stringify({ world: CONFIG.world, heroes: CONFIG.heroes, ghost: CONFIG.ghost, abilities: CONFIG.abilities }));
+export const DEFAULTS = JSON.parse(JSON.stringify({ world: CONFIG.world, heroes: CONFIG.heroes, ghost: CONFIG.ghost, abilities: CONFIG.abilities, bots: CONFIG.bots }));

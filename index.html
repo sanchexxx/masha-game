@@ -41,6 +41,7 @@
       <div class="opt"><span>Безликов</span><div class="seg" id="opt-ghosts"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button></div></div>
       <div class="opt"><span>Другие герои-боты</span><div class="seg" id="opt-bots"><button data-v="1">Да</button><button data-v="0">Нет</button></div></div>
     </div>
+    <div class="wallet-row"><span class="pumpkin-ico">🎃</span> <b id="wallet">0</b> тыковок</div>
     <button id="btn-choose" class="gold">Играть <span>›</span></button>
     <div class="sel-row">
       <button class="ghost-btn" id="btn-watch">👀 Смотреть, как бегают все</button>
@@ -50,17 +51,32 @@
   <section class="sel-cards" id="cards"></section>
 </div>
 
+<!-- Выбор карты -->
+<div id="maps" class="screen">
+  <div class="maps-wrap">
+    <div class="scroll-label big"><span class="paw-badge">🐾</span>Сначала выбираем, где играть</div>
+    <div class="map-cards" id="map-cards"></div>
+    <div class="maps-foot">
+      <button class="ghost-btn" id="btn-maps-back">‹ Назад</button>
+      <button class="gold" id="btn-maps-go">Начать прятки <span>›</span></button>
+    </div>
+  </div>
+</div>
+
 <!-- Игровой интерфейс -->
 <div id="hud" class="hidden">
   <div class="hud-top">
-    <div class="timer" id="timer">1:30</div>
+    <div class="phase" id="phase">Прятки</div>
     <div class="status" id="status">Беги прятаться!</div>
   </div>
+  <div class="timer-pill"><span class="sw">⏱</span><b id="timer">02:00</b></div>
   <div class="hud-left">
+    <div class="minimap"><div class="mm-label" id="mm-label">Найди место<br>и спрячься!</div><canvas id="minimap" width="300" height="300"></canvas></div>
     <div class="stamina"><i id="stamina"></i></div>
     <div class="shield hidden" id="shield">🏠 Приют</div>
     <div class="hidden-badge" id="hidden-badge">🌿 Ты спрятан</div>
     <div class="alive" id="alive">Героев: 3/3</div>
+    <div class="pumpkins-hud">🎃 <b id="pumpkins">0</b></div>
   </div>
   <div class="toast" id="toast"></div>
   <div class="abil-bar" id="abil-bar"></div>
@@ -68,7 +84,7 @@
   <button class="icon-btn tuner-btn" id="btn-tuner" title="Физика (F2)">⚙</button>
   <button class="icon-btn mute" id="btn-mute" title="Звук">🔊</button>
   <button class="icon-btn pause" id="btn-pause" title="Меню">☰</button>
-  <div class="hint" id="hint">WASD — идти · Shift — бег · Пробел — прыжок · E — рывок · мышь — камера · F2 — физика</div>
+  <div class="hint" id="hint">WASD — идти · Shift — бег · Пробел — прыжок · C — присесть · E — рывок · Q — маскировка · мышь — камера (Esc — курсор для кнопок)</div>
   <div class="vignette" id="vignette"></div>
 </div>
 
@@ -76,10 +92,11 @@
 <div id="touch" class="hidden">
   <div class="stick-zone"></div>
   <div class="look-zone"></div>
-  <div class="stick"><div class="stick-knob"></div></div>
-  <button class="btn-run">🏃</button>
-  <button class="btn-dash">💨</button>
-  <button class="btn-jump">⤒</button>
+  <div class="stick"><div class="stick-knob">🐾</div></div>
+  <button class="rbtn btn-dash" title="Рывок (E)">💨<em>E</em></button>
+  <button class="rbtn btn-run" title="Бег (Shift)"><svg viewBox="0 0 48 48"><circle cx="30" cy="8" r="5"/><path d="M20 16l10 2 5 9 7 2-1 4-9-2-4-5-3 8 6 5-2 13h-5l1-10-7-5-4 8-10 2-1-4 8-3 5-12-4 1-4 7-4-2 5-9z"/></svg><em>Shift</em></button>
+  <button class="rbtn btn-crouch" title="Присесть (C)"><svg viewBox="0 0 48 48"><circle cx="26" cy="10" r="6"/><path d="M18 20c4-3 12-3 15 1l3 10c1 3-1 5-4 5h-4l2 6h-5l-3-7c-1-2 0-4 2-4h3l-2-5-4 4-5 1-2-3 4-3z"/></svg><em>C</em></button>
+  <button class="rbtn btn-jump" title="Прыжок (Пробел)">⤒<em>␣</em></button>
 </div>
 
 <!-- Панель физики -->
@@ -97,6 +114,7 @@
     <div class="res-emoji" id="res-emoji">🏮</div>
     <h2 id="res-title">Ты продержался!</h2>
     <p id="res-text"></p>
+    <div class="res-earn" id="res-earn"></div>
     <button class="gold" id="btn-again">Ещё раунд <span>›</span></button>
     <button class="ghost-btn" id="btn-change">Сменить героя</button>
   </div>

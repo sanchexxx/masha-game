@@ -224,3 +224,94 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   .hud-left { top: calc(max(16px, env(safe-area-inset-top)) + 84px); }
   .toast { top: 150px; }
 }
+
+/* ================= Версия 2: стиль как на Машиных картинках ================= */
+:root { --parch: #f7e8c8; --parch2: #ecd3a2; --ink: #3a2412; --wood: #4a2c18; --wood2: #7a4a26; --glow: rgba(255, 196, 92, .55); }
+
+/* пергаментная надпись-свиток */
+.scroll-label { display: inline-block; position: relative; padding: 10px 22px 12px; font-family: var(--title); font-size: 26px; line-height: 1.05; color: var(--ink);
+  background: linear-gradient(180deg, var(--parch), var(--parch2)); border-radius: 10px; transform: rotate(-2deg);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .45), inset 0 0 0 2px rgba(120, 70, 20, .25); }
+.scroll-label.big { font-size: clamp(24px, 4.2vw, 42px); padding: 12px 26px 14px 70px; }
+.paw-badge { position: absolute; left: -14px; top: 50%; transform: translateY(-50%) rotate(-8deg); width: 70px; height: 70px; border-radius: 50%; display: grid; place-items: center; font-size: 36px;
+  background: radial-gradient(circle at 40% 35%, #ffb36a, #e8621e); box-shadow: 0 0 0 4px #fff4dd, 0 6px 14px rgba(0, 0, 0, .4); }
+
+/* экран выбора карты */
+#maps { background: radial-gradient(ellipse at 50% 30%, rgba(60, 30, 90, .55), rgba(10, 8, 30, .92)); overflow-y: auto; }
+.maps-wrap { max-width: 1060px; margin: 0 auto; padding: max(22px, env(safe-area-inset-top)) 18px 26px; display: flex; flex-direction: column; align-items: center; gap: 22px; }
+.map-cards { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; width: 100%; }
+.map-card { position: relative; width: min(300px, 88vw); border-radius: 16px; padding: 10px 10px 14px; text-align: center;
+  background: linear-gradient(180deg, var(--wood2), var(--wood)); border: 3px solid #2a170b;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .55), inset 0 0 0 2px rgba(255, 200, 120, .15); transition: transform .15s, box-shadow .15s; }
+.map-card:hover { transform: translateY(-4px); }
+.map-card .m-title { display: flex; align-items: center; justify-content: center; gap: 8px; font-family: var(--title); font-size: 25px; color: #fff3da; text-shadow: 0 2px 4px #000; margin: 2px 0 8px; }
+.map-card .m-pic { height: 190px; border-radius: 10px; background: #1a1838 center/cover no-repeat; border: 2px solid rgba(255, 220, 160, .35); position: relative; overflow: hidden; }
+.map-card .m-diff { display: inline-block; margin-top: 10px; padding: 5px 26px; border-radius: 999px; font-weight: 800; font-size: 16px; color: #3a2a1a; background: linear-gradient(#f4ecdf, #cfc3b1); box-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
+.map-card .m-diff.hard { color: #fff; background: linear-gradient(#e0594a, #a62a22); }
+.map-card.active { border-color: #ffd46a; box-shadow: 0 0 0 3px rgba(255, 210, 110, .55), 0 0 34px var(--glow), 0 10px 26px rgba(0, 0, 0, .55); }
+.map-card.active .m-diff { background: linear-gradient(var(--gold1), var(--gold2)); }
+.map-card.active::after { content: '✓'; position: absolute; top: -12px; right: -12px; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-size: 24px; font-weight: 900; color: #3a2610;
+  background: linear-gradient(var(--gold1), var(--gold2)); box-shadow: 0 0 0 3px #3a2610, 0 0 16px var(--glow); }
+.map-card.soon .m-pic::after { content: 'Скоро'; position: absolute; inset: auto 0 10px; font-family: var(--title); font-size: 22px; color: #fff; text-shadow: 0 2px 6px #000; }
+.map-card.soon { filter: saturate(.8) brightness(.9); }
+.maps-foot { display: flex; gap: 12px; width: min(560px, 100%); align-items: center; }
+.maps-foot .gold { margin: 0; }
+.maps-foot .ghost-btn { margin: 0; width: 170px; flex: none; }
+
+/* верх экрана в раунде */
+.phase { display: inline-block; font-family: var(--title); font-size: 26px; padding: 4px 22px 6px; border-radius: 12px; color: var(--ink); background: linear-gradient(var(--parch), var(--parch2)); box-shadow: 0 4px 12px rgba(0, 0, 0, .45); transform: rotate(-1.5deg); }
+.phase.chase { color: #fff; background: linear-gradient(#b0463a, #7a2320); }
+.timer-pill { position: absolute; top: max(14px, env(safe-area-inset-top)); right: max(196px, calc(env(safe-area-inset-right) + 196px)); display: flex; align-items: center; gap: 8px; padding: 6px 18px 6px 8px; border-radius: 999px;
+  background: rgba(24, 14, 10, .78); border: 2px solid rgba(255, 210, 130, .55); box-shadow: 0 0 16px rgba(255, 190, 90, .3); }
+.timer-pill .sw { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-size: 22px; background: radial-gradient(circle, #ffd88a, #e89a2a); }
+.timer-pill b { font-family: var(--body); font-weight: 800; font-size: 30px; letter-spacing: 1px; color: #fff4dc; }
+.timer-pill.warn b { color: #ffb08a; }
+#timer.timer { display: none; }
+
+/* мини-карта */
+.minimap { position: relative; width: 150px; height: 150px; border-radius: 50%; padding: 5px; background: linear-gradient(160deg, #8a5a30, #3e2412); box-shadow: 0 6px 18px rgba(0, 0, 0, .5); margin-top: 26px; }
+.minimap canvas { width: 140px; height: 140px; border-radius: 50%; display: block; background: #5b4630; }
+.mm-label { position: absolute; left: 34px; top: -30px; z-index: 1; font-family: var(--title); font-size: 15px; line-height: 1; color: var(--ink); padding: 5px 10px; border-radius: 8px; background: linear-gradient(var(--parch), var(--parch2)); transform: rotate(-3deg); box-shadow: 0 3px 8px rgba(0, 0, 0, .4); white-space: nowrap; transition: opacity .4s; }
+.pumpkins-hud { font-weight: 800; font-size: 17px; padding: 4px 12px; border-radius: 999px; background: rgba(24, 14, 10, .7); border: 1px solid rgba(255, 180, 90, .5); }
+.wallet-row { margin-top: 12px; font-weight: 700; color: var(--muted); }
+.wallet-row b { color: #ffc46a; font-size: 18px; }
+.res-earn { margin: 10px 0 0; font-size: 20px; font-weight: 800; color: #ffc46a; }
+
+/* круглые кнопки как на картинке: тёмные, с золотой обводкой, белые значки */
+#touch .rbtn { position: absolute; width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; font-size: 34px; color: #fff;
+  background: radial-gradient(circle at 50% 35%, rgba(70, 40, 24, .85), rgba(26, 14, 10, .9)); border: 3px solid rgba(255, 214, 140, .85);
+  box-shadow: 0 0 18px rgba(255, 190, 90, .35), inset 0 0 12px rgba(255, 200, 120, .15); touch-action: none; }
+#touch .rbtn svg { width: 46px; height: 46px; fill: #fff; }
+#touch .rbtn em { position: absolute; bottom: -2px; right: 2px; font-style: normal; font-size: 11px; font-weight: 800; color: var(--gold1); background: rgba(0, 0, 0, .55); padding: 0 5px; border-radius: 6px; }
+#touch .rbtn.down { transform: scale(.92); }
+#touch .rbtn.active { background: radial-gradient(circle at 50% 35%, #f3b04a, #a8641a); }
+#touch .btn-crouch { right: max(22px, env(safe-area-inset-right)); bottom: max(26px, env(safe-area-inset-bottom)); }
+#touch .btn-run { right: max(122px, calc(env(safe-area-inset-right) + 122px)); bottom: max(26px, env(safe-area-inset-bottom)); }
+#touch .btn-jump { right: max(22px, env(safe-area-inset-right)); bottom: max(124px, calc(env(safe-area-inset-bottom) + 124px)); width: 72px; height: 72px; font-size: 30px; }
+#touch .btn-dash { right: max(112px, calc(env(safe-area-inset-right) + 112px)); bottom: max(124px, calc(env(safe-area-inset-bottom) + 124px)); width: 64px; height: 64px; font-size: 26px; }
+.stick { width: 150px; height: 150px; margin: -75px 0 0 -75px; background: radial-gradient(circle, rgba(255, 255, 255, .12), rgba(255, 255, 255, .04)); border: 3px solid rgba(255, 240, 220, .45); opacity: .8; }
+.stick-knob { width: 70px; height: 70px; margin: -35px; display: grid; place-items: center; font-size: 34px; background: radial-gradient(circle at 40% 35%, #ffffff, #e9e2f2); box-shadow: 0 0 16px rgba(255, 240, 220, .6); filter: grayscale(.2); }
+/* на ПК: стик стоит в углу и жмётся мышкой; зона обзора пальцем не нужна */
+.stick-zone.fixed { left: max(24px, env(safe-area-inset-left)); bottom: max(24px, env(safe-area-inset-bottom)); width: 170px; height: 170px; border-radius: 50%; }
+.stick-zone.fixed + .look-zone { display: none; }
+#touch.desktop { pointer-events: none; }
+#touch.desktop .stick-zone, #touch.desktop .rbtn { pointer-events: auto; }
+#touch.desktop .stick { left: calc(max(24px, env(safe-area-inset-left)) + 85px); top: calc(100% - max(24px, env(safe-area-inset-bottom)) - 85px); opacity: .75; }
+.hint { bottom: 8px; }
+@media (max-width: 760px) {
+  .minimap { width: 108px; height: 108px; margin-top: 30px; }
+  .minimap canvas { width: 98px; height: 98px; }
+  .mm-label { font-size: 12px; left: 18px; }
+  .timer-pill { right: auto; left: 50%; transform: translateX(-50%); top: calc(max(12px, env(safe-area-inset-top)) + 80px); padding: 4px 14px 4px 6px; }
+  .timer-pill b { font-size: 22px; }
+  .timer-pill .sw { width: 30px; height: 30px; font-size: 17px; }
+  .phase { font-size: 20px; }
+  #touch .rbtn { width: 70px; height: 70px; }
+  #touch .btn-run { right: max(104px, calc(env(safe-area-inset-right) + 104px)); }
+  #touch .btn-jump { bottom: max(108px, calc(env(safe-area-inset-bottom) + 108px)); width: 62px; height: 62px; }
+  #touch .btn-dash { right: max(96px, calc(env(safe-area-inset-right) + 96px)); bottom: max(108px, calc(env(safe-area-inset-bottom) + 108px)); width: 56px; height: 56px; }
+  .scroll-label.big { font-size: 22px; padding-left: 56px; }
+  .paw-badge { width: 54px; height: 54px; font-size: 28px; }
+  .map-card .m-pic { height: 120px; }
+}
+.ab .ab-n { position: absolute; left: 5px; top: 2px; z-index: 2; font-size: 13px; font-weight: 900; color: #fff; text-shadow: 0 1px 2px #000; }

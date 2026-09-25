@@ -1,7 +1,8 @@
-// Поиск пути по сетке 1×1 м (A*). Карта маленькая — считаем быстро и часто.
+// Поиск пути по сетке 0.5×0.5 м (A*). Мелкая сетка — чтобы крупные герои находили путь
+// в дверные проёмы и коридоры лабиринта.
 
 export class NavGrid {
-  constructor(world, clearance = 0.55, cell = 1) {
+  constructor(world, clearance = 0.55, cell = 0.5) {
     this.cell = cell;
     this.half = world.half;
     this.n = Math.round((world.half * 2) / cell);
@@ -10,11 +11,12 @@ export class NavGrid {
       for (let i = 0; i < this.n; i++) {
         const x = -this.half + (i + 0.5) * cell, z = -this.half + (j + 0.5) * cell;
         let b = Math.abs(x) > this.half - 1.4 || Math.abs(z) > this.half - 1.4;
-        if (!b) for (const r of world.boxes) {
+        const near = world.near(x, z);
+        if (!b) for (const r of near.boxes) {
           if (!r.nav || r.top < 0.35) continue;
           if (x > r.minX - clearance && x < r.maxX + clearance && z > r.minZ - clearance && z < r.maxZ + clearance) { b = true; break; }
         }
-        if (!b) for (const c of world.circles) {
+        if (!b) for (const c of near.circles) {
           if (!c.nav || c.top < 0.35) continue;
           if ((x - c.x) ** 2 + (z - c.z) ** 2 < (c.r + clearance) ** 2) { b = true; break; }
         }
@@ -36,7 +38,7 @@ export class NavGrid {
 
   nearestFree(i, j) {
     if (this.free(i, j)) return [i, j];
-    for (let r = 1; r < 8; r++) {
+    for (let r = 1; r < 14; r++) {
       let best = null, bd = 1e9;
       for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
         if (Math.max(Math.abs(di), Math.abs(dj)) !== r || !this.free(i + di, j + dj)) continue;
@@ -62,7 +64,7 @@ export class NavGrid {
     const h = (i, j) => { const dx = Math.abs(i - ti), dy = Math.abs(j - tj); return (dx + dy) + (Math.SQRT2 - 2) * Math.min(dx, dy); };
     open.push(start, h(si, sj));
     let found = false, iter = 0;
-    while (open.size && iter++ < 5000) {
+    while (open.size && iter++ < 40000) {
       const cur = open.pop();
       if (cur === goal) { found = true; break; }
       if (this.closed[cur]) continue;

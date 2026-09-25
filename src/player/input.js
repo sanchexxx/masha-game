@@ -1,4 +1,6 @@
-// Ввод: клавиатура + мышь на ПК, стик + зона обзора + кнопки на телефоне.
+// Ввод: клавиатура + мышь на ПК, стик-«лапка» + зона обзора + кнопки на телефоне.
+// Экранные кнопки (бег, присесть, рывок, прыжок) есть и на ПК — жмутся мышкой, как на телефоне.
+// Всё на pointer-событиях: одинаково работает пальцем, мышкой и стилусом.
 import { CONFIG } from '../config/config.js';
 
 export class Input {
@@ -8,15 +10,17 @@ export class Input {
     this.look = { x: 0, y: 0 };
     this.jumpQueued = false;
     this.dashQueued = false;
+    this.jumpHeldBtn = false;
     this.lookOnly = false;       // режим «смотреть»: только камера
-    this.runToggle = false;
     this.touchRun = false;
+    this.touchCrouch = false;
     this.enabled = false;
     this.canvas = canvas;
 
     addEventListener('keydown', e => {
       if (e.code === 'Space') { if (!e.repeat) this.jumpQueued = true; e.preventDefault(); }
       if (e.code === 'KeyE' && !e.repeat) this.dashQueued = true;
+      if (e.code === 'KeyC' && !e.repeat) this.#setCrouch(!this.touchCrouch);
       this.keys.add(e.code);
     });
     addEventListener('keyup', e => this.keys.delete(e.code));
@@ -40,75 +44,94 @@ export class Input {
       }
     });
 
-    this.#setupTouch(touchRoot);
+    this.root = touchRoot;
+    this.#setupButtons(touchRoot);
   }
 
-  #setupTouch(root) {
+  #setCrouch(on) {
+    this.touchCrouch = on;
+    this.root?.querySelector('.btn-crouch')?.classList.toggle('active', on);
+  }
+
+  #setupButtons(root) {
     const stick = root.querySelector('.stick');
     const knob = root.querySelector('.stick-knob');
+    const stickZone = root.querySelector('.stick-zone');
     const lookZone = root.querySelector('.look-zone');
-    const jumpBtn = root.querySelector('.btn-jump');
-    const runBtn = root.querySelector('.btn-run');
-    const dashBtn = root.querySelector('.btn-dash');
-    dashBtn.addEventListener('touchstart', e => { this.dashQueued = true; dashBtn.classList.add('down'); e.preventDefault(); }, { passive: false });
-    dashBtn.addEventListener('touchend', () => dashBtn.classList.remove('down'));
+    const stop = e => { e.preventDefault(); e.stopPropagation(); };
+    const press = (sel, down, up) => {
+      const b = root.querySelector(sel);
+      b.addEventListener('pointerdown', e => { stop(e); b.classList.add('down'); down(); try { b.setPointerCapture(e.pointerId); } catch {} });
+      const end = () => { b.classList.remove('down'); up?.(); };
+      b.addEventListener('pointerup', end);
+      b.addEventListener('pointercancel', end);
+      b.addEventListener('mousedown', e => e.stopPropagation());
+    };
+    press('.btn-jump', () => { this.jumpQueued = true; this.jumpHeldBtn = true; }, () => { this.jumpHeldBtn = false; });
+    press('.btn-dash', () => { this.dashQueued = true; });
+    press('.btn-run', () => { this.touchRun = !this.touchRun; root.querySelector('.btn-run').classList.toggle('active', this.touchRun); });
+    press('.btn-crouch', () => this.#setCrouch(!this.touchCrouch));
+
+    // Стик-«лапка»: тянешь — идёшь, тянешь далеко — бежишь
     let stickId = null, sx = 0, sy = 0;
     const R = 52;
-
-    const stickZone = root.querySelector('.stick-zone');
-    stickZone.addEventListener('touchstart', e => {
-      const t = e.changedTouches[0];
-      stickId = t.identifier; sx = t.clientX; sy = t.clientY;
-      stick.style.left = sx + 'px'; stick.style.top = sy + 'px';
+    stickZone.addEventListener('pointerdown', e => {
+      stop(e);
+      stickId = e.pointerId;
+      const box = stickZone.getBoundingClientRect();
+      // на ПК стик стоит на месте; на телефоне появляется под пальцем
+      const fixed = stickZone.classList.contains('fixed');
+      sx = fixed ? box.left + box.width / 2 : e.clientX; sy = fixed ? box.top + box.height / 2 : e.clientY;
+      if (!fixed) { stick.style.left = sx + 'px'; stick.style.top = sy + 'px'; }
       stick.classList.add('on');
-      e.preventDefault();
-    }, { passive: false });
+      try { stickZone.setPointerCapture(e.pointerId); } catch {}
+      moveStick(e);
+    });
     const moveStick = e => {
-      for (const t of e.changedTouches) {
-        if (t.identifier !== stickId) continue;
-        let dx = t.clientX - sx, dy = t.clientY - sy;
-        const d = Math.hypot(dx, dy);
-        if (d > R) { dx *= R / d; dy *= R / d; }
-        knob.style.transform = `translate(${dx}px, ${dy}px)`;
-        this.move.x = dx / R; this.move.y = -dy / R;
-        // Сильно отклонил стик — бежим сам (как в Roblox на телефоне)
-        this.stickRun = d > R * 1.35;
-      }
+      if (e.pointerId !== stickId) return;
+      let dx = e.clientX - sx, dy = e.clientY - sy;
+      const d = Math.hypot(dx, dy);
+      if (d > R) { dx *= R / d; dy *= R / d; }
+      knob.style.transform = `translate(${dx}px, ${dy}px)`;
+      this.move.x = dx / R; this.move.y = -dy / R;
+      this.stickRun = d > R * 1.35;       // сильно отклонил — бежим сам (как в Roblox на телефоне)
       e.preventDefault();
     };
     const endStick = e => {
-      for (const t of e.changedTouches) {
-        if (t.identifier !== stickId) continue;
-        stickId = null; this.move.x = this.move.y = 0; this.stickRun = false;
-        knob.style.transform = ''; stick.classList.remove('on');
-      }
+      if (e.pointerId !== stickId) return;
+      stickId = null; this.move.x = this.move.y = 0; this.stickRun = false;
+      knob.style.transform = ''; stick.classList.remove('on');
     };
-    stickZone.addEventListener('touchmove', moveStick, { passive: false });
-    stickZone.addEventListener('touchend', endStick);
-    stickZone.addEventListener('touchcancel', endStick);
+    stickZone.addEventListener('pointermove', moveStick);
+    stickZone.addEventListener('pointerup', endStick);
+    stickZone.addEventListener('pointercancel', endStick);
+    stickZone.addEventListener('mousedown', e => e.stopPropagation());
 
+    // Камера пальцем — правая половина экрана (на ПК камера — мышью по сцене)
     let lookId = null, lx = 0, ly = 0;
-    lookZone.addEventListener('touchstart', e => {
-      const t = e.changedTouches[0];
-      lookId = t.identifier; lx = t.clientX; ly = t.clientY;
+    lookZone.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'mouse') return;
+      lookId = e.pointerId; lx = e.clientX; ly = e.clientY;
+      try { lookZone.setPointerCapture(e.pointerId); } catch {}
       e.preventDefault();
-    }, { passive: false });
-    lookZone.addEventListener('touchmove', e => {
-      for (const t of e.changedTouches) {
-        if (t.identifier !== lookId) continue;
-        this.look.x += (t.clientX - lx) * CONFIG.camera.touchSens;
-        this.look.y += (t.clientY - ly) * CONFIG.camera.touchSens;
-        lx = t.clientX; ly = t.clientY;
-      }
+    });
+    lookZone.addEventListener('pointermove', e => {
+      if (e.pointerId !== lookId) return;
+      this.look.x += (e.clientX - lx) * CONFIG.camera.touchSens;
+      this.look.y += (e.clientY - ly) * CONFIG.camera.touchSens;
+      lx = e.clientX; ly = e.clientY;
       e.preventDefault();
-    }, { passive: false });
-    const endLook = e => { for (const t of e.changedTouches) if (t.identifier === lookId) lookId = null; };
-    lookZone.addEventListener('touchend', endLook);
-    lookZone.addEventListener('touchcancel', endLook);
+    });
+    const endLook = e => { if (e.pointerId === lookId) lookId = null; };
+    lookZone.addEventListener('pointerup', endLook);
+    lookZone.addEventListener('pointercancel', endLook);
+  }
 
-    jumpBtn.addEventListener('touchstart', e => { this.jumpQueued = true; jumpBtn.classList.add('down'); e.preventDefault(); }, { passive: false });
-    jumpBtn.addEventListener('touchend', () => jumpBtn.classList.remove('down'));
-    runBtn.addEventListener('touchstart', e => { this.touchRun = !this.touchRun; runBtn.classList.toggle('active', this.touchRun); e.preventDefault(); }, { passive: false });
+  // Сбросить залипшие кнопки между раундами
+  reset() {
+    this.touchRun = false; this.#setCrouch(false); this.jumpHeldBtn = false;
+    this.root?.querySelector('.btn-run')?.classList.remove('active');
+    this.move.x = this.move.y = 0;
   }
 
   // Считать состояние на этот кадр
@@ -124,15 +147,17 @@ export class Input {
     const out = {
       x, y,
       run: k.has('ShiftLeft') || k.has('ShiftRight') || this.touchRun || this.stickRun,
+      crouch: this.touchCrouch || k.has('ControlLeft'),
       jump: this.jumpQueued,
+      jumpHold: k.has('Space') || this.jumpHeldBtn,
       dash: this.dashQueued,
       lookX: this.look.x, lookY: this.look.y,
     };
     this.jumpQueued = false;
     this.dashQueued = false;
     this.look.x = this.look.y = 0;
-    if (!this.enabled) { out.x = out.y = 0; out.jump = out.dash = false; out.lookX = out.lookY = 0; }
-    if (this.lookOnly) { out.x = out.y = 0; out.jump = out.dash = out.run = false; }
+    if (!this.enabled) { out.x = out.y = 0; out.jump = out.dash = out.jumpHold = false; out.lookX = out.lookY = 0; }
+    if (this.lookOnly) { out.x = out.y = 0; out.jump = out.dash = out.run = out.jumpHold = out.crouch = false; }
     return out;
   }
 

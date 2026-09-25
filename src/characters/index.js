@@ -35,5 +35,9 @@ export const HEROES = [
 
 export const GHOST = {
   id: 'noface', name: 'Безлик', rarity: 'ОХОТНИК', rarityClass: 'hunter',
+  about: 'Тихий дух в белой маске. Сначала ищет спрятавшихся, потом догоняет. Умеет притворяться героями и вещами.',
+  ability: 'Маскировка', abilityText: 'Играешь водящим! 1 — стать героем, 2 — стать предметом, E — рывок (3 заряда), Пробел — взлететь.',
+  tags: ['Охота', 'Маскировка', 'Полёт'],
   build: buildNoFace, radius: 0.55, height: 2.5,
+  cam: { distance: 7.6, height: 2.3, side: 0.6 },
 };

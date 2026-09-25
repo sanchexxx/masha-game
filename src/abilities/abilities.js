@@ -17,9 +17,12 @@ export const HERO_ABILITIES = {
     { id: 'wave', key: 'G', name: 'Привет!', icon: '👋', tag: 'Эмоция', anim: 'wave', dur: 1.6, lock: 0 },
   ],
   masha: [
+    { id: 'prop', key: 'Q', name: 'Маскировка', icon: '🎭', tag: 'Прятки', anim: 'poof', dur: 0.25, lock: 0 },
     { id: 'wave', key: 'G', name: 'Привет!', icon: '👋', tag: 'Эмоция', anim: 'wave', dur: 1.4, lock: 0 },
   ],
-  catbus: [],
+  catbus: [
+    { id: 'prop', key: 'Q', name: 'Маскировка', icon: '🎭', tag: 'Прятки', anim: 'poof', dur: 0.25, lock: 0 },
+  ],
 };
 
 export class AbilitySet {
@@ -52,7 +55,7 @@ export class AbilitySet {
     act.lock = Math.max(0, act.lock - dt);
     if (act.lock > 0) this.agent.ctrl.moveMul = 0.15;
     // эффект срабатывает в «сильный» момент анимации
-    const fireAt = act.name === 'swing' ? 0.3 : act.name === 'wave' ? 99 : 0.45;
+    const fireAt = act.name === 'swing' ? 0.3 : act.name === 'wave' ? 99 : act.name === 'poof' ? 0 : 0.45;
     if (!act.fired && act.t / act.dur >= fireAt) { act.fired = true; this.#fire(act.id); }
     if (act.t >= act.dur) this.agent.action = null;
   }
@@ -67,7 +70,9 @@ export class AbilitySet {
     const g = this.game, me = this.agent, c = me.ctrl, cfg = A()[id];
     const p = c.pos;
     const snd = g.sound;
-    if (id === 'shelter') {
+    if (id === 'prop') {
+      g.toggleProp?.(me);
+    } else if (id === 'shelter') {
       const d = FX.dome(g.scene, p.x, p.z, cfg.radius, cfg.time);
       g.addFx(d);
       g.domes.push(d);
@@ -121,6 +126,14 @@ export class AbilitySet {
   botThink(threat, td) {
     const c = this.agent.ctrl;
     const g = this.game, p = c.pos;
+    // Маскировка под предмет: в прятках, когда Безлика не видно, — превращаемся и замираем.
+    // Безлик подошёл вплотную — бросаем маскировку и бежим.
+    if (this.get('prop')) {
+      const me = this.agent;
+      if (me.prop && threat && td < CONFIG.bots.jukeRange + 0.8) { g.toggleProp?.(me); return; }
+      if (!me.prop && !threat && g.phase === 'hide' && this.ready('prop') && !c.elevated && Math.random() < 0.006) return this.use('prop');
+      if (me.prop) return;
+    }
     // Командная игра: помогаем другу, за которым гонятся рядом
     for (const a of g.agents) {
       if (a === this.agent || !a.alive) continue;

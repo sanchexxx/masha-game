@@ -1,70 +1,70 @@
-// Симуляция раундов «Смотреть» без браузера: настоящие модули игры, заглушка canvas.
-// Запуск: node --import ./tools/sim/register.mjs tools/sim/sim.mjs [раундов=5] [безликов=2]
-// Выводит: кого сколько раз поймали, кто выжил, сколько раз применялись умения.
+// Симуляция раундов без браузера: настоящие модули игры (тот же Round, что в браузере), заглушка canvas.
+// Запуск: node --import ./tools/sim/register.mjs tools/sim/sim.mjs [раундов=5] [безликов=2] [режим=watch|hunter]
+// Выводит: кого сколько нашли в прятках, кого поймали в догонялках, кто продержался, сколько раз применялись
+// умения, сколько секунд боты провели на крышах и под маскировкой, сколько было финтов, скорость шага.
 const noop = () => {};
-const ctx2d = new Proxy({}, { get: (t, k) => (k === 'createLinearGradient' || k === 'createRadialGradient') ? () => ({ addColorStop: noop }) : noop, set: () => true });
+const ctx2d = new Proxy({}, { get: (t, k) => (k === 'createLinearGradient' || k === 'createRadialGradient') ? () => ({ addColorStop: noop }) : k === 'measureText' ? () => ({ width: 10 }) : noop, set: () => true });
 globalThis.document = { createElement: () => ({ width: 0, height: 0, getContext: () => ctx2d }) };
 const G = new URL('../../src/', import.meta.url).href;
 const THREE = await import('three');
 const { CONFIG } = await import(G + 'config/config.js');
 const { HEROES, GHOST } = await import(G + 'characters/index.js');
 const { buildMap } = await import(G + 'world/map.js');
-const { PlayerController, separate } = await import(G + 'player/controller.js');
-const { BotBrain } = await import(G + 'player/bot.js');
 const { Ghost } = await import(G + 'enemies/ghost.js');
 const { NavGrid } = await import(G + 'enemies/pathfinder.js');
-const { AbilitySet } = await import(G + 'abilities/abilities.js');
+const { Round } = await import(G + 'game/round.js');
 
-const seedRuns = +(process.argv[2] || 5), ghostsN = +(process.argv[3] || 2);
+const runs = +(process.argv[2] || 5), ghostsN = +(process.argv[3] || 2), mode = process.argv[4] || 'watch';
 const scene = new THREE.Scene();
+const t0 = Date.now();
 const map = buildMap(scene, { isMobile: true });
 const world = map.world;
 const navs = new Map();
 const navFor = r => { const k = Math.round(r * 10); if (!navs.has(k)) navs.set(k, new NavGrid(world, r + 0.1)); return navs.get(k); };
-const stats = { caught: {}, survived: {}, abil: {}, helpMs: 0, leftBush: 0, bushMax: 0 };
-for (let run = 0; run < seedRuns; run++) {
-  const game = { scene, world, agents: [], ghosts: [], domes: [], fx: [], addFx(f) { this.fx.push(f); }, navFor, sound: { chime: noop, land: noop }, cam: { shake: 0 } };
-  const spawns = [[-5, 19], [5.5, 17], [-9, 23], [9, 21]];
-  for (const h of HEROES) {
-    const c = new PlayerController(h, world); c.spawn(new THREE.Vector3(spawns[game.agents.length][0], 0, spawns[game.agents.length][1]), 0);
-    const a = { hero: h, name: h.name, ctrl: c, alive: true, hidden: false, protected: false };
-    a.abilities = new AbilitySet(a, game);
+for (const h of HEROES) navFor(h.radius);
+const buildMs = Date.now() - t0;
+const stub = { ...GHOST, build: () => ({ root: new THREE.Group(), update: noop }) };
+const heroStubs = HEROES.map(h => ({ ...h, build: () => ({ root: new THREE.Group(), update: noop }) }));
+const ghosts = Array.from({ length: 4 }, () => new Ghost(stub, world, scene, navFor(GHOST.radius), { heroes: heroStubs }));
+
+const S = { found: {}, chaseCaught: {}, hideSurvived: {}, chaseSurvived: {}, abil: {}, roofSec: 0, propSec: 0, jukes: 0, ghostDisguises: 0, msPerStep: 0 };
+const inc = (o, k, n = 1) => { o[k] = (o[k] || 0) + n; };
+let stepMs = 0, frames = 0;
+for (let run = 0; run < runs; run++) {
+  const round = new Round({
+    world, scene, navFor, ghosts, heroes: HEROES,
+    makeChar: () => null, makeProp: () => null,
+    sound: { chime: noop, land: noop }, cam: { shake: 0 },
+  });
+  round.start({ mode, hero: HEROES[0], skin: 'classic', ghosts: ghostsN, withBots: true });
+  for (const a of round.agents) {
     const orig = a.abilities.use.bind(a.abilities);
-    a.abilities.use = id => { const ok = orig(id); if (ok) stats.abil[id] = (stats.abil[id] || 0) + 1; return ok; };
-    a.brain = new BotBrain(a, world, navFor(h.radius)); a.brain.allies = () => game.agents;
-    game.agents.push(a);
+    a.abilities.use = id => { const ok = orig(id); if (ok) inc(S.abil, id); return ok; };
   }
-  const gnav = navFor(GHOST.radius);
-  const stub = { ...GHOST, build: () => ({ root: new THREE.Group(), update: noop }) };
-  game.ghosts = [[0, -21], [-7, -20], [7, -20]].slice(0, ghostsN).map(([x, z]) => { const g = new Ghost(stub, world, scene, gnav); g.reset(new THREE.Vector3(x, 0, z)); return g; });
-  const dt = 1 / 30; let t = 0; const sat = new Map();
-  while (t < CONFIG.round.duration) {
-    t += dt;
-    game.ghosts.forEach((g, i) => { if (g.state === 'hidden' && t >= CONFIG.ghost.spawnDelay + i * CONFIG.ghost.spawnGap) g.spawn(); });
-    const active = game.ghosts.filter(g => g.active);
-    for (const a of game.agents) {
+  const dt = 1 / 30; let time = 0;
+  const jukeSeen = new Set();
+  while (round.phase !== 'over' && time < 400) {
+    time += dt;
+    const s0 = performance.now();
+    round.step(dt, time, mode === 'hunter' ? { x: 0, y: 0 } : null, 0);
+    stepMs += performance.now() - s0; frames++;
+    round.fx = round.fx.filter(f => f.update(dt) !== false);
+    for (const a of round.agents) {
       if (!a.alive) continue;
-      a.abilities.update(dt);
-      const inp = a.brain.update(dt, active);
-      const th = a.brain.threat;
-      a.abilities.botThink(th, th ? th.pos.distanceTo(a.ctrl.pos) : Infinity);
-      if (a.brain.mode === 'help') stats.helpMs += dt;
-      a.ctrl.update(dt, inp, 0);
-      const inB = world.inBush(a.ctrl.pos.x, a.ctrl.pos.z);
-      a.hidden = inB && !a.ctrl.running;
-      const s = inB ? (sat.get(a) || 0) + dt : 0;
-      if (!inB && (sat.get(a) || 0) > 3) stats.leftBush++;
-      sat.set(a, s); stats.bushMax = Math.max(stats.bushMax, s);
-      a.protected = game.domes.some(d => Math.hypot(a.ctrl.pos.x - d.x, a.ctrl.pos.z - d.z) < d.r);
+      if (a.ctrl.elevated) S.roofSec += dt;
+      if (a.prop) S.propSec += dt;
+      if (a.brain?.juke && !jukeSeen.has(a.brain.juke)) { jukeSeen.add(a.brain.juke); S.jukes++; }
     }
-    separate(game.agents);
-    for (const g of game.ghosts) g.update(dt, t, game.agents, t / CONFIG.round.duration, { domes: game.domes });
-    for (const g of game.ghosts) for (const a of game.agents) if (g.catches(a)) { a.alive = false; g.stun(1.2); stats.caught[a.hero.id] = (stats.caught[a.hero.id] || 0) + 1; }
-    game.fx = game.fx.filter(f => f.update(dt) !== false);
-    game.domes = game.domes.filter(d => d.update ? true : true);
-    if (!game.agents.some(a => a.alive)) break;
+    for (const e of round.events) {
+      if (e.type === 'caught') inc(e.phase === 'hide' ? S.found : S.chaseCaught, e.agent.hero.id);
+      if (e.type === 'poof' && e.ghost) S.ghostDisguises++;
+      if (e.type === 'phase') for (const n of round.hideSurvivors) inc(S.hideSurvived, n);
+    }
+    round.events.length = 0;
   }
-  for (const a of game.agents) if (a.alive) stats.survived[a.hero.id] = (stats.survived[a.hero.id] || 0) + 1;
+  for (const a of round.agents) if (a.alive) inc(S.chaseSurvived, a.name);
 }
-stats.helpSec = +stats.helpMs.toFixed(1); delete stats.helpMs; stats.bushMax = +stats.bushMax.toFixed(1);
-console.log(JSON.stringify(stats));
+S.roofSec = +S.roofSec.toFixed(1); S.propSec = +S.propSec.toFixed(1);
+S.msPerStep = +(stepMs / frames).toFixed(2);
+S.buildMs = buildMs;
+console.log(JSON.stringify(S));

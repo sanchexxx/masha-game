@@ -2,21 +2,27 @@
 // Настройки запоминаются в этом браузере; «Скопировать» даёт кусок для src/config/config.js.
 import { CONFIG, DEFAULTS } from '../config/config.js';
 
-const KEY = 'masha-game-physics-v1';
+const KEY = 'masha-game-physics-v2';   // v2: Безлик на общей физике — старые ползунки не подходят
 
 const HERO_FIELDS = [
   ['walk', 'Шаг, м/с', 2, 10, 0.1], ['run', 'Бег, м/с', 4, 16, 0.1],
   ['accel', 'Разгон', 5, 120, 1], ['decel', 'Торможение', 5, 120, 1], ['air', 'Управление в воздухе', 0, 40, 1],
   ['jump', 'Прыжок, м', 0.5, 4, 0.05], ['gravity', 'Тяжесть ×', 0.4, 2.5, 0.05], ['turn', 'Поворот', 2, 30, 0.5],
   ['stamina', 'Бег без отдыха, с', 1, 15, 0.5], ['regen', 'Отдых (доля/с)', 0.05, 0.6, 0.01], ['mass', 'Вес при толкании', 0.3, 6, 0.1],
+  ['reach', 'Дотягивается до уступа, м', 0, 2.5, 0.05], ['climb', 'Лезет по лестнице, м/с', 0, 6, 0.1],
   ['dash.mul', 'Рывок: сила ×', 1, 2.5, 0.05], ['dash.time', 'Рывок: длится, с', 0.1, 1.5, 0.05], ['dash.cooldown', 'Рывок: перезарядка, с', 0.5, 12, 0.5],
 ];
+// Безлик ездит на той же физике, что и герои, но не прыгает, а парит, и рывков у него — заряды
+const NOFACE_FIELDS = [
+  ...HERO_FIELDS.filter(([k]) => !['jump', 'reach', 'climb', 'dash.cooldown'].includes(k)),
+  ['dash.charges', 'Рывков в запасе', 1, 6, 1], ['dash.recharge', 'Новый рывок копится, с', 2, 30, 1],
+  ['fly.speed', 'Парит вверх, м/с', 0.5, 6, 0.1], ['fly.time', 'Парит без отдыха, с', 0.5, 6, 0.1],
+];
 const GHOST_FIELDS = [
-  ['walkSpeed', 'Скорость поиска', 1, 10, 0.1], ['huntSpeed', 'Скорость погони', 2, 12, 0.1], ['huntSpeedMax', 'Погоня к концу раунда', 2, 14, 0.1],
-  ['accel', 'Разгон', 2, 30, 0.5], ['burstMul', 'Рывок ×', 1, 2.5, 0.05], ['burstRange', 'Рывок с расстояния, м', 2, 15, 0.5],
-  ['burstTime', 'Рывок длится, с', 0.2, 3, 0.1], ['burstCooldown', 'Рывок перезарядка, с', 1, 15, 0.5],
-  ['catchRadius', 'Радиус поимки, м', 0.5, 2.5, 0.05], ['sightRange', 'Видит на, м', 5, 40, 1], ['hearRunRange', 'Слышит бег на, м', 0, 20, 0.5],
-  ['spawnDelay', 'Появляется через, с', 0, 30, 1],
+  ['sightRange', 'Видит на, м', 5, 40, 1], ['hearRunRange', 'Слышит бег на, м', 0, 20, 0.5], ['loseSightTime', 'Теряет из виду за, с', 0.5, 6, 0.1],
+  ['catchRadius', 'Радиус поимки, м', 0.5, 2.5, 0.05], ['burstRange', 'Рывок с расстояния (бот), м', 2, 15, 0.5],
+  ['lateBoost', 'Быстрее к концу раунда (доля)', 0, 0.4, 0.01], ['spawnGap', 'Выходят с интервалом, с', 0, 15, 1],
+  ['disguise.time', 'Маскировка длится, с', 2, 20, 0.5], ['disguise.cd', 'Маскировка перезарядка, с', 4, 40, 1],
 ];
 const WORLD_FIELDS = [
   ['gravity', 'Гравитация', 10, 60, 1], ['stepHeight', 'Ступенька без прыжка, м', 0.1, 1, 0.05], ['pushStrength', 'Толкание героев', 0, 1.5, 0.05],
@@ -71,13 +77,13 @@ export class Tuner {
   #render(tab) {
     this.tab = tab;
     const tabs = this.el.querySelector('.tn-tabs');
-    const list = [...this.heroes.map(h => [h.id, h.name]), ['ghost', 'Безлик'], ['world', 'Мир']];
+    const list = [...this.heroes.map(h => [h.id, h.name]), ['noface', 'Безлик'], ['ghost', 'Чутьё Безлика'], ['world', 'Мир']];
     tabs.innerHTML = list.map(([id, n]) => `<button data-t="${id}" class="${id === tab ? 'on' : ''}">${n}</button>`).join('');
     tabs.querySelectorAll('button').forEach(b => b.addEventListener('click', () => this.#render(b.dataset.t)));
 
     const [obj, fields, def] = tab === 'ghost' ? [CONFIG.ghost, GHOST_FIELDS, DEFAULTS.ghost]
       : tab === 'world' ? [CONFIG.world, WORLD_FIELDS, DEFAULTS.world]
-      : [CONFIG.heroes[tab], HERO_FIELDS, DEFAULTS.heroes[tab]];
+      : [CONFIG.heroes[tab], tab === 'noface' ? NOFACE_FIELDS : HERO_FIELDS, DEFAULTS.heroes[tab]];
     const box = this.el.querySelector('.tn-fields');
     box.innerHTML = fields.map(([k, label, min, max, step]) => {
       const v = get(obj, k), d = get(def, k);
