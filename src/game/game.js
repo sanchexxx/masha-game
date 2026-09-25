@@ -210,11 +210,11 @@ export class Game {
     this.ghostPool.forEach((g, i) => g.reset(new THREE.Vector3(...xz(GHOST_SPAWNS[i]))));
 
     this.cam.yaw = 0; this.cam.pitch = 0.3;
+    this.state = 'play'; // до #focusAgent: на экране выбора он вернул бы player, а в «Смотреть» его нет
     const follow = this.#focusAgent();
     this.cam.configure(follow.hero?.cam);
     this.cam.snap(follow.ctrl.pos);
     this.round = { t: 0, spawned: 0, spotted: 0, wasSeen: false, stepDist: 0, caught: [] };
-    this.state = 'play';
     this.input.enabled = true;
     this.input.lookOnly = mode === 'watch';
     this.ui.mode('play', isTouch && mode === 'play', mode);
