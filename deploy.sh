@@ -35,7 +35,10 @@ sed -i.bak -E "s/(styles\.css|main\.js)\?v=[0-9]+/\1?v=$VER/g" index.html && rm 
 # снимок прошлой версии (храним 10 последних)
 $SSH $HOST "set -e; ts=\$(date +%Y%m%d-%H%M%S); if [ -f $BASE/public/index.html ]; then cp -a $BASE/public $BASE/backups/public-\$ts; fi; ls -1dt $BASE/backups/public-* 2>/dev/null | tail -n +11 | xargs -r rm -rf"
 
-rsync -az --delete -e "$SSH" index.html styles.css src vendor assets "$HOST:$BASE/public/"
-rsync -az --delete -e "$SSH" README.md BRIEF-stage1.md refs "$HOST:$BASE/docs/"
+# папки, которых нет (пустые не попадают в git), пропускаем
+PUB=(index.html styles.css src vendor); [[ -d assets ]] && PUB+=(assets)
+rsync -az --delete -e "$SSH" "${PUB[@]}" "$HOST:$BASE/public/"
+DOCS=(README.md BRIEF-stage1.md HANDOFF-CLOUD.md); [[ -d refs ]] && DOCS+=(refs)
+rsync -az --delete -e "$SSH" "${DOCS[@]}" "$HOST:$BASE/docs/"
 $SSH $HOST "$FIXOWN"
 echo "Готово: https://250bar.ru/masha/  (версия $VER)"

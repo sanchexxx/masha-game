@@ -34,7 +34,7 @@ export MASHA_SSH_KEY=~/.ssh/masha_game MASHA_SSH_USER=masha
 
 command -v rsync >/dev/null || { echo "Ставлю rsync…"; (sudo apt-get install -y rsync >/dev/null 2>&1 || apt-get install -y rsync >/dev/null 2>&1) || echo "rsync поставить не вышло — выкладка не пойдёт"; }
 
-if ssh -o ConnectTimeout=15 masha-srv 'ls /var/www/masha-game/public/index.html' >/dev/null 2>&1; then
+if ssh -i ~/.ssh/masha_game -o IdentitiesOnly=yes -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=15 masha@185.250.44.94 'ls /var/www/masha-game/public/index.html' >/dev/null 2>&1; then
   echo "OK: вход на сервер работает, выкладка: ./deploy.sh"
 else
   echo "Вход не удался. Причины по частоте: 1) окружению закрыт выход в интернет/порт 22;"
