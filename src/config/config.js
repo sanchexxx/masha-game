@@ -29,6 +29,7 @@ export const CONFIG = {
   //  reach         — докуда дотягиваются руки над ногами, м (подтягивание на уступ/крышу)
   //  climb         — скорость подъёма по лестнице, м/с
   heroes: {
+    kid:    { walk: 5.2, run: 9.2,  accel: 58, decel: 42, air: 20, jump: 2.15, gravity: 1.0, turn: 15, stamina: 7.0, regen: 0.22, mass: 1.0, reach: 1.25, climb: 3.6, dash: { mul: 1.45, time: 0.35, cooldown: 4 } },
     masha:  { walk: 5.2, run: 9.0,  accel: 60, decel: 42, air: 20, jump: 2.2, gravity: 1.0,  turn: 16, stamina: 6.5, regen: 0.22, mass: 1.0, reach: 1.25, climb: 3.6, dash: { mul: 1.45, time: 0.35, cooldown: 4 } },
     catbus: { walk: 5.8, run: 11.0, accel: 32, decel: 22, air: 10, jump: 1.8, gravity: 1.15, turn: 7,  stamina: 5.0, regen: 0.18, mass: 3.0, reach: 1.0,  climb: 2.6, dash: { mul: 1.3,  time: 0.6,  cooldown: 6 } },
     moti:   { walk: 4.6, run: 8.2,  accel: 26, decel: 30, air: 8,  jump: 1.6, gravity: 1.3,  turn: 9,  stamina: 8.0, regen: 0.25, mass: 4.0, reach: 1.35, climb: 2.4, dash: { mul: 1.25, time: 0.5,  cooldown: 7 } },

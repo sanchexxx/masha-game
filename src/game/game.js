@@ -18,6 +18,7 @@ import { Sound } from './audio.js';
 import { UI } from '../ui/ui.js';
 import { Tuner, loadSavedPhysics } from '../ui/tuner.js';
 import { makeThumbnails } from '../ui/thumbnails.js';
+import { LOOK_OPTIONS, loadLook, saveLook } from '../characters/kid.js';
 
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 const isMobile = isTouch && Math.min(screen.width, screen.height) < 820;
@@ -45,6 +46,7 @@ export class Game {
     this.withBots = true;
     this.ghostCount = CONFIG.ghost.count;
     this.mapId = 'village';
+    this.look = loadLook();        // внешность «Моего котика»
   }
 
   get agents() { return this.round?.agents || []; }
@@ -193,7 +195,7 @@ export class Game {
 
   // Персонажи берутся из пула: не строим модели заново каждый раунд
   #acquire(hero, skin) {
-    const key = hero.id + ':' + (hero.skins ? skin : '');
+    const key = hero.id + ':' + (hero.skins || hero.custom ? skin : '');
     const list = this.pool.get(key) || [];
     this.pool.set(key, list);
     let c = list.find(x => !x.inUse);
@@ -225,9 +227,22 @@ export class Game {
     this.#releaseAll();
     for (const g of this.ghostPool) { g.reveal(); g.reset(new THREE.Vector3(0, 0, -21)); }
     this.showGhost.root.visible = id === GHOST.id;
-    this.showcase = id === GHOST.id ? null : this.round.makeAgent(this.hero, true, SPAWN, this.skin);
+    this.showcase = id === GHOST.id ? null : this.round.makeAgent(this.hero, true, SPAWN, this.#skinFor(this.hero));
     this.ui.showHero(this.hero, this.skin);
+    if (this.hero.custom) this.ui.buildCreator(this.look, LOOK_OPTIONS, (k, v) => this.#setLook(k, v));
     this.cam.configure(this.hero.cam);
+  }
+
+  #skinFor(h) { return h.custom ? JSON.stringify(this.look) : this.skin; }
+
+  // Редактор «Моего котика»: поменяли что-то — пересобираем героя
+  #setLook(k, v) {
+    this.look = { ...this.look, [k]: v };
+    if (k === 'gender') this.look.hairStyle = LOOK_OPTIONS.hairStyle[v][0][0];
+    saveLook(this.look);
+    for (const key of [...this.pool.keys()]) if (key.startsWith('kid:')) this.pool.delete(key);
+    this.sound.chime([660, 880]);
+    this.selectHero('kid');
   }
 
   toSelect() {
@@ -256,7 +271,7 @@ export class Game {
     this.showcase = null;
     this.input.reset();
     const hero = this.hero.id === GHOST.id ? HEROES[0] : this.hero;
-    this.round.start({ mode, hero, skin: this.skin, ghosts: this.ghostCount, withBots: this.withBots });
+    this.round.start({ mode, hero, skin: this.#skinFor(hero), mSkin: this.skin, ghosts: this.ghostCount, withBots: this.withBots });
     this.pumpkins.spawn(CONFIG.round.pumpkins);
     this.focus = 0;
     this.cam.yaw = mode === 'hunter' ? Math.PI : 0; this.cam.pitch = 0.3;

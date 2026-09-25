@@ -315,3 +315,13 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   .map-card .m-pic { height: 120px; }
 }
 .ab .ab-n { position: absolute; left: 5px; top: 2px; z-index: 2; font-size: 13px; font-weight: 900; color: #fff; text-shadow: 0 1px 2px #000; }
+/* редактор «Мой котик» */
+.creator { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.cr-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cr-row > span { font-size: 13px; font-weight: 800; color: var(--muted); white-space: nowrap; }
+.cr-opts { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.cr-opts button { padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 800; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .16); }
+.cr-opts button.on { color: #3a2610; background: linear-gradient(var(--gold1), var(--gold2)); border-color: transparent; }
+.cr-opts button.sw { width: 24px; height: 24px; padding: 0; background: var(--c); border: 2px solid rgba(255, 255, 255, .35); }
+.cr-opts button.sw.on { border-color: #fff; box-shadow: 0 0 0 2px var(--gold2); }
+.sel-info.custom .ability, .sel-info.custom .label, .sel-info.custom #hero-tags { display: none; }

@@ -57,9 +57,9 @@ export class Round {
     const at = xz => new THREE.Vector3(xz[0], 0, xz[1]);
     if (opts.mode === 'play') {
       this.player = this.makeAgent(opts.hero, true, new THREE.Vector3(0, 0, 22), opts.skin);
-      if (opts.withBots) for (const h of this.heroes) if (h.id !== opts.hero.id) this.makeAgent(h, false, at(spawns.pop()), 'classic');
+      if (opts.withBots) for (const h of this.heroes) if (h.id !== opts.hero.id && h.bot !== false) this.makeAgent(h, false, at(spawns.pop()), 'classic');
     } else {
-      for (const h of this.heroes) this.makeAgent(h, false, at(spawns.pop()), h.id === 'moti' ? opts.skin : 'classic');
+      for (const h of this.heroes) if (h.bot !== false) this.makeAgent(h, false, at(spawns.pop()), h.id === 'moti' ? opts.mSkin || 'classic' : 'classic');
     }
     for (const g of this.ghosts) { g.isPlayer = false; g.reset(at(GHOST_SPAWNS[0])); }
     const n = Math.max(1, Math.min(3, opts.ghosts));

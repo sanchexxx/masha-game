@@ -3,8 +3,20 @@ import { buildMasha } from './masha.js';
 import { buildCatbus } from './catbus.js';
 import { buildMoti, MOTI_SKINS } from './moti.js';
 import { buildNoFace } from './noface.js';
+import { buildKid, loadLook } from './kid.js';
+
+const lookOf = skin => { try { return skin && skin !== 'classic' ? JSON.parse(skin) : loadLook(); } catch { return loadLook(); } };
 
 export const HEROES = [
+  {
+    id: 'kid', name: 'Мой котик', rarity: 'МОЙ ГЕРОЙ', rarityClass: 'rare',
+    about: 'Твой собственный герой! Выбери, девочка или мальчик, причёску, свитер, ушки и хвостик котика.',
+    ability: 'Маскировка', abilityText: 'Q — превратиться в предмет, G — помахать. Прыгучий и ловкий, как Маша.',
+    tags: ['Свой скин', 'Маскировка'],
+    build: skin => buildKid(lookOf(skin)), radius: 0.42, height: 1.6,
+    custom: true, bot: false,       // не бегает ботом — это только твой герой
+    cam: { distance: 6.0, height: 1.4 },
+  },
   {
     id: 'masha', name: 'Маша', rarity: 'ГЕРОЙ', rarityClass: 'hero',
     about: 'Смелая девочка, которая нашла дорогу в мир духов. Лёгкая, прыгучая и очень быстрая на поворотах.',

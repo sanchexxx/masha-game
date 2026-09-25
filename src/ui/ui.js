@@ -1,6 +1,6 @@
 // Интерфейс поверх 3D: загрузка, выбор героя, HUD, итог раунда.
 const $ = id => document.getElementById(id);
-const ICONS = { masha: '🦶', catbus: '🐈', moti: '🛡️', noface: '🎭' };
+const ICONS = { kid: '🐱', masha: '🦶', catbus: '🐈', moti: '🛡️', noface: '🎭' };
 
 export class UI {
   constructor() {
@@ -160,7 +160,23 @@ export class UI {
     t.classList.remove('on'); void t.offsetWidth; t.classList.add('on');
   }
 
+  // Редактор «Мой котик»: ряды кнопок; onChange(ключ, значение)
+  buildCreator(look, O, onChange) {
+    const box = $('creator');
+    const row = (key, label, items, swatch) => `<div class="cr-row"><span>${label}</span><div class="cr-opts" data-k="${key}">${items.map(([v, t]) =>
+      swatch ? `<button data-v="${v}" class="sw ${look[key] === v ? 'on' : ''}" style="--c:${v}"></button>` : `<button data-v="${v}" class="${look[key] === v ? 'on' : ''}">${t}</button>`).join('')}</div></div>`;
+    box.innerHTML = row('gender', 'Кто', O.gender)
+      + row('hairStyle', 'Причёска', O.hairStyle[look.gender])
+      + row('hair', 'Волосы', O.hair.map(c => [c, c]), true)
+      + row('sweater', 'Свитер', O.sweater.map(c => [c, c]), true)
+      + row('emblem', 'Значок', O.emblem)
+      + row('ears', 'Ушки котика', O.ears) + row('tail', 'Хвостик', O.tail);
+    box.querySelectorAll('.cr-opts button').forEach(b => b.addEventListener('click', () => onChange(b.parentElement.dataset.k, b.dataset.v)));
+  }
+
   showHero(h, skin) {
+    $('creator').classList.toggle('hidden', !h.custom);
+    document.querySelector('.sel-info').classList.toggle('custom', !!h.custom);
     const sk = $('skins');
     sk.classList.toggle('hidden', !h.skins);
     if (h.skins) {
