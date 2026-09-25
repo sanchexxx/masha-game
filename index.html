@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0d1030">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Прятки с Безликом</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Neucha&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=202609251708">
+<script type="importmap">{ "imports": { "three": "./vendor/three.min.js" } }</script>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<!-- Загрузка -->
+<div id="loading" class="screen show">
+  <div class="load-title">Прятки<br>с Безликом</div>
+  <div class="load-bar"><i></i></div>
+  <div class="load-text">Зажигаем фонарики…</div>
+</div>
+
+<!-- Выбор персонажа -->
+<div id="select" class="screen">
+  <header class="sel-head">
+    <h1>Выбор персонажа <span class="wisp"></span></h1>
+    <p>Странные духи для больших приключений</p>
+  </header>
+  <section class="sel-info">
+    <h2 id="hero-name">Маша <span class="paw">🐾</span></h2>
+    <span id="hero-rarity" class="pill hero">ГЕРОЙ</span>
+    <p id="hero-about"></p>
+    <div class="label">Способность</div>
+    <div class="ability"><div class="ab-icon" id="hero-ab-icon">✦</div><div><b id="hero-ab"></b><small id="hero-ab-text"></small></div></div>
+    <div class="label">Особенности</div>
+    <div class="tags" id="hero-tags"></div>
+    <div class="skins hidden" id="skins"></div>
+    <div class="opts">
+      <div class="opt"><span>Безликов</span><div class="seg" id="opt-ghosts"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button></div></div>
+      <div class="opt"><span>Другие герои-боты</span><div class="seg" id="opt-bots"><button data-v="1">Да</button><button data-v="0">Нет</button></div></div>
+    </div>
+    <button id="btn-choose" class="gold">Играть <span>›</span></button>
+    <div class="sel-row">
+      <button class="ghost-btn" id="btn-watch">👀 Смотреть, как бегают все</button>
+      <button class="ghost-btn small" id="btn-tuner2" title="Физика героев">⚙</button>
+    </div>
+  </section>
+  <section class="sel-cards" id="cards"></section>
+</div>
+
+<!-- Игровой интерфейс -->
+<div id="hud" class="hidden">
+  <div class="hud-top">
+    <div class="timer" id="timer">1:30</div>
+    <div class="status" id="status">Беги прятаться!</div>
+  </div>
+  <div class="hud-left">
+    <div class="stamina"><i id="stamina"></i></div>
+    <div class="shield hidden" id="shield">🏠 Приют</div>
+    <div class="hidden-badge" id="hidden-badge">🌿 Ты спрятан</div>
+    <div class="alive" id="alive">Героев: 3/3</div>
+  </div>
+  <div class="toast" id="toast"></div>
+  <div class="abil-bar" id="abil-bar"></div>
+  <div class="watch-bar hidden" id="watch-bar"><button class="gold" id="btn-next">Следующий ›</button></div>
+  <button class="icon-btn tuner-btn" id="btn-tuner" title="Физика (F2)">⚙</button>
+  <button class="icon-btn mute" id="btn-mute" title="Звук">🔊</button>
+  <button class="icon-btn pause" id="btn-pause" title="Меню">☰</button>
+  <div class="hint" id="hint">WASD — идти · Shift — бег · Пробел — прыжок · E — рывок · мышь — камера · F2 — физика</div>
+  <div class="vignette" id="vignette"></div>
+</div>
+
+<!-- Сенсорное управление -->
+<div id="touch" class="hidden">
+  <div class="stick-zone"></div>
+  <div class="look-zone"></div>
+  <div class="stick"><div class="stick-knob"></div></div>
+  <button class="btn-run">🏃</button>
+  <button class="btn-dash">💨</button>
+  <button class="btn-jump">⤒</button>
+</div>
+
+<!-- Панель физики -->
+<div id="tuner">
+  <div class="tn-head"><b>⚙ Физика героев</b><button class="tn-close">✕</button></div>
+  <div class="tn-tabs"></div>
+  <div class="tn-fields"></div>
+  <div class="tn-foot"><button class="tn-reset">Сбросить</button><button class="tn-copy">Скопировать в config</button></div>
+  <div class="tn-flash"></div>
+</div>
+
+<!-- Итог раунда -->
+<div id="result" class="screen">
+  <div class="res-card">
+    <div class="res-emoji" id="res-emoji">🏮</div>
+    <h2 id="res-title">Ты продержался!</h2>
+    <p id="res-text"></p>
+    <button class="gold" id="btn-again">Ещё раунд <span>›</span></button>
+    <button class="ghost-btn" id="btn-change">Сменить героя</button>
+  </div>
+</div>
+
+<!-- Пауза -->
+<div id="paused" class="screen">
+  <div class="res-card">
+    <h2>Пауза</h2>
+    <button class="gold" id="btn-resume">Продолжить <span>›</span></button>
+    <button class="ghost-btn" id="btn-quit">В меню</button>
+  </div>
+</div>
+
+<script type="module" src="src/main.js?v=202609251708"></script>
+</body>
+</html>
