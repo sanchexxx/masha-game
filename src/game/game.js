@@ -75,6 +75,11 @@ export class Game {
     await frame();
     for (const h of HEROES) this.navFor(h.radius);   // сетки путей для ботов — заранее, чтобы не дёргалось в раунде
 
+    // Прогрев: один раз рисуем Безликов, чтобы при появлении не было рывка кадра
+    this.ghostPool.forEach(g => { g.root.visible = true; g.char.update(0.016, { t: 0, speed: 0, mode: 'hunt', appear: 1 }); });
+    this.renderer.compile(this.scene, this.camera);
+    this.ghostPool.forEach(g => { g.root.visible = false; });
+
     const thumbs = makeThumbnails([...HEROES, GHOST]);
     ui.progress(1, 'Готово!');
 
@@ -161,7 +166,7 @@ export class Game {
     ctrl.spawn(spawn, isPlayer ? Math.PI : Math.random() * Math.PI * 2);
     const a = { hero, name: hero.name, ctrl, char: this.#acquire(hero, skin), isPlayer, alive: true, hidden: false, protected: false };
     a.abilities = new AbilitySet(a, this);
-    if (!isPlayer) a.brain = new BotBrain(a, this.world, this.navFor(hero.radius));
+    if (!isPlayer) { a.brain = new BotBrain(a, this.world, this.navFor(hero.radius)); a.brain.allies = () => this.agents; }
     this.agents.push(a);
     return a;
   }

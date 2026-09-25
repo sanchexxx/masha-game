@@ -120,6 +120,16 @@ export class AbilitySet {
   // Бот сам решает, чем воспользоваться
   botThink(threat, td) {
     const c = this.agent.ctrl;
+    const g = this.game, p = c.pos;
+    // Командная игра: помогаем другу, за которым гонятся рядом
+    for (const a of g.agents) {
+      if (a === this.agent || !a.alive) continue;
+      const gh = g.ghosts.find(x => x.active && x.target === a);
+      const ad = a.ctrl.pos.distanceTo(p);
+      if (gh && gh.pos.distanceTo(p) < 16 && this.ready('wisps')) return this.use('wisps');
+      if (gh && ad < CONFIG.abilities.shelter.radius && gh.pos.distanceTo(a.ctrl.pos) < 8 && this.ready('shelter')) return this.use('shelter');
+      if (a.ctrl.exhausted && ad < CONFIG.abilities.light.radius && this.ready('light')) return this.use('light');
+    }
     if (threat && td < 2.8 && this.ready('swing')) return this.use('swing');
     if (threat && td < 7 && this.ready('shelter')) return this.use('shelter');
     if (threat && td < 16 && this.ready('wisps')) return this.use('wisps');

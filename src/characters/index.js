@@ -19,7 +19,7 @@ export const HEROES = [
     ability: 'Скоростной рейс', abilityText: 'Самый быстрый на прямой, но тяжёлый и медленно поворачивает. E — длинный рывок.',
     tags: ['Скорость', 'Исследование'],
     build: buildCatbus, radius: 0.85, height: 1.9,
-    cam: { distance: 8.2, height: 1.9 },
+    cam: { distance: 8.2, height: 2.1, side: 0.6 },
   },
   {
     id: 'moti', name: 'Дядюшка Моти', rarity: 'ЭПИЧЕСКИЙ', rarityClass: 'epic',
@@ -28,7 +28,8 @@ export const HEROES = [
     tags: ['Защита', 'Лечение', 'Поддержка', 'Команда'],
     build: skin => buildMoti(skin), radius: 0.85, height: 2.4,
     skins: MOTI_SKINS,
-    cam: { distance: 8.8, height: 2.2 },
+    helper: true,                  // бот-Моти бежит выручать друзей
+    cam: { distance: 8.4, height: 3.0, side: 1.3 },   // выше рюкзака и чуть сбоку
   },
 ];
 

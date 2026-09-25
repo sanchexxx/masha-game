@@ -40,6 +40,7 @@ export class Ghost {
     this.yaw = 0;
     this.burstT = 0; this.burstCd = 0;
     this.stunT = 0; this.slowT = 0;
+    this.stuckT = 0; this.stuckFrom = null;
   }
 
   spawn() {
@@ -178,6 +179,19 @@ export class Ghost {
       if (dd < min) { const n = dd || 1e-3; next.x = d.x + dx / n * min; next.z = d.z + dz / n * min; }
     }
     this.pos.x = next.x; this.pos.z = next.z;
+
+    // Застрял (упёрся в стену, цель недостижима) — бросаем цель и ищем заново
+    if (speed > 0.5) {
+      if (!this.stuckFrom) this.stuckFrom = this.pos.clone();
+      this.stuckT += dt;
+      if (this.stuckT > 1.5) {
+        if (this.pos.distanceTo(this.stuckFrom) < 0.6) {
+          this.wanderTarget = null; this.path = null;
+          if (!this.sees) { this.lastSeen = null; if (this.state === 'hunt') { this.state = 'search'; this.target = null; } }
+        }
+        this.stuckT = 0; this.stuckFrom = this.pos.clone();
+      }
+    }
     if (Math.hypot(this.vel.x, this.vel.z) > 0.3) {
       const ty = Math.atan2(this.vel.x, this.vel.z);
       this.yaw += Math.atan2(Math.sin(ty - this.yaw), Math.cos(ty - this.yaw)) * Math.min(1, dt * 6);

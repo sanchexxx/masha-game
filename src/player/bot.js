@@ -14,10 +14,15 @@ export class BotBrain {
     this.think = Math.random() * 0.3;
     this.stuck = 0;
     this.idle = 0;
+    this.sat = 0;                   // сколько уже сидим в кусте
+    this.patience = this.#newPatience();
   }
+
+  #newPatience() { const [a, b] = CONFIG.bots.restless; return a + Math.random() * (b - a); }
 
   // ghosts — активные Безлики; вернёт ввод на этот кадр
   update(dt, ghosts) {
+    this.ghosts = ghosts;
     const B = CONFIG.bots;
     const c = this.agent.ctrl;
     const p = c.pos;
@@ -39,8 +44,15 @@ export class BotBrain {
     // идём по пути
     const inp = { x: 0, y: 0, run: false, jump: false, dash: false };
     if (this.mode === 'hide' && this.world.inBush(p.x, p.z) && (!threat || threat.target !== this.agent || td > 4)) {
+      this.sat += dt;
+      // заскучал и Безлика не видно — перебегаем в другое место (так в «Смотреть» интереснее)
+      if (!threat && this.sat > this.patience) {
+        this.sat = 0; this.patience = this.#newPatience();
+        this.mode = 'wander'; this.path = null; this.think = 0;
+      }
       return inp;                     // сидим тихо в кусте
     }
+    this.sat = 0;
     if (this.mode === 'wander' && this.idle > 0) { this.idle -= dt; return inp; }
     if (!this.path || !this.path.length) return inp;
     const [tx, tz] = this.path[0];
@@ -50,7 +62,7 @@ export class BotBrain {
     dx /= d; dz /= d;
     // камера для бота «смотрит на север» (camYaw = 0): вперёд = −Z, вправо = +X
     inp.x = dx; inp.y = -dz;
-    const fleeing = this.mode === 'flee' || (this.mode === 'hide' && threat);
+    const fleeing = this.mode === 'flee' || this.mode === 'help' || (this.mode === 'hide' && threat);
     inp.run = fleeing && (c.stamina > 0.15 || !c.exhausted);
     inp.dash = fleeing && threat && td < 5;
 
@@ -62,6 +74,12 @@ export class BotBrain {
 
   #decide(threat, td) {
     const p = this.agent.ctrl.pos;
+    // Герой-помощник (Моти): если за другом гонятся и рядом — бежим выручать
+    if (!threat && this.agent.hero.helper && this.allies) {
+      const hunted = this.#huntedAlly();
+      if (hunted) { this.mode = 'help'; this.#go(hunted.ctrl.pos.x, hunted.ctrl.pos.z); return; }
+      if (this.mode === 'help') this.mode = 'wander';
+    }
     if (threat) {
       // уже сидим в кусте и нас не ищут — не выдаём себя
       if (this.mode === 'hide' && this.world.inBush(p.x, p.z) && threat.target !== this.agent) return;
@@ -80,6 +98,18 @@ export class BotBrain {
       const [fi, fj] = this.nav.nearestFree(i, j);
       this.#go(...this.nav.center(fi, fj));
     }
+  }
+
+  #huntedAlly() {
+    const p = this.agent.ctrl.pos;
+    let best = null, bd = CONFIG.bots.helpRange;
+    for (const a of this.allies()) {
+      if (a === this.agent || !a.alive || !this.ghosts) continue;
+      if (!this.ghosts.some(g => g.active && g.target === a)) continue;
+      const d = a.ctrl.pos.distanceTo(p);
+      if (d < bd) { bd = d; best = a; }
+    }
+    return best;
   }
 
   #go(x, z) {
@@ -112,6 +142,7 @@ export class BotBrain {
     for (const b of this.world.bushes) {
       const d = Math.hypot(b.x - p.x, b.z - p.z);
       if (d > 18) continue;
+      if (!g && d < b.r + 1) continue;   // без погони — не в тот же куст, где уже сидели
       let s = -d;
       if (g) {
         const gd = Math.hypot(b.x - g.pos.x, b.z - g.pos.z);

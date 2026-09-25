@@ -24,6 +24,7 @@ export class ThirdPersonCamera {
   configure(heroCam) {
     this.baseDistance = heroCam?.distance ?? C.distance;
     this.lookHeight = heroCam?.height ?? C.height;
+    this.side = heroCam?.side ?? 0;        // «через плечо»: крупные герои не закрывают дорогу
   }
 
   snap(target) {
@@ -64,13 +65,17 @@ export class ThirdPersonCamera {
   }
 
   #place() {
-    const p = this.focus.clone().addScaledVector(this.#dir(), this.curDist);
+    // смещаем и камеру, и точку взгляда вбок — герой уходит чуть влево, дорога впереди видна
+    const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
+    const look = this.focus.clone();
+    look.x += rx * this.side; look.z += rz * this.side;
+    const p = look.clone().addScaledVector(this.#dir(), this.curDist);
     p.y = Math.max(0.35, p.y);
     if (this.shake > 0) {
       const s = this.shake * 0.12;
       p.x += (Math.random() - 0.5) * s; p.y += (Math.random() - 0.5) * s; p.z += (Math.random() - 0.5) * s;
     }
     this.cam.position.copy(p);
-    this.cam.lookAt(this.focus);
+    this.cam.lookAt(look);
   }
 }
