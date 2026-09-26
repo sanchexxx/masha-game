@@ -71,7 +71,7 @@ export class PlayerController {
     const ph = this.phys;
     _fwd.set(-Math.sin(camYaw), 0, -Math.cos(camYaw));
     _right.set(-_fwd.z, 0, _fwd.x);
-    _wish.set(0, 0, 0).addScaledVector(_fwd, inp.y).addScaledVector(_right, inp.x);
+    _wish.set(0, 0, 0).addScaledVector(_fwd, inp.y || 0).addScaledVector(_right, inp.x || 0);   // нет ввода (гость ещё не прислал) — стоим
     const wishLen = Math.min(1, _wish.length());
     if (wishLen > 0.001) _wish.normalize();
     const wishX = _wish.x, wishZ = _wish.z;

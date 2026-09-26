@@ -39,6 +39,8 @@ export class Ghost {
   }
 
   get radius() { return this.def.radius; }
+  // Безликом управляет человек: игрок на этом устройстве или гость совместной игры
+  get human() { return this.isPlayer || !!this.remote; }
   get yaw() { return this.ctrl.yaw; }
 
   reset(spawn) {
@@ -145,7 +147,7 @@ export class Ghost {
       this.appear = Math.min(1, this.appear + dt / 2.2);
       st.appear = this.appear;
       st.mode = 'hunt';
-      if (this.appear >= 1) this.state = this.isPlayer ? 'hunt' : 'search';
+      if (this.appear >= 1) this.state = this.human ? 'hunt' : 'search';
       this.#pose(st, dt);
       return st;
     }
@@ -158,7 +160,7 @@ export class Ghost {
     const pick = this.#perceive(dt, targets);
 
     let move;
-    if (this.isPlayer) move = inp;
+    if (this.human) move = inp;
     else move = this.#think(dt, pick, targets);
 
     const c = this.ctrl;
@@ -166,7 +168,7 @@ export class Ghost {
     if (this.disguise?.prop && move) { c.moveMul *= CONFIG.abilities.prop.walk; move = { ...move, run: false, jumpHold: false, jump: false }; }
     c.slowMul = (this.slowT > 0 ? 0.45 : 1) * (1 + C.lateBoost * roundT) * (this.speedMul ?? 1);
     const wasDash = c.dashT > 0;
-    c.update(dt, this.stunT > 0 ? { x: 0, y: 0 } : move, this.isPlayer ? camYaw : 0);
+    c.update(dt, this.stunT > 0 ? { x: 0, y: 0 } : move, this.human ? camYaw : 0);
     if (c.dashT > 0 && !wasDash) this.reveal();          // рывок выдаёт маскировку
     this.dashed = c.dashed;
 
@@ -181,7 +183,7 @@ export class Ghost {
         if (into < 0) { this.vel.x -= into * dx / n; this.vel.z -= into * dz / n; }
       }
     }
-    if (!this.isPlayer) this.#checkStuck(dt);
+    if (!this.human) this.#checkStuck(dt);
 
     st.mode = this.stunT > 0 ? 'search' : this.state === 'hunt' ? 'hunt' : 'search';
     st.speed = c.speed;
@@ -222,7 +224,7 @@ export class Ghost {
       this.unseen += dt;
       if (this.state === 'hunt' && this.unseen > C.loseSightTime) {
         this.target = null;
-        if (!this.isPlayer) this.state = 'search';
+        if (!this.human) this.state = 'search';
       }
     }
     return pick;

@@ -1,0 +1,8 @@
+{
+  "name": "masha-game-server",
+  "private": true,
+  "type": "module",
+  "description": "Комнаты совместной игры: локальный сервер (dev.mjs) и Cloudflare Worker (worker.js)",
+  "scripts": { "dev": "node dev.mjs", "deploy": "wrangler deploy --config ../wrangler.toml" },
+  "devDependencies": { "ws": "^8.18.0" }
+}

@@ -44,6 +44,7 @@
     </div>
     <div class="wallet-row"><span class="pumpkin-ico">🎃</span> <b id="wallet">0</b> тыковок</div>
     <button id="btn-choose" class="gold">Играть <span>›</span></button>
+    <button class="ghost-btn friends-btn" id="btn-friends">👫 Играть с друзьями</button>
     <div class="sel-row">
       <button class="ghost-btn" id="btn-watch">👀 Смотреть, как бегают все</button>
       <button class="ghost-btn small" id="btn-tuner2" title="Физика героев">⚙</button>
@@ -61,6 +62,40 @@
       <button class="ghost-btn" id="btn-maps-back">‹ Назад</button>
       <button class="gold" id="btn-maps-go">Начать прятки <span>›</span></button>
     </div>
+  </div>
+</div>
+
+<!-- Лобби совместной игры -->
+<div id="lobby" class="screen">
+  <div class="maps-wrap">
+    <div class="scroll-label big"><span class="paw-badge">🐾</span>Комната <b id="lb-code">----</b></div>
+    <div class="lb-grid">
+      <div class="lb-card">
+        <div class="lb-title">Позови друзей</div>
+        <div class="lb-share">
+          <img id="lb-qr" alt="QR-код комнаты">
+          <div class="lb-link">
+            <input id="lb-url" readonly>
+            <div class="lb-btns"><button class="gold small" id="lb-copy">Скопировать</button><button class="ghost-btn" id="lb-share">Поделиться</button></div>
+            <small>Открой ссылку на телефоне или ПК — и ты в игре. Или наведи камеру на QR-код.</small>
+          </div>
+        </div>
+        <label class="lb-name">Твоё имя <input id="lb-name" maxlength="16" placeholder="Маша"></label>
+      </div>
+      <div class="lb-card">
+        <div class="lb-title">Игроки <span id="lb-count"></span></div>
+        <div id="lb-players" class="lb-players"></div>
+        <small class="lb-note">Свободные места займут боты. Выбрать героя — «Сменить героя».</small>
+      </div>
+    </div>
+    <div class="lb-title center">Голосуем за карту</div>
+    <div class="map-cards" id="lb-maps"></div>
+    <div class="maps-foot">
+      <button class="ghost-btn" id="lb-leave">‹ Выйти</button>
+      <button class="ghost-btn" id="lb-hero">Сменить героя</button>
+      <button class="gold" id="lb-start">Начать прятки <span>›</span></button>
+    </div>
+    <div class="lb-wait hidden" id="lb-wait">Ждём, пока хозяин комнаты начнёт игру…</div>
   </div>
 </div>
 

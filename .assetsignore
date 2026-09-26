@@ -1,0 +1,12 @@
+# Что НЕ выкладывать как файлы игры
+.git
+.gitignore
+.assetsignore
+server
+tools
+refs
+node_modules
+*.md
+deploy.sh
+wrangler.toml
+BRIEF-stage1.md

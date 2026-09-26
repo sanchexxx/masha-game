@@ -19,6 +19,8 @@ import { UI } from '../ui/ui.js';
 import { Tuner, loadSavedPhysics } from '../ui/tuner.js';
 import { makeThumbnails } from '../ui/thumbnails.js';
 import { LOOK_OPTIONS, loadLook, saveLook } from '../characters/kid.js';
+import { HERO_ABILITIES } from '../abilities/abilities.js';
+import { Multiplayer } from '../net/multiplayer.js';
 
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 const isMobile = isTouch && Math.min(screen.width, screen.height) < 820;
@@ -50,6 +52,13 @@ export class Game {
   }
 
   get agents() { return this.round?.agents || []; }
+  // для совместной игры (src/net/multiplayer.js)
+  get isTouch() { return isTouch; }
+  get ghostAbilities() { return GHOST_ABILITIES; }
+  heroAbilities(id) { return HERO_ABILITIES[id] || []; }
+  acquireChar(h, s) { return this.#acquire(h, s); }
+  releaseAll() { this.#releaseAll(); }
+  poofFx(x, y, z, ghost) { return poof(this.scene, x, y, z, ghost ? 0xc9a8ff : 0xfff1d6); }
   get ghosts() { return this.round?.activeGhosts || []; }
 
   async start() {
@@ -108,12 +117,13 @@ export class Game {
     ui.progress(1, 'Готово!');
 
     ui.buildCards(HEROES, GHOST, thumbs, id => this.selectHero(id));
-    ui.on('btn-choose', () => this.toMaps());
+    ui.on('btn-choose', () => (this.mp.inRoom ? this.mp.showLobby() : this.toMaps()));
+    ui.on('btn-friends', () => (this.mp.inRoom ? this.mp.showLobby() : this.mp.createRoom()));
     ui.on('btn-maps-back', () => this.toSelect());
     ui.on('btn-maps-go', () => this.beginRound(this.hero.id === 'noface' ? 'hunter' : 'play'));
     ui.on('btn-watch', () => this.beginRound('watch'));
     ui.on('btn-again', () => this.beginRound(this.mode));
-    ui.on('btn-change', () => this.toSelect());
+    ui.on('btn-change', () => (this.mp.inRoom ? this.mp.showLobby() : this.toSelect()));
     ui.on('btn-resume', () => this.resume());
     ui.on('btn-quit', () => { this.ui.show('paused', false); this.toSelect(); });
     ui.on('btn-pause', () => this.pause());
@@ -128,6 +138,7 @@ export class Game {
     }, { ghosts: this.ghostCount, bots: this.withBots });
     this.tuner = new Tuner(HEROES, () => this.hero?.id || 'masha');
     ui.minimapInit(this.world, HALF);
+    this.mp = new Multiplayer(this);
     ui.wallet(wallet.get());
 
     addEventListener('keydown', e => {
@@ -135,6 +146,7 @@ export class Game {
       if (this.state === 'play' && (e.code === 'KeyP' || (e.code === 'Escape' && !document.pointerLockElement))) return this.pause();
       if (this.state === 'paused' && (e.code === 'KeyP' || e.code === 'Escape')) return this.resume();
       if (this.state === 'play' && this.mode === 'watch' && (e.code === 'Tab' || e.code === 'KeyN')) { e.preventDefault(); return this.#nextFocus(); }
+      if (this.state === 'guest' && !e.repeat) return this.mp.guestKey(e.code.replace('Digit', '').replace('Key', ''));
       if (this.state !== 'play' || e.repeat) return;
       const key = e.code.replace('Digit', '').replace('Key', '');
       const pg = this.round.playerGhost;
@@ -156,6 +168,9 @@ export class Game {
     this.hero = HEROES[0];
     this.toSelect();
     ui.hideLoading();
+    // ссылка с комнатой (?room=КОД) — сразу в лобби к друзьям
+    const room = new URLSearchParams(location.search).get('room');
+    if (room) this.mp.join(room);
 
     this.last = performance.now();
     this.renderer.setAnimationLoop(() => this.#tick());
@@ -271,7 +286,8 @@ export class Game {
     this.showcase = null;
     this.input.reset();
     const hero = this.hero.id === GHOST.id ? HEROES[0] : this.hero;
-    this.round.start({ mode, hero, skin: this.#skinFor(hero), mSkin: this.skin, ghosts: this.ghostCount, withBots: this.withBots });
+    this.round.start({ mode, hero, skin: this.#skinFor(hero), mSkin: this.skin, ghosts: this.ghostCount, withBots: this.withBots, remotes: this.mp.remotes() });
+    this.mp.hostStarted();
     this.pumpkins.spawn(CONFIG.round.pumpkins);
     this.focus = 0;
     this.cam.yaw = mode === 'hunter' ? Math.PI : 0; this.cam.pitch = 0.3;
@@ -298,6 +314,7 @@ export class Game {
   }
 
   #useAbility(id) {
+    if (this.state === 'guest') return this.mp.guestAbility(id);
     const R = this.round, pg = R.playerGhost;
     if (id === 'dash') { this.input.dashQueued = true; return; }
     if (pg) {
@@ -363,6 +380,7 @@ export class Game {
     else r.earn = 0;
     this.ui.result(r);
     this.ui.mode('result', isTouch);
+    this.mp.hostEnd(r);
   }
 
   // ---------- Кадр ----------
@@ -374,6 +392,7 @@ export class Game {
     const t = this.t;
 
     if (this.state === 'play') this.#play(dt, t);
+    else if (this.state === 'guest') this.mp.guestTick(dt, t);
     else if (this.state === 'select' || this.state === 'maps') this.#showcase(dt, t);
     else if (this.state === 'result') {
       for (const a of this.agents) if (a.alive && a.char) a.char.update(dt, { ...a.ctrl.animState(t), speed: 0, grounded: true, landed: false, action: a.abilities.pose() });
@@ -381,7 +400,7 @@ export class Game {
     }
     this.fx = this.fx.filter(f => f.update(dt) !== false);
 
-    const center = this.state === 'play' ? this.#posOf(this.#focusTarget()) : SPAWN;
+    const center = this.state === 'play' ? this.#posOf(this.#focusTarget()) : this.state === 'guest' ? this.mp.focusPos || SPAWN : SPAWN;
     this.map.updateLights(center);
     this.fireflies(t);
     this.soot(dt, t, center);
@@ -436,6 +455,7 @@ export class Game {
     R.step(dt, t, inp, this.cam.yaw);
     for (const e of R.events) this.#onEvent(e);
     R.events.length = 0;
+    this.mp.hostTick(dt);
     if (this.state !== 'play') return;
     follow = this.#focusTarget();
 
@@ -451,11 +471,13 @@ export class Game {
     }
 
     // Тыковки: собирает игрок (героем или Безликом)
+    // (в совместной игре — и живые игроки с других устройств)
     const me = R.player?.alive ? R.player : R.playerGhost;
-    if (me) {
-      const got = this.pumpkins.update(dt, t, [me]);
-      if (got.length) { R.stats.pumpkins += got.length; this.ui.pumpkins(R.stats.pumpkins); this.sound.chime([784, 1046, 1318]); }
-    } else this.pumpkins.update(dt, t, []);
+    const collectors = [me, ...R.agents.filter(a => a.remote && a.alive), ...R.activeGhosts.filter(g => g.remote && g.active)].filter(Boolean);
+    for (const c of this.pumpkins.update(dt, t, collectors)) {
+      if (c === me) { R.stats.pumpkins++; this.ui.pumpkins(R.stats.pumpkins); this.sound.chime([784, 1046, 1318]); }
+      else this.mp.hostPumpkin(c.remote);
+    }
 
     // Звуки игрока
     if (me) {
@@ -501,6 +523,7 @@ export class Game {
 
   #onEvent(e) {
     const R = this.round;
+    this.mp.hostEvent(e);
     if (e.type === 'ghostSpawn') {
       this.sound.ghostAppear();
       this.cam.shake = Math.max(this.cam.shake, 0.6);

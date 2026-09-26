@@ -28,22 +28,25 @@ export class Round {
     this.events = [];
     this.phase = 'none';
     this.activeGhosts = [];
+    this.netIn = new Map();        // совместная игра: последний ввод каждого гостя (по его id)
   }
 
   addFx(f) { this.fx.push(f); }          // хозяин (game.js) подменяет своим addFx
   emit(type, data = {}) { this.events.push({ type, ...data }); }
 
-  makeAgent(hero, isPlayer, spawn, skin) {
+  // remote — id игрока с другого устройства (совместная игра): им управляет не «мозг», а его нажатия
+  makeAgent(hero, isPlayer, spawn, skin, remote = null, name = null) {
     const ctrl = new PlayerController(hero, this.world);
-    ctrl.spawn(spawn, isPlayer ? Math.PI : Math.random() * Math.PI * 2);
-    const a = { hero, name: hero.name, ctrl, char: this.makeChar(hero, skin), isPlayer, alive: true, hidden: false, protected: false, prop: null, skin };
+    ctrl.spawn(spawn, isPlayer || remote ? Math.PI : Math.random() * Math.PI * 2);
+    const a = { hero, name: name || hero.name, ctrl, char: this.makeChar(hero, skin), isPlayer, remote, alive: true, hidden: false, protected: false, prop: null, skin };
+    a.key = this.keySeq = (this.keySeq || 0) + 1;     // номер для совместной игры
     a.abilities = new AbilitySet(a, this);
-    if (!isPlayer) { a.brain = new BotBrain(a, this.world, this.navFor(hero.radius)); a.brain.allies = () => this.agents; }
+    if (!isPlayer && !remote) { a.brain = new BotBrain(a, this.world, this.navFor(hero.radius)); a.brain.allies = () => this.agents; }
     this.agents.push(a);
     return a;
   }
 
-  // opts: { mode, hero, skin, ghosts (1–3), withBots }
+  // opts: { mode, hero, skin, ghosts (1–3), withBots, remotes: [{id, name, hero, skin}] — игроки с других устройств }
   start(opts) {
     this.opts = opts;
     this.mode = opts.mode;
@@ -55,17 +58,25 @@ export class Round {
     this.playerGhost = null;
     const spawns = BOT_SPAWNS.slice().sort(() => Math.random() - 0.5);
     const at = xz => new THREE.Vector3(xz[0], 0, xz[1]);
-    if (opts.mode === 'play') {
-      this.player = this.makeAgent(opts.hero, true, new THREE.Vector3(0, 0, 22), opts.skin);
-      if (opts.withBots) for (const h of this.heroes) if (h.id !== opts.hero.id && h.bot !== false) this.makeAgent(h, false, at(spawns.pop()), 'classic');
+    const remotes = opts.remotes || [];
+    const remoteGhosts = remotes.filter(r => r.hero.id === 'noface');
+    if (opts.mode === 'play' || (opts.mode === 'hunter' && remotes.length)) {
+      if (opts.mode === 'play') this.player = this.makeAgent(opts.hero, true, new THREE.Vector3(0, 0, 22), opts.skin);
+      remotes.filter(r => r.hero.id !== 'noface').forEach((r, i) => this.makeAgent(r.hero, false, new THREE.Vector3(-3 + i * 2, 0, 23), r.skin, r.id, r.name));
+      const taken = new Set([opts.hero.id, ...remotes.map(r => r.hero.id)]);
+      if (opts.withBots) for (const h of this.heroes) if (!taken.has(h.id) && h.bot !== false) this.makeAgent(h, false, at(spawns.pop()), 'classic');
     } else {
       for (const h of this.heroes) if (h.bot !== false) this.makeAgent(h, false, at(spawns.pop()), h.id === 'moti' ? opts.mSkin || 'classic' : 'classic');
     }
-    for (const g of this.ghosts) { g.isPlayer = false; g.reset(at(GHOST_SPAWNS[0])); }
-    const n = Math.max(1, Math.min(3, opts.ghosts));
+    for (const g of this.ghosts) { g.isPlayer = false; g.remote = null; g.reset(at(GHOST_SPAWNS[0])); }
+    const humansAsGhosts = (opts.mode === 'hunter' ? 1 : 0) + remoteGhosts.length;
+    const n = Math.min(this.ghosts.length, Math.max(1, Math.min(3, opts.ghosts), humansAsGhosts));
     this.activeGhosts = this.ghosts.slice(0, n);
     this.activeGhosts.forEach((g, i) => g.reset(at(GHOST_SPAWNS[i])));
-    if (opts.mode === 'hunter') { this.playerGhost = this.activeGhosts[0]; this.playerGhost.isPlayer = true; }
+    let gi = 0;
+    if (opts.mode === 'hunter') { this.playerGhost = this.activeGhosts[gi++]; this.playerGhost.isPlayer = true; }
+    for (const r of remoteGhosts) { const g = this.activeGhosts[gi++]; g.remote = r.id; g.remoteName = r.name; }
+    this.netIn.clear();
     this.setPhase('hide');
   }
 
@@ -119,6 +130,7 @@ export class Round {
       a.abilities.update(dt);
       let ai;
       if (a.isPlayer) ai = inp || {};
+      else if (a.remote) ai = this.#takeNet(a.remote);
       else {
         ai = a.brain.update(dt, live);
         const th = a.brain.threat;
@@ -129,7 +141,7 @@ export class Round {
         if (ai.dash) this.toggleProp(a);
         else { ai = { ...ai, run: false, jump: false }; a.ctrl.moveMul *= C.abilities.prop.walk; }
       }
-      a.ctrl.update(dt, ai, a.isPlayer ? camYaw : 0);
+      a.ctrl.update(dt, ai, a.isPlayer ? camYaw : a.remote ? ai.camYaw || 0 : 0);
       if (a.prop?.obj) { a.prop.obj.position.copy(a.ctrl.pos); }
       const p = a.ctrl.pos;
       a.hidden = (this.world.inBush(p.x, p.z, p.y) && !a.ctrl.running) || (!!a.prop && a.ctrl.speed < 0.6);
@@ -141,8 +153,9 @@ export class Round {
     // Безлики
     const k = Math.min(1, this.t / this.duration);
     for (const g of this.activeGhosts) {
-      g.speedMul = this.phase === 'chase' && !g.isPlayer ? C.round.chaseBotSpeed : 1;
-      g.update(dt, time, this.agents, k, { domes: this.domes }, g.isPlayer ? inp || {} : null, camYaw);
+      g.speedMul = this.phase === 'chase' && !g.isPlayer && !g.remote ? C.round.chaseBotSpeed : 1;
+      const gin = g.isPlayer ? inp || {} : g.remote ? this.#takeNet(g.remote) : null;
+      g.update(dt, time, this.agents, k, { domes: this.domes }, gin, g.isPlayer ? camYaw : gin?.camYaw || 0);
       if (g.poof) { g.poof = false; this.emit('poof', { x: g.pos.x, y: g.pos.y, z: g.pos.z, ghost: g }); }
     }
 
@@ -171,7 +184,7 @@ export class Round {
     this.caughtOrder.push({ agent: a, phase: this.phase, t: this.t });
     if (this.phase === 'hide') { this.stats.found++; if (a.isPlayer) this.stats.playerFoundAt = this.t; }
     else { this.stats.chaseCatches++; if (a.isPlayer) this.stats.playerCaughtInChase = true; }
-    this.emit('caught', { agent: a, ghost: g, byPlayer: g.isPlayer, phase: this.phase });
+    this.emit('caught', { agent: a, ghost: g, byPlayer: g.isPlayer, byRemote: g.remote, phase: this.phase });
   }
 
   // Переход к догонялкам: пойманные возвращаются, первый найденный становится Безликом
@@ -182,7 +195,8 @@ export class Round {
     const at = xz => new THREE.Vector3(xz[0], 0, xz[1]);
     const hunterPos = this.playerGhost ? this.playerGhost.pos.clone() : null;
     // все Безлики — заново
-    for (const g of this.ghosts) { g.reveal(); g.reset(at(GHOST_SPAWNS[0])); g.isPlayer = false; }
+    const keepRemote = this.activeGhosts.filter(g => g.remote).map(g => [g.remote, g.remoteName]);
+    for (const g of this.ghosts) { g.reveal(); g.reset(at(GHOST_SPAWNS[0])); g.isPlayer = false; g.remote = null; }
     const n = Math.min(this.ghosts.length, CONFIG.round.chaseGhosts);
     this.activeGhosts = this.ghosts.slice(0, n);
     let newGhost = null, newGhostName = null;
@@ -199,6 +213,7 @@ export class Round {
       if (pick.prop) this.toggleProp(pick);
       if (pick.char) pick.char.root.visible = false;
       this.activeGhosts[0].reset(pick.ctrl.pos.clone());
+      if (pick.remote) { this.activeGhosts[0].remote = pick.remote; this.activeGhosts[0].remoteName = pick.name; }
       if (pick.isPlayer) {
         this.player = null;
         this.playerGhost = this.activeGhosts[0];
@@ -208,6 +223,9 @@ export class Round {
     // остальные Безлики — по углам деревни
     this.activeGhosts.forEach((g, i) => { if (i > 0) g.reset(at(GHOST_SPAWNS[i % GHOST_SPAWNS.length])); });
     if (this.mode === 'hunter') this.playerGhost.reset(hunterPos);
+    // живые игроки-Безлики из пряток остаются Безликами
+    let gi = 1;
+    for (const [id, name] of keepRemote) { while (gi < this.activeGhosts.length && this.activeGhosts[gi].remote) gi++; const g = this.activeGhosts[gi++]; if (g) { g.remote = id; g.remoteName = name; } }
     // найденные герои возвращаются на старт
     const spawns = BOT_SPAWNS.slice();
     for (const a of this.agents) {
@@ -222,6 +240,22 @@ export class Round {
     this.setPhase('chase');
     this.emit('phase', { phase: 'chase', newGhostName, newGhostIsPlayer: !!this.playerGhost && this.mode !== 'hunter', agent: newGhost });
     if (!this.agents.length) { this.phase = 'over'; this.emit('end', { result: this.result() }); }
+  }
+
+  // Игрок вышел из комнаты посреди раунда — дальше за его героя бегает бот
+  convertToBot(a) {
+    a.remote = null;
+    a.brain = new BotBrain(a, this.world, this.navFor(a.hero.radius));
+    a.brain.allies = () => this.agents;
+  }
+
+  // Ввод гостя на этот кадр: прыжок и рывок — «одноразовые», их сбрасываем после применения
+  #takeNet(id) {
+    const n = this.netIn.get(id);
+    if (!n) return {};
+    const out = { ...n };
+    n.jump = false; n.dash = false;
+    return out;
   }
 
   result() {
