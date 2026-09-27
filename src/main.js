@@ -1,4 +1,5 @@
 // Точка входа.
+window.__started = true;   // скрипты игры разобрались и начали выполняться (см. «ловушку ошибок» в index.html)
 import { Game } from './game/game.js';
 
 const game = new Game(document.getElementById('scene'));
