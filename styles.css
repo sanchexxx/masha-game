@@ -358,3 +358,24 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   .maps-foot { flex-wrap: wrap; }
   .maps-foot .ghost-btn { width: calc(50% - 6px); }
 }
+/* выбор героя: карточки всегда видны целиком, панель справа — во всю высоту и прокручивается */
+#select.show { grid-template-rows: auto minmax(0, 1fr) auto; }
+.sel-info { grid-row: 2 / 4; max-height: 100%; overflow-y: auto; scrollbar-width: thin; align-self: stretch; }
+.sel-info::-webkit-scrollbar { width: 6px; }
+.sel-info::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .2); border-radius: 6px; }
+.sel-cards { grid-column: 1; grid-row: 3; align-self: end; justify-content: safe center; }
+.card .c-lock { position: absolute; top: 8px; right: 8px; z-index: 2; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: rgba(40, 20, 70, .85); border: 1px solid #7a5aa8; }
+.card.active .c-lock { right: 40px; }
+.card .c-name { overflow-wrap: anywhere; }
+@media (max-width: 1100px) and (min-width: 761px) { .card { width: 128px; height: 176px; } }
+@media (max-width: 760px) {
+  .sel-info { grid-row: 2; max-height: 100%; align-self: stretch; }
+  .sel-info .ability small, .sel-info #hero-tags { display: none; }
+  .sel-cards { grid-column: 1 / -1; justify-content: flex-start; }
+  .card { width: 104px; height: 136px; }
+  .card .c-tag { display: none; }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  .sel-info { grid-row: 1 / 4; }
+  .sel-cards { grid-column: 1; }
+}
