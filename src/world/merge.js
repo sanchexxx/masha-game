@@ -1,6 +1,6 @@
 // Склейка неподвижных мешей в несколько больших по материалу.
 // Сотни отдельных объектов = сотни вызовов отрисовки, телефон этого не любит.
-import * as THREE from '../../vendor/three.min.js';
+import * as THREE from '../../vendor/three.min.js?v=r186s15';
 
 export function mergeStatic(root, skip = () => false) {
   const groups = new Map();

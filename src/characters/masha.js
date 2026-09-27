@@ -1,5 +1,5 @@
 // Маша — главная героиня: каре с чёлкой и хвостиком, полосатая футболка, розовые шорты.
-import * as THREE from '../../vendor/three.min.js';
+import * as THREE from '../../vendor/three.min.js?v=r186s15';
 import { mat, mesh, G, joint, canvasTexture, animeEye, walkCycle, squash } from './common.js';
 
 export function buildMasha() {

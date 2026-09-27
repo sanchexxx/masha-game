@@ -1,7 +1,7 @@
 // Предметы для «Маскировки»: герой (или Безлик) превращается в вещь, которая и так стоит в деревне.
 // Стоишь неподвижно — от настоящей не отличить. Двигаешься — подозрительно!
 // А ещё тыковки — монетки, которые собирают по всей карте.
-import * as THREE from '../../vendor/three.min.js';
+import * as THREE from '../../vendor/three.min.js?v=r186s15';
 import { mat, mesh, G, fluffySphere } from '../characters/common.js';
 
 export const PROP_KINDS = [

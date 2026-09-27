@@ -1,6 +1,6 @@
 // Способности героев: клавиша/кнопка → анимация → эффект в мире.
 // Одинаково работают у игрока и у ботов (боты жмут «кнопки» сами).
-import * as THREE from '../../vendor/three.min.js';
+import * as THREE from '../../vendor/three.min.js?v=r186s15';
 import { CONFIG } from '../config/config.js';
 import * as FX from './fx.js';
 

@@ -2,7 +2,7 @@
 // Сама логика раунда — в round.js (её же гоняет симуляция без браузера); здесь — картинка,
 // камера, звук, кнопки и интерфейс.
 // Режимы: 'play' — ты герой, 'hunter' — ты Безлик (водящий), 'watch' — смотришь, как бегают все.
-import * as THREE from '../../vendor/three.min.js';
+import * as THREE from '../../vendor/three.min.js?v=r186s15';
 import { CONFIG } from '../config/config.js';
 import { HEROES, GHOST } from '../characters/index.js';
 import { buildMap, HALF } from '../world/map.js';
