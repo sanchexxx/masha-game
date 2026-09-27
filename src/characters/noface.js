@@ -1,5 +1,5 @@
 // Безлик — высокий полупрозрачный чёрный дух в белой маске. Не ходит, а плывёт.
-import * as THREE from 'three';
+import * as THREE from '../../vendor/three.min.js';
 import { mat, mesh, G, joint } from './common.js';
 
 export function buildNoFace() {

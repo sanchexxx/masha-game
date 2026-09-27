@@ -1,5 +1,5 @@
 // Картинки для карточек рисуем сами из 3D-моделей — отдельным маленьким рендером.
-import * as THREE from 'three';
+import * as THREE from '../../vendor/three.min.js';
 
 export function makeThumbnails(defs) {
   const W = 240, H = 320;

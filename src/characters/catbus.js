@@ -1,5 +1,5 @@
 // НэкоБус — кот-автобус: пушистое тело с горящими окнами, шесть лап, улыбка до ушей.
-import * as THREE from 'three';
+import * as THREE from '../../vendor/three.min.js';
 import { mat, mesh, G, joint, canvasTexture } from './common.js';
 
 export function buildCatbus() {

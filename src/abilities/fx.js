@@ -1,5 +1,5 @@
 // Визуальные эффекты способностей. Каждый эффект — объект с update(dt) → false, когда закончился.
-import * as THREE from 'three';
+import * as THREE from '../../vendor/three.min.js';
 import { radialTexture } from '../characters/noface.js';
 
 const glowTex = radialTexture('rgba(255,210,130,1)', 'rgba(255,150,40,0)', 64);

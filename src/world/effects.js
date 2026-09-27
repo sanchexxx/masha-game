@@ -1,5 +1,5 @@
 // Живые мелочи: светлячки-огоньки и сажинки, которые разбегаются от игрока.
-import * as THREE from 'three';
+import * as THREE from '../../vendor/three.min.js';
 import { mat, mesh, G, fluffySphere } from '../characters/common.js';
 import { radialTexture } from '../characters/noface.js';
 

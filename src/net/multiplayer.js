@@ -2,7 +2,7 @@
 // Хозяин комнаты (кто создал) считает раунд у себя — ровно тот же Round, что и в одиночной игре,
 // а живые игроки с других устройств в нём — как боты, только управляются их нажатиями.
 // Гости рисуют раунд по «снимкам» от хозяина и шлют ему свои нажатия 20 раз в секунду.
-import * as THREE from 'three';
+import * as THREE from '../../vendor/three.min.js';
 import { CONFIG } from '../config/config.js';
 import { HEROES, GHOST } from '../characters/index.js';
 import { Net } from './net.js';
