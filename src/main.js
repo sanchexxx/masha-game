@@ -1,10 +1,9 @@
-// Точка входа.
-async function boot() {
-  window.__bootStage = 'загружаем игровые скрипты';
-  try {
-    const { Game } = await import('./game/game.js?v=2026100901');
-    window.__bootStage = 'готовим игру';
+// Точка входа. Сборка объединяет модули в один обычный скрипт для мобильных браузеров.
+import { Game } from './game/game.js?v=2026100901';
 
+async function boot() {
+  window.__bootStage = 'готовим игру';
+  try {
     // Старые Safari не умеют roundRect на canvas — рисуем скруглённый прямоугольник сами.
     if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
       CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r = 0) {

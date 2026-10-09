@@ -442,7 +442,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 
 </style>
-<!-- three.js подключается прямым путём (vendor/three.min.js): importmap не работает на iPhone до iOS 16.4 -->
+<!-- Игровой код собран в один обычный скрипт для Safari и Android. -->
 </head>
 <body>
 <canvas id="scene"></canvas>
@@ -618,9 +618,9 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   setTimeout(function () {
     var t = document.querySelector('.load-text');
     if (!shown && !window.__started) say('загрузка остановилась на этапе «' + (window.__bootStage || 'запуск скриптов') + '»');
-  }, 45000);
+  }, 30000);
 })();
 </script>
-<script type="module" src="src/main.bundle.js?v=2026100905"></script>
+<script defer src="/src/main.bundle.js?v=2026100906"></script>
 </body>
 </html>
