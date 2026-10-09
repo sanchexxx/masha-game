@@ -1,8 +1,9 @@
 // Точка входа.
 async function boot() {
+  window.__bootStage = 'загружаем игровые скрипты';
   try {
     const { Game } = await import('./game/game.js?v=2026100901');
-    window.__started = true; // вся цепочка игровых модулей загружена
+    window.__bootStage = 'готовим игру';
 
     // Старые Safari не умеют roundRect на canvas — рисуем скруглённый прямоугольник сами.
     if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
@@ -20,6 +21,7 @@ async function boot() {
 
     const game = new Game(document.getElementById('scene'));
     await game.start();
+    window.__started = true;
   } catch (err) {
     console.error(err);
     const label = document.querySelector('.load-text');

@@ -67,12 +67,14 @@ export class Game {
     ui.progress(0.1, 'Строим деревню…');
     await frame();
 
-    const r = this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: !isMobile || devicePixelRatio < 2, powerPreference: 'high-performance' });
-    r.setPixelRatio(Math.min(devicePixelRatio, isMobile ? CONFIG.graphics.maxPixelRatioMobile : CONFIG.graphics.maxPixelRatioDesktop));
+    const r = this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: !isMobile || devicePixelRatio < 2, powerPreference: isMobile ? 'low-power' : 'high-performance' });
+    // Старые iPhone быстро упираются в fill-rate и память GPU. Держим разрешение
+    // сцены умеренным, а тени на телефонах отключаем — на игровой логике это не сказывается.
+    r.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.1 : CONFIG.graphics.maxPixelRatioDesktop));
     r.setSize(innerWidth, innerHeight, false);
     r.toneMapping = THREE.ACESFilmicToneMapping;
     r.toneMappingExposure = 1.15;
-    r.shadowMap.enabled = CONFIG.graphics.shadows;
+    r.shadowMap.enabled = CONFIG.graphics.shadows && !isMobile;
     r.shadowMap.type = THREE.PCFShadowMap;
 
     this.scene = new THREE.Scene();
@@ -93,14 +95,22 @@ export class Game {
     this.scene.add(this.showLight);
     ui.progress(0.6, 'Прокладываем тропинки…');
     await frame();
-    for (const h of HEROES) this.navFor(h.radius);   // сетки путей для ботов — заранее, чтобы не дёргалось в раунде
+    // Строим сетки по одной с уступкой кадра: на iPhone X один длинный
+    // синхронный проход раньше блокировал запуск до появления меню.
+    for (let i = 0; i < HEROES.length; i++) {
+      this.navFor(HEROES[i].radius);
+      ui.progress(0.6 + 0.04 * (i + 1), 'Прокладываем тропинки…');
+      await frame();
+    }
     this.pumpkins = new Pumpkins(this.scene, this.navFor(0.42));
     ui.progress(0.8, 'Зовём духов…');
     await frame();
 
     // Прогрев: один раз рисуем Безликов, чтобы при появлении не было рывка кадра
     this.ghostPool.forEach(g => { g.root.visible = true; g.char.update(0.016, { t: 0, speed: 0, mode: 'hunt', appear: 1 }); });
-    this.renderer.compile(this.scene, this.camera);
+    // Полная компиляция всех шейдеров здесь особенно тяжела на старых Safari.
+    // Мобильный GPU скомпилирует нужные материалы по мере появления в кадре.
+    if (!isMobile) this.renderer.compile(this.scene, this.camera);
     this.ghostPool.forEach(g => { g.root.visible = false; });
     // Безлик на экране выбора
     this.showGhost = GHOST.build();
@@ -113,7 +123,9 @@ export class Game {
     });
     this.round.addFx = f => this.fx.push(f);
 
-    const thumbs = makeThumbnails([...HEROES, GHOST]);
+    // Временный второй WebGL-контекст для карточек может исчерпать лимит
+    // контекстов/памяти на старых iPhone. Там карточки используют лёгкий фон.
+    const thumbs = isMobile ? {} : makeThumbnails([...HEROES, GHOST]);
     this.#buildMapCards();
     ui.progress(1, 'Готово!');
 
@@ -196,6 +208,7 @@ export class Game {
   // Картинки карт — снимки нашей же деревни с разных мест (лес = бамбуковая роща, храм = святилище)
   #buildMapCards() {
     const shot = (from, to) => {
+      if (isMobile) return '';
       this.camera.position.set(...from);
       this.camera.lookAt(...to);
       this.map.updateLights(new THREE.Vector3(to[0], 0, to[2]));
