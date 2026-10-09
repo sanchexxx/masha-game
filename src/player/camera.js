@@ -1,7 +1,7 @@
 // Камера от третьего лица: орбита вокруг героя, плавное следование,
 // подтягивается ближе, если сзади стена. Режим «от первого лица» — задел на потом (mode).
-import * as THREE from '../../vendor/three.min.js?v=r186s15';
-import { CONFIG } from '../config/config.js';
+import * as THREE from '../../vendor/three.min.js?v=r186s15&b=2026100901';
+import { CONFIG } from '../config/config.js?v=2026100901';
 
 const C = CONFIG.camera;
 

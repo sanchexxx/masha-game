@@ -1,6 +1,6 @@
 // Панель «Физика»: ползунки для каждого героя, Безлика и мира. Меняется вживую, прямо во время игры.
 // Настройки запоминаются в этом браузере; «Скопировать» даёт кусок для src/config/config.js.
-import { CONFIG, DEFAULTS } from '../config/config.js';
+import { CONFIG, DEFAULTS } from '../config/config.js?v=2026100901';
 
 const KEY = 'masha-game-physics-v2';   // v2: Безлик на общей физике — старые ползунки не подходят
 

@@ -4,8 +4,8 @@
 // лестницы, потолок над головой, тяжёлое приземление с большой высоты, заносы на скорости.
 // Одним и тем же контроллером управляют игрок (клавиатура), боты («мозг») и Безлик.
 // Цифры берутся из CONFIG.heroes[id] КАЖДЫЙ кадр — ползунки в игре меняют их вживую.
-import * as THREE from '../../vendor/three.min.js?v=r186s15';
-import { CONFIG } from '../config/config.js';
+import * as THREE from '../../vendor/three.min.js?v=r186s15&b=2026100901';
+import { CONFIG } from '../config/config.js?v=2026100901';
 
 const W = CONFIG.world;
 const _fwd = new THREE.Vector3(), _right = new THREE.Vector3(), _wish = new THREE.Vector3(), _hv = new THREE.Vector3();

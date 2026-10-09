@@ -1,5 +1,5 @@
 // Общие кирпичики для персонажей: материалы, простые формы, текстуры из canvas.
-import * as THREE from '../../vendor/three.min.js?v=r186s15';
+import * as THREE from '../../vendor/three.min.js?v=r186s15&b=2026100901';
 
 const matCache = new Map();
 

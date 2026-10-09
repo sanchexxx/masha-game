@@ -1,7 +1,7 @@
 // Живые мелочи: светлячки-огоньки и сажинки, которые разбегаются от игрока.
-import * as THREE from '../../vendor/three.min.js?v=r186s15';
-import { mat, mesh, G, fluffySphere } from '../characters/common.js';
-import { radialTexture } from '../characters/noface.js';
+import * as THREE from '../../vendor/three.min.js?v=r186s15&b=2026100901';
+import { mat, mesh, G, fluffySphere } from '../characters/common.js?v=2026100901';
+import { radialTexture } from '../characters/noface.js?v=2026100901';
 
 export function buildFireflies(scene, count, half) {
   const geo = new THREE.BufferGeometry();

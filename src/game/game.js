@@ -2,25 +2,25 @@
 // Сама логика раунда — в round.js (её же гоняет симуляция без браузера); здесь — картинка,
 // камера, звук, кнопки и интерфейс.
 // Режимы: 'play' — ты герой, 'hunter' — ты Безлик (водящий), 'watch' — смотришь, как бегают все.
-import * as THREE from '../../vendor/three.min.js?v=r186s15';
-import { CONFIG } from '../config/config.js';
-import { HEROES, GHOST } from '../characters/index.js';
-import { buildMap, HALF } from '../world/map.js';
-import { buildFireflies, buildSoot } from '../world/effects.js';
-import { buildProp, poof, Pumpkins, wallet } from '../world/props.js';
-import { Input } from '../player/input.js';
-import { ThirdPersonCamera } from '../player/camera.js';
-import { Ghost } from '../enemies/ghost.js';
-import { NavGrid } from '../enemies/pathfinder.js';
-import { burst } from '../abilities/fx.js';
-import { Round, GHOST_SPAWNS } from './round.js';
-import { Sound } from './audio.js';
-import { UI } from '../ui/ui.js';
-import { Tuner, loadSavedPhysics } from '../ui/tuner.js';
-import { makeThumbnails } from '../ui/thumbnails.js';
-import { LOOK_OPTIONS, loadLook, saveLook } from '../characters/kid.js';
-import { HERO_ABILITIES } from '../abilities/abilities.js';
-import { Multiplayer } from '../net/multiplayer.js';
+import * as THREE from '../../vendor/three.min.js?v=r186s15&b=2026100901';
+import { CONFIG } from '../config/config.js?v=2026100901';
+import { HEROES, GHOST } from '../characters/index.js?v=2026100901';
+import { buildMap, HALF } from '../world/map.js?v=2026100901';
+import { buildFireflies, buildSoot } from '../world/effects.js?v=2026100901';
+import { buildProp, poof, Pumpkins, wallet } from '../world/props.js?v=2026100901';
+import { Input } from '../player/input.js?v=2026100901';
+import { ThirdPersonCamera } from '../player/camera.js?v=2026100901';
+import { Ghost } from '../enemies/ghost.js?v=2026100901';
+import { NavGrid } from '../enemies/pathfinder.js?v=2026100901';
+import { burst } from '../abilities/fx.js?v=2026100901';
+import { Round, GHOST_SPAWNS } from './round.js?v=2026100901';
+import { Sound } from './audio.js?v=2026100901';
+import { UI } from '../ui/ui.js?v=2026100901';
+import { Tuner, loadSavedPhysics } from '../ui/tuner.js?v=2026100901';
+import { makeThumbnails } from '../ui/thumbnails.js?v=2026100901';
+import { LOOK_OPTIONS, loadLook, saveLook } from '../characters/kid.js?v=2026100901';
+import { HERO_ABILITIES } from '../abilities/abilities.js?v=2026100901';
+import { Multiplayer } from '../net/multiplayer.js?v=2026100901';
 
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 const isMobile = isTouch && Math.min(screen.width, screen.height) < 820;

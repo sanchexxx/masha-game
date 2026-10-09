@@ -1,9 +1,9 @@
 // Реестр персонажей: кто есть, как выглядит карточка, какие бонусы в игре.
-import { buildMasha } from './masha.js';
-import { buildCatbus } from './catbus.js';
-import { buildMoti, MOTI_SKINS } from './moti.js';
-import { buildNoFace } from './noface.js';
-import { buildKid, loadLook } from './kid.js';
+import { buildMasha } from './masha.js?v=2026100901';
+import { buildCatbus } from './catbus.js?v=2026100901';
+import { buildMoti, MOTI_SKINS } from './moti.js?v=2026100901';
+import { buildNoFace } from './noface.js?v=2026100901';
+import { buildKid, loadLook } from './kid.js?v=2026100901';
 
 const lookOf = skin => { try { return skin && skin !== 'classic' ? JSON.parse(skin) : loadLook(); } catch { return loadLook(); } };
 

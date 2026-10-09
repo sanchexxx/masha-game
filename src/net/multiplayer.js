@@ -2,12 +2,12 @@
 // Хозяин комнаты (кто создал) считает раунд у себя — ровно тот же Round, что и в одиночной игре,
 // а живые игроки с других устройств в нём — как боты, только управляются их нажатиями.
 // Гости рисуют раунд по «снимкам» от хозяина и шлют ему свои нажатия 20 раз в секунду.
-import * as THREE from '../../vendor/three.min.js?v=r186s15';
-import { CONFIG } from '../config/config.js';
-import { HEROES, GHOST } from '../characters/index.js';
-import { Net } from './net.js';
-import { makeRoster, makeSnapshot, GuestView } from './sync.js';
-import { wallet } from '../world/props.js';
+import * as THREE from '../../vendor/three.min.js?v=r186s15&b=2026100901';
+import { CONFIG } from '../config/config.js?v=2026100901';
+import { HEROES, GHOST } from '../characters/index.js?v=2026100901';
+import { Net } from './net.js?v=2026100901';
+import { makeRoster, makeSnapshot, GuestView } from './sync.js?v=2026100901';
+import { wallet } from '../world/props.js?v=2026100901';
 
 const $ = id => document.getElementById(id);
 const NAME_KEY = 'masha-game-name';

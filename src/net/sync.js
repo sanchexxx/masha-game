@@ -1,8 +1,8 @@
 // Совместная игра: «снимок» раунда у хозяина → картинка у гостя.
 // Хозяин 15 раз в секунду рассылает, где кто стоит и что делает; гость плавно подтягивает героев к этим точкам
 // и сам рисует анимации. Внешность (скины котиков) передаётся один раз — в «составе» (roster).
-import * as THREE from '../../vendor/three.min.js?v=r186s15';
-import { buildProp, PROP_KINDS } from '../world/props.js';
+import * as THREE from '../../vendor/three.min.js?v=r186s15&b=2026100901';
+import { buildProp, PROP_KINDS } from '../world/props.js?v=2026100901';
 
 const r2 = v => Math.round(v * 100) / 100;
 const PROP_IDS = PROP_KINDS.map(k => k.id);
