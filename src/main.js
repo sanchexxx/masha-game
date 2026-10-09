@@ -22,6 +22,7 @@ async function boot() {
     await game.start();
     window.__started = true;
   } catch (err) {
+    window.__bootFailed = true;
     console.error(err);
     const label = document.querySelector('.load-text');
     if (label) label.textContent = 'Не получилось запустить игру: ' + (err?.message || String(err));

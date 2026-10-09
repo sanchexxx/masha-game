@@ -30,6 +30,20 @@ export default {
       const id = env.ROOMS.idFromName(m[1].toUpperCase());
       return env.ROOMS.get(id).fetch(request);
     }
+    // Мобильный Safari может зависнуть на отдельной загрузке большого JS-файла.
+    // Отдаём страницу с уже встроенным скриптом, оставляя адрес и ?room без изменений.
+    const ua = request.headers.get('User-Agent') || '';
+    if (/^\/(?:index\.html)?$/.test(url.pathname) && /iPhone|iPad|iPod|Android/.test(ua)) {
+      const ios = /\bOS (\d+)_/.exec(ua);
+      const chrome = /(?:Chrome|CriOS)\/(\d+)/.exec(ua);
+      const legacy = (/iPhone|iPad|iPod/.test(ua) && ios && Number(ios[1]) <= 16) ||
+        (/Android/.test(ua) && (!chrome || Number(chrome[1]) < 100));
+      const target = new URL(request.url);
+      // Cloudflare redirects *.html to extensionless paths; fetch the canonical
+      // asset path so the browser keeps its original /?room=... URL.
+      target.pathname = legacy ? '/index.mobile-legacy' : '/index.mobile-modern';
+      return env.ASSETS.fetch(new Request(target, request));
+    }
     return env.ASSETS.fetch(request);
   },
 };

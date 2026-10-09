@@ -10,11 +10,12 @@
 | `server/worker.js`, `server/room.js` | Cloudflare Worker и комнаты |
 | `src/main.bundle.js` | сборка для новых браузеров |
 | `src/main.legacy.bundle.js` | совместимая сборка для iOS 15–16 и старых Android |
+| `index.mobile-*.html` | мобильные страницы со встроенной игрой: один сетевой запрос |
 
 ## Как работать
 
 1. Правим исходники в `src/`.
-2. Запускаем `scripts/build-bundles.sh`, чтобы обновить обе сборки одним и тем же игровым кодом.
+2. Запускаем `scripts/build-bundles.sh`, чтобы обновить обе сборки и мобильные страницы одним и тем же игровым кодом.
 3. Проверяем локально: `python3 -m http.server` в корне проекта.
 4. Публикуем обновления в GitHub `main`; Cloudflare разворачивает Worker автоматически.
 
