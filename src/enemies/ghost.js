@@ -8,7 +8,7 @@
 // Им управляет либо «мозг» (как раньше), либо игрок — режим «Играю за Безлика».
 // Прятки работают: за домом, деревом, в кусте или в доме за ширмой он не видит,
 // но идёт туда, где видел в последний раз, и слышит бег поблизости.
-import * as THREE from '../../vendor/three.min.js?v=r186s15&b=2026100901';
+import * as THREE from 'three';
 import { CONFIG } from '../config/config.js?v=2026100901';
 import { NavGrid } from './pathfinder.js?v=2026100901';
 import { PlayerController } from '../player/controller.js?v=2026100901';

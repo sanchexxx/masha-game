@@ -75,8 +75,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .sel-cards { grid-column: 1 / -1; grid-row: 3; display: flex; gap: 12px; justify-content: center; overflow-x: auto; padding: 6px 4px 4px; scrollbar-width: none; }
 .sel-cards::-webkit-scrollbar { display: none; }
 .card { position: relative; flex: none; width: 150px; height: 200px; border-radius: 18px; overflow: hidden; border: 1.5px solid rgba(255, 255, 255, .14); background: #1a1838 center/cover no-repeat; box-shadow: 0 8px 20px rgba(0, 0, 0, .35); transition: transform .15s, box-shadow .15s; text-align: left; }
-.card.lite-art { background: radial-gradient(ellipse at 50% 38%, #66558e, #28234f 65%, #17162f); }
-.card-art { position: absolute; inset: 8px 0 28px; display: grid; place-items: center; font-size: 76px; filter: drop-shadow(0 8px 12px rgba(0,0,0,.35)); }
 .card:hover { transform: translateY(-3px); }
 .card::after { content: ''; position: absolute; inset: 45% 0 0; background: linear-gradient(transparent, rgba(8, 6, 24, .95)); }
 .card .c-body { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 1; }
@@ -306,7 +304,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .map-card:hover { transform: translateY(-4px); }
 .map-card .m-title { display: flex; align-items: center; justify-content: center; gap: 8px; font-family: var(--title); font-size: 25px; color: #fff3da; text-shadow: 0 2px 4px #000; margin: 2px 0 8px; }
 .map-card .m-pic { height: 190px; border-radius: 10px; background: #1a1838 center/cover no-repeat; border: 2px solid rgba(255, 220, 160, .35); position: relative; overflow: hidden; }
-.map-card .m-pic.lite { background: radial-gradient(ellipse at 50% 35%, #56517c, #252344 65%, #17172f); }
 .map-card .m-diff { display: inline-block; margin-top: 10px; padding: 5px 26px; border-radius: 999px; font-weight: 800; font-size: 16px; color: #3a2a1a; background: linear-gradient(#f4ecdf, #cfc3b1); box-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
 .map-card .m-diff.hard { color: #fff; background: linear-gradient(#e0594a, #a62a22); }
 .map-card.active { border-color: #ffd46a; box-shadow: 0 0 0 3px rgba(255, 210, 110, .55), 0 0 34px var(--glow), 0 10px 26px rgba(0, 0, 0, .55); }
@@ -442,7 +439,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 
 </style>
-<!-- Игровой код собран в один обычный скрипт для Safari и Android. -->
+<!-- Для старых WebKit загружается совместимая сборка с WebGL 1; графика игры одинаковая. -->
 </head>
 <body>
 <canvas id="scene"></canvas>
@@ -615,12 +612,25 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
     say(src ? 'не загрузился файл ' + src.replace(location.origin, '') : (e.message || 'ошибка') + (e.filename ? ' (' + e.filename.replace(location.origin, '') + ':' + e.lineno + ')' : ''));
   }, true);
   window.addEventListener('unhandledrejection', function (e) { say(String(e.reason && (e.reason.message || e.reason))); });
+  var ua = navigator.userAgent;
+  var ios = /\bOS (\d+)_/.exec(ua);
+  var chrome = /(?:Chrome|CriOS)\/(\d+)/.exec(ua);
+  var legacy = (/iPhone|iPad|iPod/.test(ua) && ios && Number(ios[1]) <= 16) ||
+    (/Android/.test(ua) && (!chrome || Number(chrome[1]) < 100));
+  window.__bundleVariant = legacy ? 'legacy' : 'modern';
+  window.__bootStage = 'скачиваем файл игры (' + window.__bundleVariant + ')';
+  var script = document.createElement('script');
+  script.src = legacy ? '/src/main.legacy.bundle.js?v=2026100907' : '/src/main.bundle.js?v=2026100907';
+  script.onerror = function () { say('не загрузился файл игры (' + window.__bundleVariant + ')'); };
+  script.onload = function () {
+    if (!window.__bootEntered) say('файл игры скачан, но браузер не смог выполнить его (' + window.__bundleVariant + ')');
+  };
+  document.body.appendChild(script);
   setTimeout(function () {
     var t = document.querySelector('.load-text');
     if (!shown && !window.__started) say('загрузка остановилась на этапе «' + (window.__bootStage || 'запуск скриптов') + '»');
   }, 30000);
 })();
 </script>
-<script defer src="/src/main.bundle.js?v=2026100906"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 // «Мой котик» — свой персонаж, как на Машиных картинках: ребёнок с ушками и хвостом котика,
 // в вязаном свитере со значком, джинсах и белых кроссовках. Внешность собирается из выбора в редакторе.
-import * as THREE from '../../vendor/three.min.js?v=r186s15&b=2026100901';
+import * as THREE from 'three';
 import { mat, mesh, G, joint, canvasTexture, animeEye, walkCycle, squash, fluffySphere } from './common.js?v=2026100901';
 
 export const LOOK_OPTIONS = {

@@ -1,6 +1,6 @@
 // Карта «Ночная деревня духов»: дорожки крестом, домики с горящими окнами,
 // святилище на севере (там появляется Безлик), ящики для паркура, кусты-укрытия.
-import * as THREE from '../../vendor/three.min.js?v=r186s15&b=2026100901';
+import * as THREE from 'three';
 import { CollisionWorld } from './colliders.js?v=2026100901';
 import { canvasTexture, mat, mesh, G, fluffySphere } from '../characters/common.js?v=2026100901';
 import { radialTexture } from '../characters/noface.js?v=2026100901';

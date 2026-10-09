@@ -28,4 +28,5 @@ async function boot() {
   }
 }
 
+window.__bootEntered = true;
 boot();

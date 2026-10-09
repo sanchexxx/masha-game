@@ -52,9 +52,8 @@ export class UI {
     for (const h of heroes) {
       const c = document.createElement('button');
       c.className = 'card';
-      if (thumbs[h.id]) c.style.backgroundImage = `url(${thumbs[h.id]})`;
-      else c.classList.add('lite-art');
-      c.innerHTML = `${thumbs[h.id] ? '' : `<div class="card-art">${ICONS[h.id] || '✦'}</div>`}<div class="c-body"><div class="c-name">${h.name}</div><span class="pill ${h.rarityClass}">${h.rarity}</span><br><span class="c-tag">${ICONS[h.id] || '✦'} ${h.tags[0]}</span></div>`;
+      c.style.backgroundImage = `url(${thumbs[h.id]})`;
+      c.innerHTML = `<div class="c-body"><div class="c-name">${h.name}</div><span class="pill ${h.rarityClass}">${h.rarity}</span><br><span class="c-tag">${ICONS[h.id] || '✦'} ${h.tags[0]}</span></div>`;
       c.addEventListener('click', () => onPick(h.id));
       box.appendChild(c);
       this.cards.set(h.id, c);
@@ -62,9 +61,8 @@ export class UI {
     // Безлик — теперь за него можно играть (водящий)
     const g = document.createElement('button');
     g.className = 'card';
-    if (thumbs[ghost.id]) g.style.backgroundImage = `url(${thumbs[ghost.id]})`;
-    else g.classList.add('lite-art');
-    g.innerHTML = `${thumbs[ghost.id] ? '' : '<div class="card-art">🎭</div>'}<span class="c-lock">ВОДЯЩИЙ</span><div class="c-body"><div class="c-name">${ghost.name}</div><span class="pill ${ghost.rarityClass}">${ghost.rarity}</span><br><span class="c-tag">🎭 ${ghost.tags[0]}</span></div>`;
+    g.style.backgroundImage = `url(${thumbs[ghost.id]})`;
+    g.innerHTML = `<span class="c-lock">ВОДЯЩИЙ</span><div class="c-body"><div class="c-name">${ghost.name}</div><span class="pill ${ghost.rarityClass}">${ghost.rarity}</span><br><span class="c-tag">🎭 ${ghost.tags[0]}</span></div>`;
     g.addEventListener('click', () => onPick(ghost.id));
     box.appendChild(g);
     this.cards.set(ghost.id, g);
@@ -124,7 +122,7 @@ export class UI {
   // Карточки карт: одна играбельная, остальные — «скоро»
   buildMaps(list, onPick) {
     const box = $('map-cards');
-    box.innerHTML = list.map(m => `<button class="map-card ${m.ready ? '' : 'soon'}" data-id="${m.id}"><div class="m-title">${m.icon} ${m.name}</div><div class="m-pic ${m.pic ? '' : 'lite'}"${m.pic ? ` style="background-image:url(${m.pic})"` : ''}></div><span class="m-diff ${m.hard ? 'hard' : ''}">${m.hard ? 'Сложный' : 'Обычный'}</span></button>`).join('');
+    box.innerHTML = list.map(m => `<button class="map-card ${m.ready ? '' : 'soon'}" data-id="${m.id}"><div class="m-title">${m.icon} ${m.name}</div><div class="m-pic" style="background-image:url(${m.pic})"></div><span class="m-diff ${m.hard ? 'hard' : ''}">${m.hard ? 'Сложный' : 'Обычный'}</span></button>`).join('');
     box.querySelectorAll('.map-card').forEach(b => b.addEventListener('click', () => onPick(b.dataset.id)));
   }
   pickMap(id) { document.querySelectorAll('.map-card').forEach(b => b.classList.toggle('active', b.dataset.id === id)); }

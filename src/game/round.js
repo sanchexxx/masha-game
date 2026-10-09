@@ -7,7 +7,7 @@
 //  2) ДОГОНЯЛКИ (1 мин). Все найденные возвращаются. Тот, кого нашли ПЕРВЫМ, становится Безликом,
 //     и с ним ещё 3 Безлика-бота. Безлик умеет притворяться героями и предметами.
 // Режимы: 'play' — играешь героем, 'hunter' — играешь Безликом, 'watch' — все боты.
-import * as THREE from '../../vendor/three.min.js?v=r186s15&b=2026100901';
+import * as THREE from 'three';
 import { CONFIG } from '../config/config.js?v=2026100901';
 import { PlayerController, separate } from '../player/controller.js?v=2026100901';
 import { BotBrain } from '../player/bot.js?v=2026100901';

@@ -1,6 +1,6 @@
 // Дядюшка Моти — добродушный пушистый великан (2,4 м) в шляпе, с домиком-рюкзаком для духов
 // и фонарём с лапкой. По развороту персонажа: спереди / сбоку / сзади, 4 скина, анимации действий.
-import * as THREE from '../../vendor/three.min.js?v=r186s15&b=2026100901';
+import * as THREE from 'three';
 import { mat, mesh, G, joint, fluffySphere, walkCycle, squash, canvasTexture } from './common.js?v=2026100901';
 
 export const MOTI_SKINS = {
