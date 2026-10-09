@@ -171,8 +171,11 @@ export class Game {
     addEventListener('orientationchange', () => {
       this.#resize();
       setTimeout(() => this.#resize(), 180);
+      setTimeout(() => this.#resize(), 600);
     });
+    window.screen?.orientation?.addEventListener?.('change', () => this.#resize());
     window.visualViewport?.addEventListener('resize', () => this.#resize());
+    addEventListener('pageshow', () => this.#resize());
     this.#resize();
     const unlock = () => this.sound.unlock();
     addEventListener('pointerdown', unlock);
@@ -700,20 +703,24 @@ export class Game {
   }
 
   #resize() {
-    const screenOrientation = window.screen?.orientation?.type;
-    const landscape = screenOrientation
-      ? screenOrientation.startsWith('landscape')
+    // iOS in-app browsers can leave screen.orientation.type stale after a turn.
+    // Use the layout viewport shape first; orientation APIs are only a fallback.
+    const w = Math.max(1, document.documentElement.clientWidth || innerWidth);
+    const h = Math.max(1, document.documentElement.clientHeight || innerHeight);
+    const landscape = w !== h
+      ? w > h
       : typeof window.orientation === 'number'
         ? Math.abs(window.orientation) === 90
-        : innerWidth > innerHeight;
+        : !!window.screen?.orientation?.type?.startsWith('landscape');
     document.documentElement.classList.toggle('landscape', landscape);
     requestAnimationFrame(() => {
-      const w = Math.max(1, innerWidth), h = Math.max(1, innerHeight);
-      this.camera.aspect = w / h;
+      const width = Math.max(1, document.documentElement.clientWidth || innerWidth);
+      const height = Math.max(1, document.documentElement.clientHeight || innerHeight);
+      this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
-      this.insetCamera.aspect = w / h;
+      this.insetCamera.aspect = width / height;
       this.insetCamera.updateProjectionMatrix();
-      this.renderer.setSize(w, h, false);
+      this.renderer.setSize(width, height, false);
     });
   }
 }

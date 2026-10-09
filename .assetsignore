@@ -3,7 +3,6 @@
 .gitignore
 .assetsignore
 server
-deploy
 tools
 refs
 node_modules
