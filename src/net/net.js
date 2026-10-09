@@ -8,6 +8,7 @@ export class Net {
     this.players = [];
     this.handlers = new Map();
     this.code = null;
+    this.heartbeat = null;
   }
 
   get isHost() { return !!this.id && this.id === this.host; }
@@ -35,12 +36,25 @@ export class Net {
       const timer = setTimeout(() => { finish(false); try { ws.close(); } catch {} }, 6000);
       ws.onmessage = e => {
         let m; try { m = JSON.parse(e.data); } catch { return; }
-        if (m.t === 'welcome') { this.id = m.id; clearTimeout(timer); this.send({ t: 'hello', ...this.hello }); finish(true); }
+        if (m.t === 'welcome') {
+          this.id = m.id;
+          clearTimeout(timer);
+          this.send({ t: 'hello', ...this.hello });
+          clearInterval(this.heartbeat);
+          this.heartbeat = setInterval(() => this.send({ t: 'ping' }), 25000);
+          finish(true);
+        }
         if (m.t === 'lobby') { this.players = m.players; this.host = m.host; }
         this.#emit(m.t, m);
         this.#emit('*', m);
       };
-      ws.onclose = () => { clearTimeout(timer); finish(false); if (this.ws === ws) { this.ws = null; this.#emit('close', {}); } };
+      ws.onclose = () => {
+        clearTimeout(timer);
+        clearInterval(this.heartbeat);
+        this.heartbeat = null;
+        finish(false);
+        if (this.ws === ws) { this.ws = null; this.#emit('close', {}); }
+      };
       ws.onerror = () => {};
     });
   }
@@ -50,6 +64,8 @@ export class Net {
 
   leave() {
     const ws = this.ws;
+    clearInterval(this.heartbeat);
+    this.heartbeat = null;
     this.ws = null; this.id = null; this.host = null; this.players = []; this.code = null;
     try { ws?.close(); } catch {}
   }

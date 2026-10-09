@@ -30,6 +30,7 @@ export class RoomCore {
     let m;
     try { m = JSON.parse(raw); } catch { return; }
     if (!m || typeof m.t !== 'string') return;
+    if (m.t === 'ping') { this.send(conn, { t: 'pong' }); return; }
     if (m.t === 'hello') {
       me.name = String(m.name || me.name).slice(0, 20);
       me.hero = String(m.hero || me.hero).slice(0, 16);
