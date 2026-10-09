@@ -77,6 +77,7 @@ export class Game {
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(CONFIG.camera.fov, innerWidth / innerHeight, 0.1, 400);
+    this.insetCamera = new THREE.PerspectiveCamera(72, 16 / 9, 0.08, 180);
     this.map = buildMap(this.scene, { isMobile });
     this.world = this.map.world;
     ui.progress(0.4, 'Зажигаем фонарики…');
@@ -127,7 +128,7 @@ export class Game {
     ui.on('btn-resume', () => this.resume());
     ui.on('btn-quit', () => { this.ui.show('paused', false); this.toSelect(); });
     ui.on('btn-pause', () => this.pause());
-    ui.on('btn-next', () => this.#nextFocus());
+    ui.on('btn-next', () => this.state === 'guest' ? this.mp.nextGuestFocus() : this.#nextFocus());
     ui.on('btn-tuner', () => this.tuner.toggle());
     ui.on('btn-tuner2', () => this.tuner.toggle());
     ui.on('btn-mute', () => { this.sound.setMuted(!this.sound.muted); ui.setMute(this.sound.muted); });
@@ -161,6 +162,12 @@ export class Game {
     ui.onAbility(id => this.#useAbility(id));
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.state === 'play') this.pause(); });
     addEventListener('resize', () => this.#resize());
+    addEventListener('orientationchange', () => {
+      this.#resize();
+      setTimeout(() => this.#resize(), 180);
+    });
+    window.visualViewport?.addEventListener('resize', () => this.#resize());
+    this.#resize();
     const unlock = () => this.sound.unlock();
     addEventListener('pointerdown', unlock);
     addEventListener('keydown', unlock);
@@ -339,7 +346,8 @@ export class Game {
     const R = this.round;
     if (R.player?.alive) return R.player;
     if (R.playerGhost) return R.playerGhost;
-    const list = [...R.agents.filter(a => a.alive), ...R.activeGhosts.filter(g => g.state !== 'hidden')];
+    const heroes = R.agents.filter(a => a.alive);
+    const list = heroes.length ? heroes : R.activeGhosts.filter(g => g.state !== 'hidden');
     return list[this.focus % Math.max(1, list.length)] || R.agents[0] || R.activeGhosts[0];
   }
   #configureCam(f) {
@@ -347,11 +355,53 @@ export class Game {
     else this.cam.configure(GHOST.cam);
   }
   #nextFocus() {
-    if (this.mode !== 'watch' && this.round.player?.alive) return;
+    const observing = this.mode === 'watch' || (!this.round.player?.alive && !this.round.playerGhost);
+    if (!observing) return;
     this.focus++;
     this.#configureCam(this.#focusTarget());
   }
   #posOf(f) { return f ? f.ctrl.pos : SPAWN; }
+
+  #placeFirstPerson(target, camera) {
+    if (!target?.ctrl) return;
+    const p = target.ctrl.pos;
+    const height = target.hero?.height ?? target.def?.height ?? 1.7;
+    const eye = height * 0.84;
+    const yaw = target.ctrl.yaw;
+    camera.position.set(p.x, p.y + eye, p.z);
+    camera.lookAt(p.x + Math.sin(yaw), p.y + eye - 0.03, p.z + Math.cos(yaw));
+  }
+
+  firstPerson(target, camera = this.camera) { this.#placeFirstPerson(target, camera); }
+
+  #firstPersonModel(target) {
+    return target?.prop?.obj || target?.propObj || target?.disguiseRoot || target?.disguise?.char?.root || target?.root || target?.char?.root || null;
+  }
+
+  #renderGhostInset() {
+    const panel = document.getElementById('ghost-view');
+    const ghost = this.ghostViewTarget;
+    if (!ghost || panel.classList.contains('hidden')) return;
+    const rect = panel.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    this.insetCamera.aspect = rect.width / rect.height;
+    this.insetCamera.updateProjectionMatrix();
+    this.#placeFirstPerson(ghost, this.insetCamera);
+    const w = this.renderer.domElement.clientWidth || innerWidth;
+    const h = this.renderer.domElement.clientHeight || innerHeight;
+    const x = rect.left;
+    const y = h - rect.bottom;
+    this.renderer.setScissorTest(true);
+    this.renderer.setViewport(x, y, rect.width, rect.height);
+    this.renderer.setScissor(x, y, rect.width, rect.height);
+    const model = this.#firstPersonModel(ghost);
+    const wasVisible = model?.visible;
+    if (model) model.visible = false;
+    this.renderer.render(this.scene, this.insetCamera);
+    if (model) model.visible = wasVisible;
+    this.renderer.setScissorTest(false);
+    this.renderer.setViewport(0, 0, w, h);
+  }
 
   pause() {
     if (this.state !== 'play') return;
@@ -404,7 +454,14 @@ export class Game {
     this.map.updateLights(center);
     this.fireflies(t);
     this.soot(dt, t, center);
+    const firstPersonModel = this.#firstPersonModel(this.mainFirstPersonTarget);
+    const firstPersonVisible = firstPersonModel?.visible;
+    if (firstPersonModel) {
+      firstPersonModel.visible = false;
+    }
     this.renderer.render(this.scene, this.camera);
+    if (firstPersonModel) firstPersonModel.visible = firstPersonVisible;
+    this.#renderGhostInset();
   }
 
   #showcase(dt, t) {
@@ -445,11 +502,17 @@ export class Game {
 
     // Камера
     let follow = this.#focusTarget();
-    if (this.mode === 'watch' || !(R.player?.alive || R.playerGhost)) {
+    const firstPersonSpectator = this.mode !== 'watch' && !R.player?.alive && !R.playerGhost;
+    if (firstPersonSpectator) {
+      this.#placeFirstPerson(follow, this.camera);
+      document.getElementById('touch').classList.add('hidden');
+    } else if (this.mode === 'watch' || !(R.player?.alive || R.playerGhost)) {
       const want = follow.ctrl.yaw + Math.PI;
       if (Math.abs(inp.lookX) + Math.abs(inp.lookY) < 1e-5) this.cam.yaw += Math.atan2(Math.sin(want - this.cam.yaw), Math.cos(want - this.cam.yaw)) * Math.min(1, dt * 1.2);
+      this.cam.update(dt, this.#posOf(follow), inp);
+    } else {
+      this.cam.update(dt, this.#posOf(follow), inp);
     }
-    this.cam.update(dt, this.#posOf(follow), inp);
 
     // Логика раунда
     R.step(dt, t, inp, this.cam.yaw);
@@ -458,6 +521,22 @@ export class Game {
     this.mp.hostTick(dt);
     if (this.state !== 'play') return;
     follow = this.#focusTarget();
+    this.mainFirstPersonTarget = firstPersonSpectator ? follow : null;
+
+    // В укрытии герой может подсматривать за ближайшим Безликом от его лица.
+    const player = R.player;
+    const hideViewGhost = player?.alive && R.phase === 'hide'
+      && (player.hidden || player.prop || player.ctrl.crouching)
+      ? R.activeGhosts.filter(g => g.state !== 'hidden').sort((a, b) => a.pos.distanceTo(player.ctrl.pos) - b.pos.distanceTo(player.ctrl.pos))[0]
+      : null;
+    this.ghostViewTarget = hideViewGhost || null;
+    document.getElementById('ghost-view').classList.toggle('hidden', !this.ghostViewTarget);
+    const observing = this.mode === 'watch' || firstPersonSpectator;
+    document.getElementById('watch-bar').classList.toggle('hidden', !observing);
+    document.getElementById('abil-bar').classList.toggle('hidden', observing);
+    if (firstPersonSpectator) document.getElementById('btn-next').textContent = 'Другой герой ›';
+    else if (this.mode === 'watch') document.getElementById('btn-next').textContent = 'Следующий ›';
+    if (!firstPersonSpectator) document.getElementById('touch').classList.toggle('hidden', this.mode === 'watch');
 
     // Картинка героев
     for (const a of R.agents) {
@@ -615,9 +694,21 @@ export class Game {
   }
 
   #resize() {
-    this.camera.aspect = innerWidth / innerHeight;
-    this.camera.updateProjectionMatrix();
-    this.renderer.setSize(innerWidth, innerHeight, false);
+    const screenOrientation = window.screen?.orientation?.type;
+    const landscape = screenOrientation
+      ? screenOrientation.startsWith('landscape')
+      : typeof window.orientation === 'number'
+        ? Math.abs(window.orientation) === 90
+        : innerWidth > innerHeight;
+    document.documentElement.classList.toggle('landscape', landscape);
+    requestAnimationFrame(() => {
+      const w = Math.max(1, innerWidth), h = Math.max(1, innerHeight);
+      this.camera.aspect = w / h;
+      this.camera.updateProjectionMatrix();
+      this.insetCamera.aspect = w / h;
+      this.insetCamera.updateProjectionMatrix();
+      this.renderer.setSize(w, h, false);
+    });
   }
 }
 

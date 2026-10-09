@@ -57,7 +57,12 @@ export class RoomCore {
     const me = this.players.get(conn);
     if (!me) return;
     this.players.delete(conn);
-    if (conn === this.hostConn) this.hostConn = this.players.keys().next().value || null;
+    if (conn === this.hostConn) {
+      this.hostConn = this.players.keys().next().value || null;
+      // Раунд считается на устройстве хозяина. Если оно отключилось, остальные
+      // должны вернуться в лобби, иначе останутся на последнем снимке игры.
+      this.started = false;
+    }
     if (!this.players.size) this.started = false;
     for (const c of this.players.keys()) this.send(c, { t: 'left', id: me.id });
     this.#lobby();

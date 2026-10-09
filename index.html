@@ -24,8 +24,8 @@
   --body: 'Nunito', system-ui, -apple-system, sans-serif;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--body); user-select: none; -webkit-user-select: none; touch-action: none; }
-#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+html, body { margin: 0; height: 100%; min-height: 100dvh; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--body); user-select: none; -webkit-user-select: none; touch-action: none; }
+#scene { position: fixed; inset: 0; width: 100%; height: 100vh; height: 100dvh; display: block; }
 button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
 .hidden { display: none !important; }
 
@@ -110,6 +110,8 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .pause { right: max(16px, env(safe-area-inset-right)); }
 .hint { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); font-size: 13px; color: var(--muted); background: var(--panel); padding: 7px 14px; border-radius: 999px; white-space: nowrap; transition: opacity 1s; }
 .vignette { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at center, transparent 45%, rgba(90, 20, 120, .75) 100%); transition: opacity .3s; }
+.ghost-view { position: absolute; z-index: 2; top: max(130px, calc(env(safe-area-inset-top) + 120px)); right: max(12px, env(safe-area-inset-right)); width: min(38vw, 220px); aspect-ratio: 16 / 10; border: 2px solid rgba(255, 224, 170, .9); border-radius: 12px; box-shadow: 0 4px 18px rgba(0, 0, 0, .65); pointer-events: none; }
+.ghost-view::after { content: '👁 Взгляд Безлика'; position: absolute; left: 6px; top: 5px; padding: 3px 7px; border-radius: 7px; color: #fff4dc; background: rgba(9, 8, 26, .72); font-size: 10px; font-weight: 800; text-shadow: 0 1px 3px #000; }
 
 /* ---------- Сенсорное управление ---------- */
 #touch { position: fixed; inset: 0; z-index: 4; }   /* ниже HUD: кнопки умений должны ловить касания */
@@ -163,6 +165,53 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   .card { width: 104px; height: 120px; }
   .card .c-tag { display: none; }
 }
+
+/* Компактная раскладка для телефонов в горизонтальном положении.
+   Класс выставляет JS по screen.orientation/window.orientation, что надёжнее
+   одного CSS orientation в отдельных встроенных браузерах iOS. */
+.landscape #select.show { grid-template-columns: minmax(0, 1fr) minmax(230px, 32vw); grid-template-rows: auto minmax(0, 1fr) auto; padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); gap: 5px 12px; }
+.landscape .sel-head h1 { font-size: clamp(26px, 7vh, 42px); }
+.landscape .sel-head p, .landscape .sel-info p, .landscape .sel-info .label, .landscape .sel-info .tags { display: none; }
+.landscape .sel-info { grid-column: 2; grid-row: 1 / 4; padding: 9px 12px; overflow-y: auto; }
+.landscape .sel-info h2 { font-size: clamp(22px, 5vh, 32px); }
+.landscape .sel-info .ability { display: none; }
+.landscape .sel-info .opts { margin-top: 4px; }
+.landscape .sel-info .wallet-row { margin-top: 4px; }
+.landscape .sel-info .gold, .landscape .sel-info .ghost-btn { margin-top: 4px; padding: 7px 10px; font-size: 15px; }
+.landscape .sel-cards { grid-column: 1; grid-row: 3; gap: 7px; }
+.landscape .card { width: clamp(76px, 14vh, 116px); height: clamp(94px, 27vh, 148px); }
+.landscape #lobby { overflow-y: auto; }
+.landscape .hud-top { top: max(48px, calc(env(safe-area-inset-top) + 42px)); }
+.landscape .hint { display: none; }
+.landscape .phase { font-size: 18px; padding: 2px 12px 4px; }
+.landscape .status { margin-top: 3px; max-width: 58vw; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+.landscape .hud-left { left: max(8px, env(safe-area-inset-left)); top: max(8px, env(safe-area-inset-top)); gap: 4px; }
+.landscape .minimap { width: 84px; height: 84px; margin: 0; padding: 3px; }
+.landscape .minimap canvas { width: 78px; height: 78px; }
+.landscape .mm-label { display: none; }
+.landscape .stamina { width: 100px; }
+.landscape .alive, .landscape .pumpkins-hud, .landscape .shield, .landscape .hidden-badge { padding: 3px 7px; font-size: 11px; }
+.landscape .timer-pill { top: max(6px, env(safe-area-inset-top)); left: 50%; right: auto; transform: translateX(-50%); padding: 3px 10px 3px 4px; gap: 5px; }
+.landscape .timer-pill .sw { width: 27px; height: 27px; font-size: 16px; }
+.landscape .timer-pill b { font-size: 20px; }
+.landscape .icon-btn { top: max(8px, env(safe-area-inset-top)); width: 36px; height: 36px; }
+.landscape .mute { right: max(54px, calc(env(safe-area-inset-right) + 50px)); }
+.landscape .pause { right: max(8px, env(safe-area-inset-right)); }
+.landscape #touch .rbtn { width: 56px; height: 56px; border-width: 2px; font-size: 24px; }
+.landscape #touch .rbtn svg { width: 34px; height: 34px; }
+.landscape #touch .btn-crouch, .landscape #touch .btn-run { bottom: max(10px, env(safe-area-inset-bottom)); }
+.landscape #touch .btn-run { right: max(72px, calc(env(safe-area-inset-right) + 72px)); }
+.landscape #touch .btn-jump, .landscape #touch .btn-dash { bottom: max(72px, calc(env(safe-area-inset-bottom) + 66px)); width: 50px; height: 50px; }
+.landscape #touch .btn-dash { right: max(70px, calc(env(safe-area-inset-right) + 70px)); }
+.landscape .stick-zone { width: 38%; height: 70%; }
+.landscape .stick { width: 104px; height: 104px; margin: -52px 0 0 -52px; }
+.landscape .stick-knob { width: 50px; height: 50px; margin: -25px; }
+.landscape .abil-bar { bottom: 10px; left: 50%; gap: 5px; }
+.landscape .ab { width: 44px; height: 44px; }
+.landscape .ab i { font-size: 20px; }
+.landscape .watch-bar { bottom: max(8px, env(safe-area-inset-bottom)); width: 170px; }
+.landscape .watch-bar button { margin-top: 0; padding: 7px 12px; font-size: 16px; }
+.landscape .ghost-view { top: max(52px, calc(env(safe-area-inset-top) + 46px)); width: min(25vw, 200px); right: max(8px, env(safe-area-inset-right)); }
 
 /* ---------- Этап 1.1: опции, скины, умения, режим «Смотреть», панель физики ---------- */
 .tag:nth-child(3) { border-color: #5ac27a; color: #bff0c8; background: rgba(90, 194, 122, .12); }
@@ -497,6 +546,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   <div class="toast" id="toast"></div>
   <div class="abil-bar" id="abil-bar"></div>
   <div class="watch-bar hidden" id="watch-bar"><button class="gold" id="btn-next">Следующий ›</button></div>
+  <div class="ghost-view hidden" id="ghost-view" aria-hidden="true"></div>
   <button class="icon-btn tuner-btn" id="btn-tuner" title="Физика (F2)">⚙</button>
   <button class="icon-btn mute" id="btn-mute" title="Звук">🔊</button>
   <button class="icon-btn pause" id="btn-pause" title="Меню">☰</button>
@@ -568,6 +618,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   }, 15000);
 })();
 </script>
-<script type="module" src="src/main.bundle.js?v=2026100903"></script>
+<script type="module" src="src/main.bundle.js?v=2026100904"></script>
 </body>
 </html>

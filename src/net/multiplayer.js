@@ -36,6 +36,7 @@ export class Multiplayer {
 
   #wire() {
     const ui = this.g.ui, net = this.net;
+    this.seenHost = null;
     ui.on('lb-leave', () => this.leave());
     ui.on('lb-hero', () => this.g.toSelect());
     ui.on('lb-start', () => this.hostStart());
@@ -139,8 +140,16 @@ export class Multiplayer {
   }
 
   #hostChanged(m) {
-    // хозяин ушёл посреди раунда — гости возвращаются в лобби
-    if (this.guest && m.host === this.net.id) { this.#stopGuest(); this.g.ui.toast('Хозяин вышел — теперь хозяин ты'); this.showLobby(); }
+    // Хозяин ушёл: сервер выбирает следующего и завершает старый раунд.
+    // Все гости должны выйти из замершего GuestView, не только новый хозяин.
+    const previous = this.seenHost;
+    this.seenHost = m.host;
+    if (!this.guest || previous == null || m.host === previous) return;
+    this.#stopGuest();
+    this.g.ui.toast(m.host === this.net.id
+      ? 'Хозяин вышел — теперь ты хозяин. Раунд завершён.'
+      : 'Хозяин вышел — раунд завершён, вернулись в лобби.');
+    this.showLobby();
   }
 
   // ---------- Хозяин ----------
@@ -212,6 +221,7 @@ export class Multiplayer {
     this.guest.clear();
     this.guest.setRoster(m.roster);
     this.guestMode = m.mode;
+    this.guestFocus = 0;
     this.pk = 0;
     g.showGhost.root.visible = false;
     g.showcase = null;
@@ -253,11 +263,32 @@ export class Multiplayer {
     gv.render(dt, t);
     const snap = gv.snap;
     const me = gv.me(this.net.id);
-    const focus = me?.pos || (gv.agents.values().next().value?.pos) || new THREE.Vector3(0, 0, 22);
+    const living = [...gv.agents.values()].filter(v => v.s?.[10]);
+    const spectating = !me && living.length > 0;
+    const watched = spectating ? living[this.guestFocus % living.length] : null;
+    const focus = me?.pos || watched?.pos || (gv.agents.values().next().value?.pos) || new THREE.Vector3(0, 0, 22);
+    g.mainFirstPersonTarget = spectating ? watched : null;
     if (me?.kind !== this.lastKind) { g.cam.configure(me?.kind === 'ghost' ? GHOST.cam : (me?.v?.def.cam || HEROES[0].cam)); this.lastKind = me?.kind; }
-    g.cam.update(dt, focus, inp);
+    if (spectating) g.firstPerson({ ctrl: { pos: watched.pos, yaw: watched.yaw }, hero: watched.def });
+    else g.cam.update(dt, focus, inp);
     this.focusPos = focus;
     if (!snap) return;
+    document.getElementById('watch-bar').classList.toggle('hidden', !spectating);
+    document.getElementById('touch').classList.toggle('hidden', spectating);
+    if (spectating) document.getElementById('btn-next').textContent = 'Другой герой ›';
+    const watchingGhost = mine && snap.ph === 'hide' && (mine[9] || mine[11] || mine[14])
+      ? snap.g.filter(s => s[5]).sort((a, b) => Math.hypot(a[1] - focus.x, a[3] - focus.z) - Math.hypot(b[1] - focus.x, b[3] - focus.z))[0]
+      : null;
+    const watchedGhost = watchingGhost && g.ghostPool[watchingGhost[0]];
+    const disguiseKey = watchingGhost && (watchingGhost[10] ? `hero:${watchingGhost[10]}` : watchingGhost[11] ? `prop:${watchingGhost[11]}` : null);
+    const disguiseObject = disguiseKey && this.guest.ghostDz.get(`${disguiseKey}#${watchingGhost[0]}`);
+    g.ghostViewTarget = watchedGhost ? {
+      ctrl: { pos: new THREE.Vector3(watchingGhost[1], watchingGhost[2], watchingGhost[3]), yaw: watchingGhost[4] },
+      def: watchedGhost.def,
+      root: watchedGhost.root,
+      disguiseRoot: disguiseObject?.root,
+    } : null;
+    document.getElementById('ghost-view').classList.toggle('hidden', !g.ghostViewTarget);
     // интерфейс
     g.ui.phase(snap.ph === 'chase' ? 'chase' : 'hide');
     const alive = snap.a.filter(a => a[10]).length;
@@ -286,6 +317,11 @@ export class Multiplayer {
     for (const s of snap.g) if (s[5] && s !== gmine && (gmine || (!s[10] && !s[11] && Math.hypot(s[1] - focus.x, s[3] - focus.z) < 18))) dots.push({ x: s[1], z: s[3], kind: 'ghost' });
     dots.push({ x: focus.x, z: focus.z, kind: 'me' });
     g.ui.minimap(focus, g.cam.yaw, dots);
+  }
+
+  nextGuestFocus() {
+    if (this.g.state !== 'guest' || this.guest?.me(this.net.id)) return;
+    this.guestFocus++;
   }
 
   // Клавиши гостя: те же, что в одиночной игре

@@ -27,6 +27,7 @@ export class UI {
     document.querySelector('.hud-left .stamina').classList.toggle('hidden', gameMode === 'watch');
     this.show('result', m === 'result');
     this.show('paused', false);
+    $('ghost-view').classList.add('hidden');
     $('hud').classList.toggle('hidden', m !== 'play');
     // экранные кнопки — и на телефоне, и на ПК (там жмутся мышкой); в «Смотреть» не нужны
     $('touch').classList.toggle('hidden', !(m === 'play' && gameMode !== 'watch'));
