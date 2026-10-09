@@ -438,6 +438,112 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   .sel-cards { grid-column: 1; }
 }
 
+/* Компактный игровой HUD: способности над правым кластером управления. */
+#hud .abil-bar {
+  left: auto;
+  right: max(22px, env(safe-area-inset-right));
+  bottom: max(222px, calc(env(safe-area-inset-bottom) + 212px));
+  width: min(276px, 42vw);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+  transform: none;
+}
+#hud .ab { flex: 0 0 54px; width: 54px; height: 54px; border-radius: 15px; }
+#hud .ghost-view {
+  width: min(34vw, 420px);
+  top: max(118px, calc(env(safe-area-inset-top) + 105px));
+  border-radius: 16px;
+}
+#hud .ghost-view::after { font-size: 12px; padding: 4px 9px; }
+#hud .hud-top { max-width: min(620px, 62vw); }
+#hud .status { max-width: min(620px, 62vw); white-space: normal; text-wrap: balance; }
+
+@media (max-width: 760px) {
+  #hud .hud-top { top: max(7px, env(safe-area-inset-top)); width: min(62vw, 290px); }
+  #hud .phase { font-size: 17px; padding: 3px 12px 4px; border-radius: 10px; }
+  #hud .status {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    max-width: 100%;
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.15;
+  }
+  #hud .timer-pill {
+    top: max(59px, calc(env(safe-area-inset-top) + 54px));
+    left: 50%; right: auto;
+    padding: 3px 10px 3px 4px;
+    gap: 5px;
+  }
+  #hud .timer-pill .sw { width: 25px; height: 25px; font-size: 15px; }
+  #hud .timer-pill b { font-size: 19px; }
+  #hud .hud-left {
+    left: max(8px, env(safe-area-inset-left));
+    top: max(94px, calc(env(safe-area-inset-top) + 88px));
+    width: 124px;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  #hud .minimap { flex: 0 0 78px; width: 78px; height: 78px; padding: 3px; margin: 0 0 1px; }
+  #hud .minimap canvas { width: 72px; height: 72px; }
+  #hud .mm-label { display: none; }
+  #hud .stamina { flex: 0 0 91px; width: 91px; height: 8px; }
+  #hud .shield, #hud .hidden-badge, #hud .alive, #hud .pumpkins-hud {
+    max-width: 120px;
+    padding: 3px 7px;
+    font-size: 10px;
+    line-height: 1.15;
+  }
+  #hud .pumpkins-hud { font-size: 11px; }
+  #hud .abil-bar {
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(218px, calc(env(safe-area-inset-bottom) + 208px));
+    width: 150px;
+    justify-content: center;
+    gap: 5px;
+  }
+  #hud .ab { flex-basis: 44px; width: 44px; height: 44px; border-radius: 13px; }
+  #hud .ab i { font-size: 21px; }
+  #hud .ab em { right: 3px; top: 1px; font-size: 9px; }
+  #hud .ab small { display: none; }
+  #hud .ghost-view {
+    top: max(105px, calc(env(safe-area-inset-top) + 96px));
+    right: max(8px, env(safe-area-inset-right));
+    width: min(48vw, 250px);
+    border-width: 2px;
+    border-radius: 13px;
+  }
+  #hud .ghost-view::after { left: 4px; top: 4px; font-size: 10px; padding: 3px 6px; }
+  #touch .rbtn { width: 64px; height: 64px; }
+  #touch .btn-crouch { right: max(14px, env(safe-area-inset-right)); bottom: max(20px, env(safe-area-inset-bottom)); }
+  #touch .btn-run { right: max(88px, calc(env(safe-area-inset-right) + 88px)); bottom: max(20px, env(safe-area-inset-bottom)); }
+  #touch .btn-jump { right: max(14px, env(safe-area-inset-right)); bottom: max(92px, calc(env(safe-area-inset-bottom) + 92px)); width: 56px; height: 56px; }
+  #touch .btn-dash { right: max(86px, calc(env(safe-area-inset-right) + 86px)); bottom: max(92px, calc(env(safe-area-inset-bottom) + 92px)); width: 52px; height: 52px; }
+}
+
+.landscape #hud .hud-top { top: max(4px, env(safe-area-inset-top)); }
+.landscape #hud .status { max-width: 48vw; font-size: 10px; }
+.landscape #hud .ghost-view { top: max(48px, calc(env(safe-area-inset-top) + 42px)); width: min(36vw, 340px); }
+.landscape #hud .abil-bar {
+  right: max(10px, env(safe-area-inset-right));
+  bottom: max(132px, calc(env(safe-area-inset-bottom) + 124px));
+  width: min(210px, 32vw);
+  gap: 5px;
+}
+.landscape #hud .ab { flex-basis: 44px; width: 44px; height: 44px; }
+.landscape #touch .rbtn { width: 52px; height: 52px; }
+.landscape #touch .btn-crouch { right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); }
+.landscape #touch .btn-run { right: max(68px, calc(env(safe-area-inset-right) + 68px)); bottom: max(8px, env(safe-area-inset-bottom)); }
+.landscape #touch .btn-jump { right: max(8px, env(safe-area-inset-right)); bottom: max(66px, calc(env(safe-area-inset-bottom) + 62px)); width: 46px; height: 46px; }
+.landscape #touch .btn-dash { right: max(66px, calc(env(safe-area-inset-right) + 66px)); bottom: max(66px, calc(env(safe-area-inset-bottom) + 62px)); width: 44px; height: 44px; }
+
 </style>
 <!-- Для старых WebKit загружается совместимая сборка с WebGL 1; графика игры одинаковая. -->
 </head>
