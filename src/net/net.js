@@ -30,7 +30,13 @@ export class Net {
       let done = false;
       const finish = ok => { if (!done) { done = true; resolve(ok); } };
       let ws;
-      try { ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/room/${this.code}`); }
+      // Keep the room on the same origin and under the game's base path.
+      // This works both at / on Cloudflare and at /masha-new/ on 250bar.ru.
+      try {
+        const room = new URL(`room/${this.code}`, location.href);
+        room.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(room.href);
+      }
       catch { return finish(false); }
       this.ws = ws;
       const timer = setTimeout(() => { finish(false); try { ws.close(); } catch {} }, 6000);

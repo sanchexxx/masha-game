@@ -1,0 +1,17 @@
+[Unit]
+Description=Masha game rooms on 250bar.ru
+After=network.target
+
+[Service]
+Type=simple
+User=masha
+Group=masha
+WorkingDirectory=/var/www/masha-game-next/server
+Environment=PORT=18787
+ExecStart=/usr/local/bin/node18-masha /var/www/masha-game-next/server/production.mjs
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
