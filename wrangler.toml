@@ -15,3 +15,6 @@ class_name = "Room"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Room"]
+
+# Ветки проверяются в отдельной среде Cloudflare Preview.
+[previews]
