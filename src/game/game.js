@@ -7,6 +7,7 @@ import { CONFIG } from '../config/config.js?v=2026100901';
 import { HEROES, GHOST } from '../characters/index.js?v=2026100901';
 import { buildMap } from '../world/map.js?v=2026100901';
 import { buildForest } from '../world/forest.js?v=2026100901';
+import { loadForestAssets } from '../world/forest-assets.js?v=2026101002';
 import { buildFireflies, buildSoot } from '../world/effects.js?v=2026100901';
 import { buildProp, poof, Pumpkins, wallet } from '../world/props.js?v=2026100901';
 import { Input } from '../player/input.js?v=2026100901';
@@ -215,6 +216,10 @@ export class Game {
     try {
       this.ui.progress(0.12, id === 'forest' ? 'Пробуждаем Лес духов…' : 'Строим деревню духов…');
       await frame();
+      if (id === 'forest') {
+        this.ui.progress(0.24, 'Загружаем лесные материалы…');
+        await loadForestAssets();
+      }
       const nextScene = new THREE.Scene();
       const nextMap = id === 'forest' ? buildForest(nextScene, { isMobile }) : buildMap(nextScene, { isMobile });
       this.ui.progress(0.43, 'Прокладываем маршруты…');
@@ -528,6 +533,7 @@ export class Game {
 
     const center = this.state === 'play' ? this.#posOf(this.#focusTarget()) : this.state === 'guest' ? this.mp.focusPos || this.map.playerSpawn : this.map.playerSpawn;
     this.map.updateLights(center);
+    this.map.updateVisuals?.(t);
     this.fireflies(t);
     this.soot(dt, t, center);
     const firstPersonModel = this.#firstPersonModel(this.mainFirstPersonTarget);
