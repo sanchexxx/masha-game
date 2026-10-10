@@ -115,7 +115,7 @@ export class UI {
   pumpkins(n) { $('pumpkins').textContent = n; }
   phase(p) {
     const el = $('phase');
-    el.textContent = p === 'chase' ? 'Догонялки!' : 'Прятки';
+    el.textContent = p === 'delivery' ? 'Доставка фонаря' : p === 'chase' ? 'Догонялки!' : 'Прятки';
     el.classList.toggle('chase', p === 'chase');
   }
   mmLabel(text) { const l = $('mm-label'); l.innerHTML = text; l.style.opacity = text ? 1 : 0; }
@@ -164,6 +164,12 @@ export class UI {
     for (const d of dots) {
       const px = (d.x + half) * k, pz = (d.z + half) * k;
       if (d.kind === 'pumpkin') { x.fillStyle = '#ffa23a'; x.beginPath(); x.arc(px, pz, 2.2, 0, 7); x.fill(); continue; }
+      if (d.kind === 'lantern' || d.kind === 'shrine') {
+        x.fillStyle = d.kind === 'lantern' ? '#ffd16c' : '#67ecf4';
+        x.shadowColor = x.fillStyle; x.shadowBlur = 8;
+        x.beginPath(); x.arc(px, pz, d.kind === 'lantern' ? 5 : 7, 0, 7); x.fill(); x.shadowBlur = 0;
+        continue;
+      }
       x.fillStyle = d.kind === 'me' ? '#ff8a3a' : d.kind === 'ghost' ? '#b07aff' : '#ffffff';
       x.strokeStyle = '#2a170b'; x.lineWidth = 1;
       x.beginPath(); x.arc(px, pz, d.kind === 'me' ? 4.5 : 3.2, 0, 7); x.fill(); x.stroke();
@@ -246,6 +252,12 @@ export class UI {
     const earn = $('res-earn');
     earn.textContent = r.earn ? `+${r.earn} 🎃 тыковок` : '';
     const list = a => a.join(', ');
+    if (r.gameMode === 'delivery') {
+      $('res-emoji').textContent = r.heroesWon ? '🏮' : '🎭';
+      $('res-title').textContent = r.heroesWon ? 'Фонари доставлены!' : 'Безлик остановил доставку';
+      $('res-text').textContent = `Доставлено ${r.delivered}/${r.goal} фонарей. ${r.heroesWon ? 'Святилище снова светится!' : 'Попробуйте скоординироваться и защитить носителя.'}`;
+      return;
+    }
     if (r.mode === 'watch') {
       $('res-emoji').textContent = r.alive.length ? '🏮' : '👺';
       $('res-title').textContent = r.alive.length ? 'Рассвет!' : 'Безлики поймали всех';

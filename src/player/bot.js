@@ -159,6 +159,31 @@ export class BotBrain {
     return inp;
   }
 
+  // В доставке бот несёт фонарь к святилищу, при близком Безлике спасается.
+  updateDelivery(dt, ghosts, delivery) {
+    const p = this.agent.ctrl.pos;
+    const threat = ghosts.find(g => g.active && Math.hypot(g.pos.x - p.x, g.pos.z - p.z) < 7);
+    if (threat) return this.update(dt, ghosts);
+    this.threat = null;
+    const lantern = delivery?.lantern;
+    if (!lantern) return { x: 0, y: 0 };
+    if (lantern.carrier && lantern.carrier !== this.agent.key) return { x: 0, y: 0 };
+    const target = lantern.carrier === this.agent.key ? delivery.shrine : lantern;
+    if (!target) return { x: 0, y: 0 };
+    const goal = `${Math.round(target.x * 2)},${Math.round(target.z * 2)}`;
+    this.deliveryThink = (this.deliveryThink || 0) - dt;
+    if (goal !== this.deliveryGoal || this.deliveryThink <= 0 || !this.path?.length) {
+      this.deliveryGoal = goal;
+      this.deliveryThink = 1.3;
+      this.path = this.nav.find(p.x, p.z, target.x, target.z) || [[target.x, target.z]];
+    }
+    while (this.path?.length && Math.hypot(this.path[0][0] - p.x, this.path[0][1] - p.z) < 0.9) this.path.shift();
+    const [x, z] = this.path?.[0] || [target.x, target.z];
+    const d = Math.hypot(x - p.x, z - p.z) || 1;
+    return { x: (x - p.x) / d, y: -(z - p.z) / d, run: !this.agent.ctrl.exhausted,
+      jump: this.agent.ctrl.speed < 0.3 && this.deliveryThink < 0.4 };
+  }
+
   #decide(threat, td) {
     const me = this.agent, c = me.ctrl, p = c.pos;
     if (me.prop || this.mode === 'roof' || (this.mode === 'ladder' && (c.climbing || c.elevated))) return;

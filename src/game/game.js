@@ -10,6 +10,7 @@ import { buildForest } from '../world/forest.js?v=2026100901';
 import { loadForestAssets } from '../world/forest-assets.js?v=2026101003';
 import { buildFireflies, buildSoot } from '../world/effects.js?v=2026100901';
 import { buildProp, poof, Pumpkins, wallet } from '../world/props.js?v=2026100901';
+import { LanternView } from '../world/lanterns.js';
 import { Input } from '../player/input.js?v=2026100901';
 import { ThirdPersonCamera } from '../player/camera.js?v=2026100901';
 import { Ghost } from '../enemies/ghost.js?v=2026100901';
@@ -50,6 +51,7 @@ export class Game {
     this.withBots = true;
     this.ghostCount = CONFIG.ghost.count;
     this.mapId = 'village';
+    this.gameMode = 'hide';
     this.activeMapId = 'village';
     this.look = loadLook();        // внешность «Моего котика»
   }
@@ -104,6 +106,7 @@ export class Game {
       await frame();
     }
     this.pumpkins = new Pumpkins(this.scene, this.navFor(0.42));
+    this.lanternView = new LanternView(this.scene, this.world);
     ui.progress(0.8, 'Зовём духов…');
     await frame();
 
@@ -132,6 +135,7 @@ export class Game {
     ui.on('btn-friends', () => (this.mp.inRoom ? this.mp.showLobby() : this.mp.showRooms()));
     ui.on('btn-maps-back', () => this.toSelect());
     ui.on('btn-maps-go', () => this.beginRound(this.hero.id === 'noface' ? 'hunter' : 'play'));
+    for (const [id, mode] of [['maps-mode-hide', 'hide'], ['maps-mode-delivery', 'delivery']]) ui.on(id, () => this.setGameMode(mode));
     ui.on('btn-watch', () => this.beginRound('watch'));
     ui.on('btn-again', () => this.beginRound(this.mode));
     ui.on('btn-change', () => (this.mp.inRoom ? this.mp.showLobby() : this.toSelect()));
@@ -239,6 +243,7 @@ export class Game {
       this.ghostPool = Array.from({ length: MAX_GHOSTS }, () => new Ghost(GHOST, this.world, this.scene, ghostNav, { heroes: HEROES }));
       this.cam.blockers = nextMap.cameraBlockers;
       this.pumpkins = new Pumpkins(this.scene, this.navFor(0.42));
+      this.lanternView = new LanternView(this.scene, this.world);
       this.showLight = new THREE.PointLight(0xffe0b0, 14, 9, 1.6);
       this.scene.add(this.showLight, this.showGhost.root);
       this.round = new Round({
@@ -356,6 +361,30 @@ export class Game {
   toMaps() {
     this.state = 'maps';
     this.ui.mode('maps', isTouch);
+    this.setGameMode(this.gameMode);
+  }
+
+  setGameMode(mode) {
+    this.gameMode = mode === 'delivery' ? 'delivery' : 'hide';
+    for (const [id, value] of [['maps-mode-hide', 'hide'], ['maps-mode-delivery', 'delivery']])
+      document.getElementById(id)?.classList.toggle('active', value === this.gameMode);
+    const button = document.getElementById('btn-maps-go');
+    if (button) button.innerHTML = `Начать ${this.gameMode === 'delivery' ? 'доставку' : 'прятки'} <span>›</span>`;
+    const note = document.getElementById('maps-mode-note');
+    if (note) note.textContent = this.gameMode === 'delivery'
+      ? 'Найди светящийся фонарь и отнеси к отмеченному святилищу. Три доставки за 4 минуты. Безлик может выбить фонарь.'
+      : 'Спрячься от Безлика, переживи поиски и догонялки.';
+  }
+
+  showModeIntro(gameMode = this.gameMode) {
+    const intro = document.getElementById('mode-intro');
+    if (!intro) return;
+    intro.innerHTML = gameMode === 'delivery'
+      ? '<b>🏮 Доставка фонаря</b><span>Подбери светящийся фонарь и отнеси к святилищу. После каждой доставки появляются новые точки. Нужно доставить 3 фонаря за 4 минуты. Безлик может выбить фонарь.</span>'
+      : '<b>🎭 Прятки с Безликом</b><span>Сначала спрячься. Когда выйдет Безлик, не дай себя поймать. Затем начнутся догонялки.</span>';
+    intro.classList.remove('hidden');
+    clearTimeout(this.modeIntroTimer);
+    this.modeIntroTimer = setTimeout(() => intro.classList.add('hidden'), 7500);
   }
 
   // ---------- Раунд ----------
@@ -372,7 +401,8 @@ export class Game {
     this.input.reset();
     const hero = this.hero.id === GHOST.id ? HEROES[0] : this.hero;
     const withBots = this.mp.isHost ? this.mp.net.bots : this.withBots;
-    this.round.start({ mode, hero, skin: this.#skinFor(hero), mSkin: this.skin, ghosts: this.ghostCount, withBots, remotes: this.mp.remotes() });
+    if (this.mp.isHost) this.gameMode = this.mp.net.gameMode;
+    this.round.start({ mode, gameMode: this.gameMode, hero, skin: this.#skinFor(hero), mSkin: this.skin, ghosts: this.ghostCount, withBots, remotes: this.mp.remotes() });
     this.mp.hostStarted();
     this.pumpkins.spawn(CONFIG.round.pumpkins);
     this.focus = 0;
@@ -384,7 +414,8 @@ export class Game {
     this.input.enabled = true;
     this.input.lookOnly = mode === 'watch';
     this.ui.mode('play', isTouch, mode);
-    this.ui.phase('hide');
+    this.ui.phase(this.round.phase);
+    this.showModeIntro();
     this.#abilityBar();
     this.#aliveHud();
     this.ui.pumpkins(0);
@@ -422,7 +453,7 @@ export class Game {
   #aliveHud() {
     const R = this.round;
     const n = R.agents.filter(a => a.alive).length;
-    this.ui.alive(n, R.agents.length, R.phase === 'hide' ? 'Спрятались' : 'Убегают');
+    this.ui.alive(n, R.agents.length, R.phase === 'delivery' ? `🏮 Доставлено ${R.delivery.delivered}/${R.delivery.goal} · героев` : R.phase === 'hide' ? 'Спрятались' : 'Убегают');
   }
 
   // За кем смотрит камера
@@ -510,7 +541,8 @@ export class Game {
     this.input.enabled = false;
     this.input.releasePointer();
     this.sound.setTension(0);
-    const good = r.mode === 'watch' ? r.alive.length > 0 : (r.mode === 'hunter' || r.playerWasGhost) ? r.alive.length === 0 : !r.playerCaughtInChase;
+    const good = r.gameMode === 'delivery' ? (r.mode === 'hunter' ? !r.heroesWon : r.heroesWon)
+      : r.mode === 'watch' ? r.alive.length > 0 : (r.mode === 'hunter' || r.playerWasGhost) ? r.alive.length === 0 : !r.playerCaughtInChase;
     good ? this.sound.win() : this.sound.lose();
     if (r.mode !== 'watch' && r.earn) this.ui.wallet(wallet.add(r.earn));
     else r.earn = 0;
@@ -539,6 +571,11 @@ export class Game {
     const center = this.state === 'play' ? this.#posOf(this.#focusTarget()) : this.state === 'guest' ? this.mp.focusPos || this.map.playerSpawn : this.map.playerSpawn;
     this.map.updateLights(center);
     this.map.updateVisuals?.(t);
+    if (this.state === 'play') this.lanternView?.update(this.round.delivery, this.round.agents, t);
+    else if (this.state === 'guest') {
+      const snap = this.mp.guest?.snap;
+      this.lanternView?.update(snap?.d, (snap?.a || []).map(a => ({ key: a[0], ctrl: { pos: { x: a[1], y: a[2], z: a[3] } } })), t);
+    } else if (this.lanternView) this.lanternView.root.visible = false;
     this.fireflies(t);
     this.soot(dt, t, center);
     const firstPersonModel = this.#firstPersonModel(this.mainFirstPersonTarget);
@@ -669,7 +706,13 @@ export class Game {
     const dist = near ? near.d : 99;
     const sees = !!(near && near.g.sees && (near.g.target === heroView || near.g.target?.headOwner === heroView) && !near.g.disguised);
     const headLeft = Math.ceil(C.round.headStart - R.t);
-    if (R.phase === 'hide' && R.spawned === 0) {
+    if (R.phase === 'delivery') {
+      const d = R.delivery;
+      const carrying = d.lantern.carrier === R.player?.key;
+      this.ui.status(R.playerGhost ? `Помешай доставке! Фонари: ${d.delivered}/${d.goal}`
+        : carrying ? `Неси фонарь к светящемуся святилищу! ${d.delivered}/${d.goal}`
+        : `Подбери фонарь и отнеси к святилищу · ${d.delivered}/${d.goal}`, 'calm');
+    } else if (R.phase === 'hide' && R.spawned === 0) {
       if (R.playerGhost) this.ui.status(`Закрой глаза и считай: ${headLeft}… Герои прячутся!`, 'calm');
       else this.ui.status(`Безлики выйдут через ${headLeft} — прячься!`, 'calm');
     } else if (R.playerGhost) {
@@ -689,7 +732,7 @@ export class Game {
     this.ui.vignette(k * (sees ? 1 : 0.6));
     const hudC = me ? me.ctrl : follow.ctrl;
     this.ui.hud({ left: R.left, stamina: hudC.stamina, tired: hudC.exhausted, hidden: me?.hidden });
-    this.ui.mmLabel(R.phase === 'hide' && R.spawned === 0 && !R.playerGhost ? 'Найди место<br>и спрячься!' : '');
+    this.ui.mmLabel(R.phase === 'delivery' ? '🏮 Найди фонарь<br>и святилище' : R.phase === 'hide' && R.spawned === 0 && !R.playerGhost ? 'Найди место<br>и спрячься!' : '');
     this.#minimap(follow);
     this.#cooldowns();
   }
@@ -702,6 +745,15 @@ export class Game {
       this.cam.shake = Math.max(this.cam.shake, 0.6);
       if (e.ghost.isPlayer) this.ui.toast('Ты вышел на охоту! Ищи!');
       else if (e.i === 0) this.ui.toast(R.phase === 'hide' ? 'Безлики вышли искать!' : 'Догонялки начались!');
+    } else if (e.type === 'lanternPickup') {
+      this.ui.toast(e.agent.isPlayer ? 'Ты взял фонарь! Неси его к святилищу.' : `${e.agent.name} несёт фонарь!`);
+      this.sound.chime([660, 880]);
+    } else if (e.type === 'lanternDropped') {
+      this.ui.toast('Безлик выбил фонарь! Подберите его снова.');
+    } else if (e.type === 'lanternDelivered') {
+      this.ui.toast(`Фонарь доставлен! ${e.count}/${e.goal}`);
+      this.sound.chime([784, 1046, 1318]);
+      this.#aliveHud();
     } else if (e.type === 'split') {
       if (e.agent.isPlayer) {
         this.#configureCam(e.agent);
@@ -728,7 +780,8 @@ export class Game {
       this.#aliveHud();
       if (a.isPlayer) {
         this.cam.shake = 1;
-        if (e.phase === 'hide') {
+        if (e.phase === 'delivery') this.ui.toast('Безлик поймал тебя! Смотри за командой.');
+        else if (e.phase === 'hide') {
           const first = R.caughtOrder.filter(c => c.phase === 'hide').length === 1;
           this.ui.toast(a.eliminatedByHeads ? 'Все три головы пойманы. Ты выбыл из матча.'
             : first ? 'Тебя нашли первым — в догонялках ТЫ будешь Безликом!' : 'Тебя нашли! Подожди догонялок.');
@@ -766,6 +819,10 @@ export class Game {
     const me = follow;
     const dots = [];
     for (const p of this.pumpkins.list) dots.push({ x: p.x, z: p.z, kind: 'pumpkin' });
+    if (R.delivery) {
+      dots.push({ x: R.delivery.lantern.x, z: R.delivery.lantern.z, kind: 'lantern' });
+      dots.push({ x: R.delivery.shrine.x, z: R.delivery.shrine.z, kind: 'shrine' });
+    }
     const hunter = !!R.playerGhost;
     for (const a of R.agents) {
       if (!a.alive) continue;

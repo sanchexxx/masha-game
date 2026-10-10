@@ -14,6 +14,7 @@ export class RoomCore {
     this.seq = 0;
     this.started = false;
     this.bots = true;
+    this.gameMode = 'hide';
   }
 
   join(conn) {
@@ -43,6 +44,7 @@ export class RoomCore {
     if (m.t === 'vote') { me.vote = String(m.map || 'village').slice(0, 16); return this.#lobby(); }
     if (conn === this.hostConn) {
       if (m.t === 'bots') { if (this.started) return; this.bots = !!m.enabled; return this.#lobby(); }
+      if (m.t === 'gameMode') { if (this.started) return; this.gameMode = m.mode === 'delivery' ? 'delivery' : 'hide'; return this.#lobby(); }
       if (m.t === 'start') this.started = true;
       if (m.t === 'lobbyBack') this.started = false;
       if (m.t === 'start' || m.t === 'lobbyBack') this.onChange(this.summary());
@@ -76,11 +78,11 @@ export class RoomCore {
   #lobby() {
     const host = this.hostConn ? this.players.get(this.hostConn)?.id : null;
     const players = [...this.players.values()];
-    for (const c of this.players.keys()) this.send(c, { t: 'lobby', players, host, started: this.started, bots: this.bots });
+    for (const c of this.players.keys()) this.send(c, { t: 'lobby', players, host, started: this.started, bots: this.bots, gameMode: this.gameMode });
     this.onChange(this.summary());
   }
 
   summary() {
-    return { players: this.players.size, host: this.hostConn ? this.players.get(this.hostConn)?.name : '', started: this.started, bots: this.bots };
+    return { players: this.players.size, host: this.hostConn ? this.players.get(this.hostConn)?.name : '', started: this.started, bots: this.bots, gameMode: this.gameMode };
   }
 }

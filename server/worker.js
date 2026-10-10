@@ -58,7 +58,7 @@ export class RoomDirectory extends DurableObject {
     else if (request.method === 'POST') await this.storage.put(key, {
       code: data.code, host: String(data.host || 'Игрок').slice(0, 20),
       players: Math.min(MAX_PLAYERS, Math.max(0, Number(data.players) || 0)),
-      started: !!data.started, bots: data.bots !== false, updated: Date.now(),
+      started: !!data.started, bots: data.bots !== false, gameMode: data.gameMode === 'delivery' ? 'delivery' : 'hide', updated: Date.now(),
     });
     else return new Response('Method not allowed', { status: 405 });
     return new Response(null, { status: 204 });

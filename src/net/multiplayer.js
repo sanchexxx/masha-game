@@ -45,6 +45,8 @@ export class Multiplayer {
     ui.on('lb-start', () => this.hostStart());
     ui.on('lb-bots-on', () => { if (this.isHost) net.send({ t: 'bots', enabled: true }); });
     ui.on('lb-bots-off', () => { if (this.isHost) net.send({ t: 'bots', enabled: false }); });
+    ui.on('lb-mode-hide', () => { if (this.isHost) net.send({ t: 'gameMode', mode: 'hide' }); });
+    ui.on('lb-mode-delivery', () => { if (this.isHost) net.send({ t: 'gameMode', mode: 'delivery' }); });
     ui.on('lb-copy', () => { navigator.clipboard?.writeText(this.url).then(() => ui.toast('Ссылка скопирована!'), () => {}); $('lb-url').select(); });
     ui.on('lb-share', () => { if (navigator.share) navigator.share({ title: 'Прятки с Безликом', text: 'Играем вместе! Комната ' + net.code, url: this.url }).catch(() => {}); else { navigator.clipboard?.writeText(this.url); ui.toast('Ссылка скопирована!'); } });
     ui.on('rooms-create', () => this.createRoom());
@@ -125,7 +127,7 @@ export class Multiplayer {
       const { rooms } = await response.json();
       if (this.g.state !== 'rooms') return;
       const open = rooms.filter(r => r.players < MAX_PLAYERS);
-      box.innerHTML = open.length ? open.map(r => `<div class="room-row"><div class="room-info"><strong>Комната ${esc(r.code)}</strong><small>${esc(r.host)} · ${r.players}/${MAX_PLAYERS} игроков · ${r.bots === false ? 'Без ботов' : 'С ботами'} · ${r.started ? 'Игра идёт — можно присоединиться' : 'Ожидает игроков'}</small></div><button class="gold" data-room="${esc(r.code)}">Войти</button></div>`).join('')
+      box.innerHTML = open.length ? open.map(r => `<div class="room-row"><div class="room-info"><strong>Комната ${esc(r.code)}</strong><small>${esc(r.host)} · ${r.players}/${MAX_PLAYERS} игроков · ${r.gameMode === 'delivery' ? '🏮 Доставка фонаря' : '🎭 Прятки'} · ${r.bots === false ? 'Без ботов' : 'С ботами'} · ${r.started ? 'Игра идёт — можно присоединиться' : 'Ожидает игроков'}</small></div><button class="gold" data-room="${esc(r.code)}">Войти</button></div>`).join('')
         : '<div class="lb-card">Пока нет открытых комнат. Создай первую!</div>';
     } catch {
       if (this.g.state === 'rooms') box.textContent = 'Не удалось получить список комнат. Нажми «Обновить список».';
@@ -175,7 +177,7 @@ export class Multiplayer {
       if (p.id === this.net.id || this.roundPlayers?.has(p.id) || !p.ready) continue;
       const added = this.g.round.addLatePlayer({ id: p.id, name: p.name, hero: heroById(p.hero), skin: p.skin });
       if (added) this.net.send({ t: 'roster', roster: makeRoster(this.g.round) });
-      this.net.send({ t: 'start', to: p.id, roster: makeRoster(this.g.round), mode: this.g.round.mode, map: this.g.mapId });
+      this.net.send({ t: 'start', to: p.id, roster: makeRoster(this.g.round), mode: this.g.round.mode, gameMode: this.g.round.gameMode, map: this.g.mapId });
       this.g.ui.toast(added ? `${p.name} присоединился к игре` : `${p.name} наблюдает за игрой`);
     }
     this.roundPlayers = new Set(m.players.filter(p => p.ready).map(p => p.id));
@@ -208,6 +210,14 @@ export class Multiplayer {
     $('lb-bots-note').textContent = amHost
       ? 'Ты выбираешь состав комнаты. Без ботов нужны хотя бы один герой и один Безлик среди игроков.'
       : 'Режим выбирает хозяин комнаты. Без ботов нужны игроки за героя и Безлика.';
+    for (const [id, mode] of [['lb-mode-hide', 'hide'], ['lb-mode-delivery', 'delivery']]) {
+      $(id).disabled = !amHost;
+      $(id).classList.toggle('active', net.gameMode === mode);
+    }
+    $('lb-mode-note').textContent = net.gameMode === 'delivery'
+      ? 'Найдите фонарь и доставьте в святилище 3 раза за 4 минуты. Безлик выбивает фонарь у носителя. Точки меняются после каждой доставки.'
+      : 'Сначала прячьтесь от Безлика, затем убегайте в догонялках.';
+    $('lb-start').innerHTML = `Начать ${net.gameMode === 'delivery' ? 'доставку' : 'прятки'} <span>›</span>`;
     $('lb-start').classList.toggle('hidden', !amHost);
     $('lb-wait').classList.toggle('hidden', amHost);
   }
@@ -276,7 +286,7 @@ export class Multiplayer {
     const R = this.g.round;
     // имя хозяина — на его героя
     if (R.player) R.player.name = this.myName || R.player.name;
-    this.net.send({ t: 'start', roster: makeRoster(R), mode: R.mode, map: this.g.mapId });
+    this.net.send({ t: 'start', roster: makeRoster(R), mode: R.mode, gameMode: R.gameMode, map: this.g.mapId });
     this.roundPlayers = new Set(this.net.players.map(p => p.id));
     this.sendT = 0;
   }
@@ -302,6 +312,9 @@ export class Multiplayer {
     else if (e.type === 'headCaught') this.net.send({ t: 'ev', k: 'headCaught', pid: pidOf(e.agent), name: e.agent.name, remaining: e.remaining });
     else if (e.type === 'headSwitch') this.net.send({ t: 'ev', k: 'headSwitch', pid: pidOf(e.agent), index: e.index });
     else if (e.type === 'ghostSpawn') this.net.send({ t: 'ev', k: 'spawn', i: e.i, phase: this.g.round.phase, pid: e.ghost.isPlayer ? 'host' : e.ghost.remote || null });
+    else if (e.type === 'lanternPickup') this.net.send({ t: 'ev', k: 'lanternPickup', name: e.agent.name, pid: pidOf(e.agent) });
+    else if (e.type === 'lanternDropped') this.net.send({ t: 'ev', k: 'lanternDropped', name: e.agent.name });
+    else if (e.type === 'lanternDelivered') this.net.send({ t: 'ev', k: 'lanternDelivered', name: e.agent.name, count: e.count, goal: e.goal });
     else if (e.type === 'phase') {
       this.net.send({ t: 'roster', roster: makeRoster(this.g.round) });
       this.net.send({ t: 'ev', k: 'phase', name: e.newGhostName, pid: e.agent ? pidOf(e.agent) : null });
@@ -310,7 +323,8 @@ export class Multiplayer {
 
   hostEnd(r) {
     if (!this.isHost) return;
-    this.net.send({ t: 'end', r: { hideSurvivors: r.hideSurvivors, alive: r.alive, caught: r.caught } });
+    this.net.send({ t: 'end', r: { gameMode: r.gameMode, delivered: r.delivered, goal: r.goal, heroesWon: r.heroesWon,
+      hideSurvivors: r.hideSurvivors, alive: r.alive, caught: r.caught } });
   }
 
   // Тыковки, собранные гостями (хозяин отмечает, кому)
@@ -331,6 +345,7 @@ export class Multiplayer {
   async #guestStart(m) {
     const g = this.g;
     g.mapId = m.map === 'forest' ? 'forest' : 'village';
+    g.gameMode = m.gameMode === 'delivery' ? 'delivery' : 'hide';
     this.guest?.clear();
     this.guest = null;
     try { await g.activateMap(g.mapId); }
@@ -349,7 +364,8 @@ export class Multiplayer {
     g.input.lookOnly = false;
     g.cam.yaw = 0; g.cam.pitch = 0.3;
     g.ui.mode('play', g.isTouch, 'play');
-    g.ui.phase('hide');
+    g.ui.phase(g.gameMode === 'delivery' ? 'delivery' : 'hide');
+    g.showModeIntro(g.gameMode);
     g.ui.pumpkins(0);
     g.ui.abilityBar([]);
     this.lastBar = null;
@@ -419,18 +435,21 @@ export class Multiplayer {
     } : null;
     document.getElementById('ghost-view').classList.toggle('hidden', !g.ghostViewTarget);
     // интерфейс
-    g.ui.phase(snap.ph === 'chase' ? 'chase' : 'hide');
+    g.ui.phase(snap.ph === 'delivery' ? 'delivery' : snap.ph === 'chase' ? 'chase' : 'hide');
     const alive = snap.a.filter(a => a[10]).length;
-    g.ui.alive(alive, snap.a.length, snap.ph === 'hide' ? 'Спрятались' : 'Убегают');
+    g.ui.alive(alive, snap.a.length, snap.ph === 'delivery' ? `🏮 Доставлено ${snap.d?.delivered || 0}/${snap.d?.goal || 3} · героев` : snap.ph === 'hide' ? 'Спрятались' : 'Убегают');
     g.ui.hud({ left: snap.left, stamina: mine ? mine[15] : gmine ? gmine[13] : 1, tired: mine ? !!mine[16] : false, hidden: mine ? !!mine[14] : false });
     let status;
-    if (snap.ph === 'hide' && snap.sp === 0) status = gmine ? 'Закрой глаза и считай… Герои прячутся!' : 'Безлики скоро выйдут — прячься!';
+    if (snap.ph === 'delivery') status = gmine ? `Помешай доставке! Фонари: ${snap.d?.delivered || 0}/${snap.d?.goal || 3}`
+      : snap.d?.lantern?.carrier === me?.v?.s?.[0] ? 'Неси фонарь к светящемуся святилищу!'
+      : `Подбери фонарь и доставь к святилищу · ${snap.d?.delivered || 0}/${snap.d?.goal || 3}`;
+    else if (snap.ph === 'hide' && snap.sp === 0) status = gmine ? 'Закрой глаза и считай… Герои прячутся!' : 'Безлики скоро выйдут — прячься!';
     else if (gmine) status = gmine[10] || gmine[11] ? 'Ты замаскирован — подкрадись!' : snap.ph === 'hide' ? `Найди спрятавшихся! Осталось: ${alive}` : `Догони всех! Осталось: ${alive}`;
     else if (!me) status = ghostViews.length ? 'Взгляд Безлика: смотри, как он ищет героев' : 'Тебя нашли! Смотри, как прячутся другие…';
     else if (mine[11]) status = 'Ты — предмет. Не шевелись! (Q — снова стать собой)';
     else status = mine[18] ? `Три головы: ${mine[18].filter(h => h[5]).length}/3 · убегай от Безлика!` : mine[14] ? 'Тихо… тебя ищут' : snap.ph === 'chase' ? 'Догонялки! Не попадись!' : 'Безлики ищут. Спрячься или замаскируйся!';
     g.ui.status(status, 'calm');
-    g.ui.mmLabel(snap.ph === 'hide' && snap.sp === 0 && !gmine ? 'Найди место<br>и спрячься!' : '');
+    g.ui.mmLabel(snap.ph === 'delivery' ? '🏮 Найди фонарь<br>и святилище' : snap.ph === 'hide' && snap.sp === 0 && !gmine ? 'Найди место<br>и спрячься!' : '');
     // панель умений: герой или Безлик
     const bar = gmine ? 'ghost' : mine ? 'hero:' + me.v.def.id : 'none';
     if (bar !== this.lastBar) {
@@ -442,6 +461,10 @@ export class Multiplayer {
       : id === 'split' ? { k: mine[19] ? 1 : 0, n: mine[18] ? mine[18].filter(h => h[5]).length : '' } : { k: 0 });
     // мини-карта
     const dots = [];
+    if (snap.d) {
+      dots.push({ x: snap.d.lantern.x, z: snap.d.lantern.z, kind: 'lantern' });
+      dots.push({ x: snap.d.shrine.x, z: snap.d.shrine.z, kind: 'shrine' });
+    }
     for (const v of gv.agents.values()) if (v.s && v.s[10] && v !== me?.v && !gmine) dots.push({ x: v.s[1], z: v.s[3], kind: 'ally' });
     if (mine?.[18]) for (const h of mine[18]) if (h[5] && Math.hypot(h[0] - focus.x, h[2] - focus.z) > 0.4)
       dots.push({ x: h[0], z: h[2], kind: 'ally' });
@@ -474,12 +497,18 @@ export class Multiplayer {
     const g = this.g, ui = g.ui, me = this.net.id;
     if (!this.guest) return;
     if (m.k === 'caught') {
-      if (m.pid === me) ui.toast(m.eliminated ? 'Все три головы пойманы. Ты выбыл из матча.'
+      if (g.gameMode === 'delivery') ui.toast(m.pid === me ? 'Безлик поймал тебя. Смотри за командой.' : `Безлик поймал: ${m.name}`);
+      else if (m.pid === me) ui.toast(m.eliminated ? 'Все три головы пойманы. Ты выбыл из матча.'
         : m.phase === 'hide' ? 'Тебя нашли! Подожди догонялок.' : 'Тебя догнали!');
       else if (m.by === me) ui.toast(`Попался: ${m.name}!`);
       else ui.toast(`${m.phase === 'hide' ? 'Нашли' : 'Догнали'}: ${m.name}`);
       g.sound.chime([392, 330]);
-    } else if (m.k === 'resisted') {
+    } else if (m.k === 'lanternPickup') {
+      ui.toast(m.pid === me ? 'Ты взял фонарь! Неси к святилищу.' : `${m.name} несёт фонарь!`);
+      g.sound.chime([660, 880]);
+    } else if (m.k === 'lanternDropped') ui.toast('Безлик выбил фонарь! Подберите его снова.');
+    else if (m.k === 'lanternDelivered') { ui.toast(`Фонарь доставлен! ${m.count}/${m.goal}`); g.sound.chime([784, 1046, 1318]); }
+    else if (m.k === 'resisted') {
       ui.toast(m.pid === me ? 'Ты вырвался из поимки! Упрямство потрачено.' : `${m.name} вырвались из поимки!`);
       if (m.pid === me) g.sound.brothersCue?.('resist');
       const p = [...this.guest.agents.values()].find(v => v.pid === m.pid)?.pos;
@@ -531,7 +560,7 @@ export class Multiplayer {
     g.input.releasePointer();
     const earn = this.pk;
     if (earn) g.ui.wallet(wallet.add(earn));
-    g.ui.result({ mode: 'watch', alive: r.alive, hideSurvivors: r.hideSurvivors, caught: r.caught, earn });
+    g.ui.result({ mode: 'watch', ...r, earn });
     g.ui.mode('result', g.isTouch);
     document.getElementById('btn-again').classList.add('hidden');
   }

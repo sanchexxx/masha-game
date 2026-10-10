@@ -28,7 +28,10 @@ export function makeSnapshot(round) {
       g.isPlayer ? 'host' : g.remote || 0, r2(g.ctrl.stamina), g.ctrl.dashCharges, r2(g.ctrl.flyEnergy), r2(g.disguiseCd),
       r2(g.slowT), r2(g.confusedT), g.controlKind || ''];
   });
-  return { t: 's', ph: round.phase, left: r2(round.left), sp: round.spawned, a: A, g: Gs };
+  const d = round.delivery && { delivered: round.delivery.delivered, goal: round.delivery.goal,
+    lantern: { x: r2(round.delivery.lantern.x), z: r2(round.delivery.lantern.z), carrier: round.delivery.lantern.carrier },
+    shrine: round.delivery.shrine };
+  return { t: 's', ph: round.phase, left: r2(round.left), sp: round.spawned, a: A, g: Gs, d };
 }
 
 // Картинка раунда на устройстве гостя

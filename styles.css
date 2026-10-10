@@ -412,3 +412,11 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   .sel-info { grid-row: 1 / 4; }
   .sel-cards { grid-column: 1; }
 }
+.game-mode-card { margin: 14px 0; display: grid; gap: 10px; }
+.game-mode-card .lb-bot-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.game-mode-card .ghost-btn.active { border-color: #f3c374; color: #ffe7ac; background: rgba(159, 98, 39, .34); }
+.game-mode-card .lb-note { line-height: 1.4; color: #e5d9c8; }
+.mode-intro { position: absolute; z-index: 30; top: max(140px, 24vh); left: 50%; transform: translateX(-50%); width: min(440px, calc(100vw - 28px)); padding: 16px 20px; border: 1px solid #edbd78; border-radius: 18px; background: rgba(12, 10, 28, .9); box-shadow: 0 8px 30px #0009, 0 0 28px #eaa65255; color: #fff4df; text-align: center; pointer-events: none; }
+.mode-intro b { display: block; font-size: clamp(20px, 4vw, 28px); margin-bottom: 8px; }
+.mode-intro span { display: block; line-height: 1.45; font-size: clamp(14px, 3vw, 17px); }
+.mode-intro.hidden { display: none; }

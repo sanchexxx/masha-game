@@ -578,6 +578,14 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   #hud .ab i { font-size: 17px; }
 }
 
+.game-mode-card { margin: 14px 0; display: grid; gap: 10px; }
+.game-mode-card .lb-bot-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.game-mode-card .ghost-btn.active { border-color: #f3c374; color: #ffe7ac; background: rgba(159, 98, 39, .34); }
+.game-mode-card .lb-note { line-height: 1.4; color: #e5d9c8; }
+.mode-intro { position: absolute; z-index: 30; top: max(140px, 24vh); left: 50%; transform: translateX(-50%); width: min(440px, calc(100vw - 28px)); padding: 16px 20px; border: 1px solid #edbd78; border-radius: 18px; background: rgba(12, 10, 28, .9); box-shadow: 0 8px 30px #0009, 0 0 28px #eaa65255; color: #fff4df; text-align: center; pointer-events: none; }
+.mode-intro b { display: block; font-size: clamp(20px, 4vw, 28px); margin-bottom: 8px; }
+.mode-intro span { display: block; line-height: 1.45; font-size: clamp(14px, 3vw, 17px); }
+.mode-intro.hidden { display: none; }
 </style>
 <!-- Для старых WebKit загружается совместимая сборка с WebGL 1; графика игры одинаковая. -->
 </head>
@@ -627,6 +635,9 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   <div class="maps-wrap">
     <div class="scroll-label big"><span class="paw-badge">🐾</span>Сначала выбираем, где играть</div>
     <div class="map-cards" id="map-cards"></div>
+    <div class="lb-card game-mode-card"><div class="lb-title">Режим игры</div>
+      <div class="lb-bot-buttons"><button class="ghost-btn active" id="maps-mode-hide">🎭 Прятки с Безликом</button><button class="ghost-btn" id="maps-mode-delivery">🏮 Доставка фонаря</button></div>
+      <small class="lb-note" id="maps-mode-note">Спрячься от Безлика, переживи поиски и догонялки.</small></div>
     <div class="maps-foot">
       <button class="ghost-btn" id="btn-maps-back">‹ Назад</button>
       <button class="gold" id="btn-maps-go">Начать прятки <span>›</span></button>
@@ -676,6 +687,9 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
       <div class="lb-bot-buttons"><button class="ghost-btn" id="lb-bots-on">С ботами</button><button class="ghost-btn" id="lb-bots-off">Без ботов</button></div>
       <small class="lb-note" id="lb-bots-note"></small>
     </div>
+    <div class="lb-card game-mode-card"><div class="lb-title">Режим игры · выбирает хозяин</div>
+      <div class="lb-bot-buttons"><button class="ghost-btn" id="lb-mode-hide">🎭 Прятки с Безликом</button><button class="ghost-btn" id="lb-mode-delivery">🏮 Доставка фонаря</button></div>
+      <small class="lb-note" id="lb-mode-note"></small></div>
     <div class="lb-title center">Голосуем за карту</div>
     <div class="map-cards" id="lb-maps"></div>
     <div class="maps-foot">
@@ -703,6 +717,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
     <div class="pumpkins-hud">🎃 <b id="pumpkins">0</b></div>
   </div>
   <div class="toast" id="toast"></div>
+  <div class="mode-intro hidden" id="mode-intro" role="status"></div>
   <div class="abil-bar" id="abil-bar"></div>
   <div class="watch-bar hidden" id="watch-bar"><button class="gold" id="btn-next">Следующий ›</button></div>
   <div class="ghost-view hidden" id="ghost-view" aria-hidden="true"></div>
@@ -779,7 +794,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   window.__bundleVariant = legacy ? 'legacy' : 'modern';
   window.__bootStage = 'скачиваем файл игры (' + window.__bundleVariant + ')';
   var script = document.createElement('script');
-  script.src = legacy ? '/src/main.legacy.bundle.js?v=2026101011' : '/src/main.bundle.js?v=2026101011';
+  script.src = legacy ? '/src/main.legacy.bundle.js?v=2026101012' : '/src/main.bundle.js?v=2026101012';
   script.onerror = function () { say('не загрузился файл игры (' + window.__bundleVariant + ')'); };
   script.onload = function () {
     if (!window.__bootEntered) say('файл игры скачан, но браузер не смог выполнить его (' + window.__bundleVariant + ')');

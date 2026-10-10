@@ -25,6 +25,7 @@ export class Round {
     this.playerSpawn = host.playerSpawn || new THREE.Vector3(0, 0, 22);
     this.botSpawns = host.botSpawns || BOT_SPAWNS;
     this.ghostSpawns = host.ghostSpawns || GHOST_SPAWNS;
+    this.delivery = null;
     this.agents = [];
     this.domes = [];
     this.fx = [];
@@ -140,6 +141,7 @@ export class Round {
   start(opts) {
     this.opts = opts;
     this.mode = opts.mode;
+    this.gameMode = opts.gameMode === 'delivery' ? 'delivery' : 'hide';
     this.agents = [];
     this.domes = [];
     this.caughtOrder = [];
@@ -176,17 +178,70 @@ export class Round {
     if (opts.mode === 'hunter') { this.playerGhost = this.activeGhosts[gi++]; this.playerGhost.isPlayer = true; }
     for (const r of remoteGhosts) { const g = this.activeGhosts[gi++]; g.remote = r.id; g.remoteName = r.name; }
     this.netIn.clear();
-    this.setPhase('hide');
+    this.setPhase(this.gameMode === 'delivery' ? 'delivery' : 'hide');
+    this.delivery = this.gameMode === 'delivery' ? { delivered: 0, goal: 3, lantern: null, shrine: null } : null;
+    if (this.delivery) this.nextDelivery(true);
   }
 
   setPhase(p) {
     this.phase = p;
     this.t = 0;
     this.spawned = 0;
-    this.duration = p === 'hide' ? CONFIG.round.hide : CONFIG.round.chase;
+    this.duration = p === 'delivery' ? 240 : p === 'hide' ? CONFIG.round.hide : CONFIG.round.chase;
   }
 
   get left() { return Math.max(0, this.duration - this.t); }
+
+  // В каждой доставке фонарь и святилище появляются в достижимых точках карты.
+  #deliveryPoint(away = null, avoid = null) {
+    const nav = this.navFor(0.7);
+    for (let tries = 0; tries < 100; tries++) {
+      const x = (Math.random() * 2 - 1) * (nav.half - 3);
+      const z = (Math.random() * 2 - 1) * (nav.half - 3);
+      const [i, j] = nav.toCell(x, z);
+      if (!nav.free(i, j) || this.world.waterAt?.(x, z)) continue;
+      if (away && Math.hypot(x - away.x, z - away.z) < 14) continue;
+      if (avoid && Math.hypot(x - avoid.x, z - avoid.z) < 8) continue;
+      if (!nav.find(this.playerSpawn.x, this.playerSpawn.z, x, z)) continue;
+      if (away && !nav.find(away.x, away.z, x, z)) continue;
+      return { x: Math.round(x * 10) / 10, z: Math.round(z * 10) / 10 };
+    }
+    return { x: this.playerSpawn.x, z: this.playerSpawn.z };
+  }
+
+  nextDelivery(first = false) {
+    const previous = this.delivery?.shrine;
+    const lantern = this.#deliveryPoint(previous);
+    const shrine = this.#deliveryPoint(lantern, previous);
+    this.delivery.lantern = { ...lantern, carrier: null };
+    this.delivery.shrine = shrine;
+    this.emit('deliveryNext', { first, lantern, shrine });
+  }
+
+  #stepDelivery() {
+    const d = this.delivery;
+    if (!d || !d.lantern) return;
+    const l = d.lantern;
+    if (!l.carrier) {
+      for (const a of this.agents) {
+        if (!a.alive || a.ctrl.pos.y > 1.8 || Math.hypot(a.ctrl.pos.x - l.x, a.ctrl.pos.z - l.z) > 1.6) continue;
+        l.carrier = a.key;
+        if (a.prop) this.toggleProp(a);
+        this.emit('lanternPickup', { agent: a });
+        break;
+      }
+    }
+    const carrier = this.agents.find(a => a.key === l.carrier && a.alive);
+    if (!carrier) return;
+    l.x = carrier.ctrl.pos.x; l.z = carrier.ctrl.pos.z;
+    if (carrier.ctrl.pos.y > 1.8 || Math.hypot(l.x - d.shrine.x, l.z - d.shrine.z) > 2.2) return;
+    d.delivered++;
+    this.emit('lanternDelivered', { agent: carrier, count: d.delivered, goal: d.goal });
+    if (d.delivered >= d.goal) {
+      this.phase = 'over';
+      this.emit('end', { result: this.result() });
+    } else this.nextDelivery();
+  }
 
   // ---------- Маскировка под предмет ----------
   toggleProp(a) {
@@ -213,9 +268,9 @@ export class Round {
     const C = CONFIG;
 
     // Безлики выходят: в прятках — после форы по очереди, в догонялках — сразу
-    const delay = this.phase === 'hide' ? C.round.headStart : 0.3;
+    const delay = this.phase === 'hide' || this.phase === 'delivery' ? C.round.headStart : 0.3;
     this.activeGhosts.forEach((g, i) => {
-      if (g.state === 'hidden' && this.t >= delay + i * (this.phase === 'hide' ? C.ghost.spawnGap : 0.4)) {
+      if (g.state === 'hidden' && this.t >= delay + i * (this.phase === 'hide' || this.phase === 'delivery' ? C.ghost.spawnGap : 0.4)) {
         g.spawn();
         this.spawned++;
         this.emit('ghostSpawn', { i, ghost: g });
@@ -236,7 +291,7 @@ export class Round {
       if (a.isPlayer) ai = inp || {};
       else if (a.remote) ai = this.#takeNet(a.remote);
       else {
-        ai = a.brain.update(dt, live);
+        ai = this.gameMode === 'delivery' ? a.brain.updateDelivery(dt, live, this.delivery) : a.brain.update(dt, live);
         const th = a.brain.threat;
         a.abilities.botThink(th, th ? th.pos.distanceTo(a.ctrl.pos) : Infinity);
       }
@@ -275,10 +330,13 @@ export class Round {
       }
     }
 
+    if (this.phase === 'delivery') this.#stepDelivery();
+
     // Конец фазы
     const heroesLeft = this.agents.filter(a => a.alive).length;
     if (this.t >= this.duration || heroesLeft === 0) {
       if (this.phase === 'hide') this.#toChase();
+      else if (this.phase === 'delivery') { this.phase = 'over'; this.emit('end', { result: this.result() }); }
       else if (this.phase === 'chase') { this.phase = 'over'; this.emit('end', { result: this.result() }); }
     }
   }
@@ -317,6 +375,12 @@ export class Round {
   }
 
   #caught(a, g) {
+    if (this.gameMode === 'delivery' && this.delivery?.lantern?.carrier === (a.headOwner || a).key) {
+      const l = this.delivery.lantern;
+      l.carrier = null;
+      l.x = a.ctrl.pos.x; l.z = a.ctrl.pos.z;
+      this.emit('lanternDropped', { agent: a.headOwner || a });
+    }
     if (a.headOwner) {
       const owner = a.headOwner;
       a.alive = false;
@@ -450,6 +514,9 @@ export class Round {
   result() {
     const R = CONFIG.round.reward;
     const alive = this.agents.filter(a => a.alive).map(a => a.name);
+    if (this.gameMode === 'delivery') return { mode: this.mode, gameMode: 'delivery', delivered: this.delivery.delivered,
+      goal: this.delivery.goal, heroesWon: this.delivery.delivered >= this.delivery.goal,
+      alive, hideSurvivors: [], caught: this.caughtOrder.map(c => c.agent.name), earn: this.stats.pumpkins };
     let earn = this.stats.pumpkins;
     if (this.mode === 'hunter') earn += this.stats.found * R.found + this.stats.chaseCatches * R.catch;
     else if (this.mode === 'play') {
