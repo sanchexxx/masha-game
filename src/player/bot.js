@@ -167,9 +167,52 @@ export class BotBrain {
     this.threat = null;
     const lantern = delivery?.lantern;
     if (!lantern) return { x: 0, y: 0 };
+    if (delivery.deliveredBy?.[this.agent.key]) return { x: 0, y: 0, run: false };
     if (lantern.carrier && lantern.carrier !== this.agent.key) return { x: 0, y: 0 };
-    const target = lantern.carrier === this.agent.key ? delivery.shrine : lantern;
+    const carrying = lantern.carrier === this.agent.key;
+    const target = carrying ? delivery.shrine : lantern;
     if (!target) return { x: 0, y: 0 };
+    if (!carrying) {
+      const key = `${Math.round(lantern.x)},${Math.round(lantern.z)}`;
+      if (this.deliverySearchKey !== key) {
+        this.deliverySearchKey = key;
+        this.deliverySearchElapsed = 0;
+        this.deliverySearchDuration = 6 + Math.random() * 4;
+        this.deliverySearchWaypoint = null;
+        this.deliverySearchReady = false;
+      }
+      this.deliverySearchElapsed += dt;
+      if (this.deliverySearchElapsed < this.deliverySearchDuration) {
+        // Ищет фонарь кругами вокруг ориентира, осматривает местность и не несётся прямо к нему.
+        const nearWaypoint = this.deliverySearchWaypoint
+          && Math.hypot(p.x - this.deliverySearchWaypoint.x, p.z - this.deliverySearchWaypoint.z) < 1.1;
+        if (!this.deliverySearchWaypoint || nearWaypoint || !this.path?.length) {
+          let waypoint = null;
+          for (let i = 0; i < 12 && !waypoint; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 3.7 + Math.random() * 2.1;
+            const x = lantern.x + Math.cos(angle) * radius;
+            const z = lantern.z + Math.sin(angle) * radius;
+            const [ci, cj] = this.nav.toCell(x, z);
+            const [fi, fj] = this.nav.nearestFree(ci, cj);
+            const [wx, wz] = this.nav.center(fi, fj);
+            if (Math.hypot(wx - lantern.x, wz - lantern.z) > 2.8
+              && this.nav.find(p.x, p.z, wx, wz)) waypoint = { x: wx, z: wz };
+          }
+          this.deliverySearchWaypoint = waypoint || { x: lantern.x, z: lantern.z };
+          this.path = this.nav.find(p.x, p.z, this.deliverySearchWaypoint.x, this.deliverySearchWaypoint.z)
+            || [[this.deliverySearchWaypoint.x, this.deliverySearchWaypoint.z]];
+        }
+        while (this.path?.length && Math.hypot(this.path[0][0] - p.x, this.path[0][1] - p.z) < 0.9) this.path.shift();
+        const [wx, wz] = this.path?.[0] || [this.deliverySearchWaypoint.x, this.deliverySearchWaypoint.z];
+        const d = Math.hypot(wx - p.x, wz - p.z) || 1;
+        return { x: (wx - p.x) / d, y: -(wz - p.z) / d, run: false };
+      }
+      this.deliverySearchReady = true;
+    } else {
+      this.deliverySearchKey = null;
+      this.deliverySearchReady = true;
+    }
     const goal = `${Math.round(target.x * 2)},${Math.round(target.z * 2)}`;
     this.deliveryThink = (this.deliveryThink || 0) - dt;
     if (goal !== this.deliveryGoal || this.deliveryThink <= 0 || !this.path?.length) {

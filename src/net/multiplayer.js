@@ -217,8 +217,8 @@ export class Multiplayer {
       $(id).classList.toggle('active', net.gameMode === mode);
     }
     $('lb-mode-note').textContent = net.gameMode === 'delivery'
-      ? 'Подойдите к фонарю под золотым лучом, затем несите его через карту к храму под голубым лучом. Подбор и доставка автоматические. Цель: от 5 до 15 фонарей по числу игроков.'
-      : 'Сначала прячьтесь от Безлика, затем убегайте в догонялках.';
+      ? 'Подойдите к фонарю — он подберётся автоматически. Несите его к храму под голубым лучом на стороне Безликов. Каждый герой может доставить только один фонарь; цель зависит от состава комнаты.'
+      : 'Сначала спрячьтесь от Безлика, затем убегайте в догонялках.';
     $('lb-start').innerHTML = `Начать ${net.gameMode === 'delivery' ? 'доставку' : 'прятки'} <span>›</span>`;
     $('lb-start').classList.toggle('hidden', !amHost);
     $('lb-wait').classList.toggle('hidden', amHost);
@@ -368,7 +368,6 @@ export class Multiplayer {
     g.cam.yaw = 0; g.cam.pitch = 0.3;
     g.ui.mode('play', g.isTouch, 'play');
     g.ui.phase(g.gameMode === 'delivery' ? 'delivery' : 'hide');
-    g.showModeIntro(g.gameMode, m.goal, m.duration);
     g.ui.pumpkins(0);
     g.ui.abilityBar([]);
     this.lastBar = null;
@@ -451,6 +450,7 @@ export class Multiplayer {
       const guide = mine && snap.d ? objectiveGuide({ x: mine[1], z: mine[3] }, carrying ? snap.d.shrine : snap.d.lantern, g.cam.yaw) : '';
       status = gmine ? `Помешай доставке! Фонари: ${snap.d?.delivered || 0}/${snap.d?.goal || 5}`
         : carrying ? `Святилище ${guide} · неси фонарь!`
+        : mine?.[20] ? 'Ты уже доставил свой фонарь — помогай команде!'
         : nearLantern ? 'Подойди к фонарю — он подберётся автоматически!'
         : carrier ? `${carrier.name} несёт фонарь — помоги ему добраться до святилища`
         : `🏮 Фонарь ${guide} · подойди и подбери · ${snap.d?.delivered || 0}/${snap.d?.goal || 5}`;

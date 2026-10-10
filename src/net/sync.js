@@ -19,7 +19,8 @@ export function makeSnapshot(round) {
       c.crouching ? 1 : 0, a.alive ? 1 : 0, a.prop ? PROP_IDS.indexOf(a.prop.kind.id) + 1 : 0, act ? act.name : 0, act ? r2(act.t / act.dur) : 0,
       a.hidden ? 1 : 0, r2(c.stamina), c.exhausted ? 1 : 0, r2(c.dashCd / c.phys.dash.cooldown),
       a.splitActive ? a.splitHeads.map(h => [r2(h.ctrl.pos.x), r2(h.ctrl.pos.y), r2(h.ctrl.pos.z),
-        r2(h.ctrl.yaw), r2(h.ctrl.speed), h.alive ? 1 : 0]) : 0, a.splitUsed ? 1 : 0];
+        r2(h.ctrl.yaw), r2(h.ctrl.speed), h.alive ? 1 : 0]) : 0, a.splitUsed ? 1 : 0,
+      round.delivery?.deliveredBy?.[a.key] ? 1 : 0];
   });
   const Gs = round.activeGhosts.map((g, i) => {
     const d = g.disguise;

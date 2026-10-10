@@ -372,19 +372,8 @@ export class Game {
     if (button) button.innerHTML = `Начать ${this.gameMode === 'delivery' ? 'доставку' : 'прятки'} <span>›</span>`;
     const note = document.getElementById('maps-mode-note');
     if (note) note.textContent = this.gameMode === 'delivery'
-      ? 'Найди фонарь под золотым лучом. Подойди — он подберётся сам. Неси к голубому лучу далёкого святилища: доставка автоматическая. Цель — от 5 до 15 фонарей по числу игроков.'
-      : 'Спрячься от Безлика, переживи поиски и догонялки.';
-  }
-
-  showModeIntro(gameMode = this.gameMode, goal = this.round.delivery?.goal, duration = this.round.duration) {
-    const intro = document.getElementById('mode-intro');
-    if (!intro) return;
-    intro.innerHTML = gameMode === 'delivery'
-      ? `<b>🏮 Доставка фонаря</b><span>Найди фонарь под золотым лучом — он подберётся сам. Неси его через карту к голубому лучу храма Безликов: доставка автоматическая. Цель: ${goal || 5} фонарей. Время: ${Math.floor((duration || 240) / 60)}:${String((duration || 240) % 60).padStart(2, '0')}.</span>`
-      : '<b>🎭 Прятки с Безликом</b><span>Сначала спрячься. Когда выйдет Безлик, не дай себя поймать. Затем начнутся догонялки.</span>';
-    intro.classList.remove('hidden');
-    clearTimeout(this.modeIntroTimer);
-    this.modeIntroTimer = setTimeout(() => intro.classList.add('hidden'), 7500);
+      ? 'Подойди к фонарю — он подберётся автоматически. Отнеси его к голубому лучу храма на стороне Безликов. Каждый герой может доставить только один фонарь; цель зависит от состава комнаты.'
+      : 'Сначала спрячься. Когда Безлики выйдут, избегай их поисков и переживи догонялки.';
   }
 
   // ---------- Раунд ----------
@@ -415,7 +404,6 @@ export class Game {
     this.input.lookOnly = mode === 'watch';
     this.ui.mode('play', isTouch, mode);
     this.ui.phase(this.round.phase);
-    this.showModeIntro();
     this.#abilityBar();
     this.#aliveHud();
     this.ui.pumpkins(0);
@@ -715,6 +703,7 @@ export class Game {
       const guide = R.player?.alive ? objectiveGuide(R.player.ctrl.pos, carrying ? d.shrine : d.lantern, this.cam.yaw) : '';
       this.ui.status(R.playerGhost ? `Помешай доставке! Фонари: ${d.delivered}/${d.goal}`
         : carrying ? `Святилище ${guide} · неси фонарь! ${d.delivered}/${d.goal}`
+        : R.player && d.deliveredBy?.[R.player.key] ? 'Ты уже доставил свой фонарь — помогай команде искать или защищать курьера'
         : nearLantern ? 'Подойди к фонарю — он подберётся автоматически!'
         : lanternCarrier ? `${lanternCarrier.name} несёт фонарь — помоги ему добраться до святилища`
         : `🏮 Фонарь ${guide} · подойди и подбери · ${d.delivered}/${d.goal}`, 'calm');

@@ -181,10 +181,11 @@ export class Round {
     this.setPhase(this.gameMode === 'delivery' ? 'delivery' : 'hide');
     // Цель зависит от числа людей в комнате; боты помогают, но не раздувают норму.
     const participants = Math.max(1, remotes.length + (opts.mode === 'watch' ? 0 : 1));
+    const scaledGoal = Math.min(15, 3 + participants * 2);
     this.delivery = this.gameMode === 'delivery'
-      ? { delivered: 0, goal: Math.min(15, 3 + participants * 2), lantern: null, shrine: null }
+      ? { delivered: 0, goal: Math.min(scaledGoal, Math.max(1, this.agents.length)), deliveredBy: Object.create(null), lantern: null, shrine: null }
       : null;
-    if (this.delivery) this.duration = 240 + (this.delivery.goal - 5) * 36;
+    if (this.delivery) this.duration = Math.max(240, 240 + (this.delivery.goal - 5) * 36);
     if (this.delivery) this.nextDelivery(true);
   }
 
@@ -268,7 +269,8 @@ export class Round {
     const l = d.lantern;
     if (!l.carrier) {
       for (const a of this.agents) {
-        if (!a.alive || a.ctrl.pos.y > 2.2 || Math.hypot(a.ctrl.pos.x - l.x, a.ctrl.pos.z - l.z) > 2.2) continue;
+        if (!a.alive || d.deliveredBy?.[a.key] || (a.brain && !a.brain.deliverySearchReady)) continue;
+        if (a.ctrl.pos.y > 3 || Math.hypot(a.ctrl.pos.x - l.x, a.ctrl.pos.z - l.z) > 3.2) continue;
         l.carrier = a.key;
         if (a.prop) this.toggleProp(a);
         this.emit('lanternPickup', { agent: a });
@@ -280,6 +282,8 @@ export class Round {
     l.x = carrier.ctrl.pos.x; l.z = carrier.ctrl.pos.z;
     if (carrier.ctrl.pos.y > 1.8 || Math.hypot(l.x - d.shrine.x, l.z - d.shrine.z) > 2.2) return;
     d.delivered++;
+    d.deliveredBy ||= Object.create(null);
+    d.deliveredBy[carrier.key] = true;
     this.emit('lanternDelivered', { agent: carrier, count: d.delivered, goal: d.goal });
     if (d.delivered >= d.goal) {
       this.phase = 'over';
