@@ -82,6 +82,7 @@ export function buildBrothers() {
   const coatLight = mat(0x493258, { roughness: 0.96 });
   const coatEdge = mat(0x1b1729, { roughness: 0.95 });
   const stitch = mat(0x785e80, { roughness: 1 });
+  const sash = mat(0x503066, { roughness: 0.96, side: THREE.DoubleSide });
   const rope = mat(0x9a704a, { roughness: 0.95 });
   const metal = mat(0x91683f, { roughness: 0.4, metalness: 0.55 });
   const glass = mat(0xb97535, { roughness: 0.38, emissive: 0xffa83e, emissiveIntensity: 0.8 });
@@ -141,6 +142,18 @@ export function buildBrothers() {
     [0.17, 0.66, -0.65], [0.5, 0.44, -0.46]], 0.03);
   strand(body, rope, [[0.51, 1.07, -0.32], [0.23, 0.86, -0.56],
     [-0.15, 0.63, -0.67], [-0.46, 0.43, -0.48]], 0.03);
+  const tabard = new THREE.Shape();
+  tabard.moveTo(-0.29, 0.87); tabard.lineTo(0.29, 0.87);
+  tabard.lineTo(0.33, 0.06); tabard.lineTo(0.19, 0.12);
+  tabard.lineTo(0.08, -0.02); tabard.lineTo(-0.09, 0.08);
+  tabard.lineTo(-0.22, -0.03); tabard.lineTo(-0.32, 0.12);
+  tabard.closePath();
+  body.add(mesh(new THREE.ShapeGeometry(tabard), sash, { z: 0.69, shadow: false }));
+  for (const s of [-1, 1]) {
+    strand(body, rope, [[s * 0.51, 0.66, 0.45], [s * 0.33, 0.61, 0.67],
+      [s * 0.07, 0.57, 0.73]], 0.023);
+    addOrb(body, metal, s * 0.37, 0.43, 0.67, 0.055, 0.07, 0.045);
+  }
   const spiral = canvasTexture(128, 128, (c, w, h) => {
     c.clearRect(0, 0, w, h);
     c.strokeStyle = '#ab74d2'; c.lineWidth = 13; c.lineCap = 'round';
@@ -181,6 +194,10 @@ export function buildBrothers() {
       strand(h, hair, [[s * 0.05, 0.195, 0.4], [s * 0.17, 0.235, 0.43],
         [s * 0.315, 0.29, 0.38], [s * 0.39, 0.30, 0.32]], 0.062);
       addOrb(h, hair, s * 0.32, 0.285, 0.34, 0.13, 0.065, 0.07);
+      strand(h, hairEdge, [[s * 0.03, 0.35, 0.38], [s * 0.18, 0.38, 0.39],
+        [s * 0.34, 0.36, 0.32]], 0.018);
+      strand(h, blush, [[s * 0.28, -0.06, 0.45], [s * 0.39, -0.1, 0.39],
+        [s * 0.45, -0.07, 0.32]], 0.012);
 
       addOrb(h, hair, s * 0.14, -0.205, 0.43, 0.19, 0.085, 0.12);
       strand(h, hair, [[s * 0.07, -0.2, 0.47], [s * 0.22, -0.21, 0.47],
@@ -201,9 +218,23 @@ export function buildBrothers() {
     h.add(mesh(G.cone(0.22, 0.32, 9), hair,
       { y: -0.52, z: 0.32, rz: Math.PI }));
     addOrb(h, hairEdge, 0, -0.38, 0.44, 0.10, 0.15, 0.055);
+    for (let j = -2; j <= 2; j++) h.add(mesh(G.cone(0.078, 0.24 + (2 - Math.abs(j)) * 0.06, 7), hair,
+      { x: j * 0.13, y: -0.45, z: 0.32 - Math.abs(j) * 0.045, rz: Math.PI + j * 0.1 }));
     if (i === 2) for (const [x, z, r] of [[-0.09, 0.08, 0.05], [0.16, -0.04, 0.04], [0.02, -0.2, 0.03]])
       addOrb(h, hairEdge, x, 0.4, z, r, r * 0.4, r, false);
   }
+  const wholeHeadPose = heads.map(h => ({ position: h.position.clone(), scale: h.scale.clone() }));
+  const splitAuras = heads.map(h => {
+    const aura = new THREE.Sprite(new THREE.SpriteMaterial({ map: wispGlow,
+      transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending,
+      depthWrite: false }));
+    aura.position.set(0, -0.22, -0.08);
+    aura.scale.set(0.95, 0.85, 1);
+    aura.visible = false;
+    h.add(aura);
+    return aura;
+  });
+  let splitShown = false;
 
   for (const s of [-1, 1]) {
     const arm = joint(s * 0.69, 1.11, 0.02);
@@ -250,6 +281,20 @@ export function buildBrothers() {
   const wispAnchors = [[-1.2, 2.49, 0.02], [1.2, 2.2, 0.02], [-1.22, 1.72, 0.02]];
 
   function update(dt, st) {
+    if (!!st.split !== splitShown) {
+      splitShown = !!st.split;
+      model.visible = !splitShown;
+      heads.forEach((h, i) => {
+        if (splitShown) { body.remove(h); root.add(h); }
+        else {
+          root.remove(h); body.add(h);
+          h.position.copy(wholeHeadPose[i].position);
+          h.scale.copy(wholeHeadPose[i].scale);
+          h.visible = true;
+        }
+        splitAuras[i].visible = splitShown;
+      });
+    }
     if (st.swimming) swimCycle(rig, st, dt);
     else walkCycle(rig, { ...st, speed: st.speed * 0.8 }, dt, { stride: 0.48, armSwing: 0.5, bob: 0.032, freq: 0.82 });
     const action = st.action;
@@ -262,8 +307,21 @@ export function buildBrothers() {
       rig.armR.rotation.z = 0.75 * force;
     }
     heads.forEach((h, i) => {
-      h.rotation.y = Math.sin(st.t * (1.1 + i * 0.18) + i * 1.6) * 0.06 + (i - 1) * 0.07;
-      h.rotation.z = Math.sin(st.t * 1.7 + i * 2) * 0.028 + force * (i - 1) * 0.09;
+      const part = st.split?.heads?.[i];
+      if (splitShown && part) {
+        const dx = part.x - root.position.x, dz = part.z - root.position.z;
+        const yaw = root.rotation.y, co = Math.cos(yaw), si = Math.sin(yaw);
+        h.position.set(co * dx - si * dz,
+          part.y - root.position.y + 0.58 + Math.abs(Math.sin(st.t * 7 + i)) * (part.speed > 0.5 ? 0.075 : 0.025),
+          si * dx + co * dz);
+        h.scale.setScalar(0.84);
+        h.visible = !!part.alive;
+        h.rotation.y = part.yaw - yaw;
+        h.rotation.z = Math.sin(st.t * 6.8 + i) * 0.09;
+      } else {
+        h.rotation.y = Math.sin(st.t * (1.1 + i * 0.18) + i * 1.6) * 0.06 + (i - 1) * 0.07;
+        h.rotation.z = Math.sin(st.t * 1.7 + i * 2) * 0.028 + force * (i - 1) * 0.09;
+      }
       mouths[i].scale.y = 0.024 + force * 0.045;
     });
     wisps.forEach((w, i) => {

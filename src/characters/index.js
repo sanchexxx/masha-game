@@ -4,7 +4,7 @@ import { buildCatbus } from './catbus.js?v=2026100901';
 import { buildMoti, MOTI_SKINS } from './moti.js?v=2026100901';
 import { buildNoFace } from './noface.js?v=2026100901';
 import { buildKid, loadLook } from './kid.js?v=2026100901';
-import { buildBrothers } from './brothers.js?v=2026101005';
+import { buildBrothers } from './brothers.js?v=2026101006';
 
 const lookOf = skin => { try { return skin && skin !== 'classic' ? JSON.parse(skin) : loadLook(); } catch { return loadLook(); } };
 
@@ -46,8 +46,8 @@ export const HEROES = [
   },
   {
     id: 'brothers', name: 'Три Брата', rarity: 'РЕДКИЙ', rarityClass: 'rare',
-    about: 'Три упрямых духа в одном плаще. Спорят между собой, пугают Безликов и один раз за фазу вырываются из поимки.',
-    ability: 'Страх и гипноз', abilityText: '1 — волна страха; 2 — гипноз сбивает преследователя с пути; 3 — грозный взгляд раскрывает маскировку. Упрямство спасает от первой поимки в каждой фазе.',
+    about: 'Три упрямых духа в одном плаще. Пугают Безликов, а при разделении каждая голова становится отдельной целью.',
+    ability: 'Страх и три жизни', abilityText: '1 — волна страха; 2 — гипноз; 3 — грозный взгляд; 4 — один раз за матч разделиться на три прыгающие головы. Управляй одной, остальные убегают сами. После поимки управление переходит к следующей живой голове.',
     tags: ['Страх', 'Контроль', 'Команда'],
     build: buildBrothers, radius: 0.7, height: 3.25,
     cam: { distance: 8.6, height: 3.0, side: 0.9 },

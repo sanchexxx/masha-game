@@ -17,7 +17,9 @@ export function makeSnapshot(round) {
     const c = a.ctrl, act = a.action;
     return [a.key, r2(c.pos.x), r2(c.pos.y), r2(c.pos.z), r2(c.yaw), r2(c.speed), c.grounded ? 1 : 0, r2(c.vel.y), c.running || c.dashT > 0 ? 1 : 0,
       c.crouching ? 1 : 0, a.alive ? 1 : 0, a.prop ? PROP_IDS.indexOf(a.prop.kind.id) + 1 : 0, act ? act.name : 0, act ? r2(act.t / act.dur) : 0,
-      a.hidden ? 1 : 0, r2(c.stamina), c.exhausted ? 1 : 0, r2(c.dashCd / c.phys.dash.cooldown)];
+      a.hidden ? 1 : 0, r2(c.stamina), c.exhausted ? 1 : 0, r2(c.dashCd / c.phys.dash.cooldown),
+      a.splitActive ? a.splitHeads.map(h => [r2(h.ctrl.pos.x), r2(h.ctrl.pos.y), r2(h.ctrl.pos.z),
+        r2(h.ctrl.yaw), r2(h.ctrl.speed), h.alive ? 1 : 0]) : 0, a.splitUsed ? 1 : 0];
   });
   const Gs = round.activeGhosts.map((g, i) => {
     const d = g.disguise;
@@ -82,7 +84,9 @@ export class GuestView {
       root.position.copy(v.pos);
       root.rotation.y = v.yaw;
       root.scale.y += ((s[9] ? 0.62 : 1) - root.scale.y) * Math.min(1, dt * 14);
-      v.char.update(dt, { t, speed: s[5], grounded: !!s[6], vy: s[7], running: !!s[8], landed: false, landSpeed: 0, crouch: !!s[9], action: s[12] ? { name: s[12], k: s[13] } : null });
+      v.char.update(dt, { t, speed: s[5], grounded: !!s[6], vy: s[7], running: !!s[8], landed: false, landSpeed: 0, crouch: !!s[9],
+        action: s[12] ? { name: s[12], k: s[13] } : null,
+        split: s[18] ? { heads: s[18].map(h => ({ x: h[0], y: h[1], z: h[2], yaw: h[3], speed: h[4], alive: !!h[5] })) } : null });
     }
     const gs = this.snap?.g || [];
     this.env.ghosts.forEach((G, i) => {

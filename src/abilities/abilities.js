@@ -31,6 +31,7 @@ export const HERO_ABILITIES = {
     { id: 'fear', key: '1', name: 'Страх', icon: '🔥', tag: 'Контроль', anim: 'fear', dur: 0.75, lock: 0.3 },
     { id: 'hypnosis', key: '2', name: 'Гипноз', icon: '🌀', tag: 'Контроль', anim: 'hypnosis', dur: 0.85, lock: 0.35 },
     { id: 'glare', key: '3', name: 'Грозный взгляд', icon: '👁️', tag: 'Поиск', anim: 'glare', dur: 0.6, lock: 0.15 },
+    { id: 'split', key: '4', name: 'Три головы', icon: '👥', tag: '3 жизни', anim: 'split', dur: 0.35, lock: 0 },
   ],
 };
 
@@ -49,6 +50,7 @@ export class AbilitySet {
   use(id) {
     const a = this.get(id);
     if (!a || a.cdLeft > 0 || !this.agent.alive) return false;
+    if (id === 'split' && (this.agent.splitUsed || this.agent.splitActive)) return false;
     if (this.agent.action && this.agent.action.lock > 0) return false;
     a.cdLeft = this.cooldown(a);
     this.agent.action = { name: a.anim, t: 0, dur: a.dur, lock: a.lock, id: a.id, fired: false };
@@ -65,7 +67,7 @@ export class AbilitySet {
     act.lock = Math.max(0, act.lock - dt);
     if (act.lock > 0) this.agent.ctrl.moveMul = 0.15;
     // эффект срабатывает в «сильный» момент анимации
-    const fireAt = act.name === 'swing' ? 0.3 : act.name === 'wave' ? 99 : act.name === 'poof' ? 0 : 0.45;
+    const fireAt = act.name === 'swing' ? 0.3 : act.name === 'wave' ? 99 : ['poof', 'split'].includes(act.name) ? 0 : 0.45;
     if (!act.fired && act.t / act.dur >= fireAt) { act.fired = true; this.#fire(act.id); }
     if (act.t >= act.dur) this.agent.action = null;
   }
@@ -82,6 +84,8 @@ export class AbilitySet {
     const snd = g.sound;
     if (id === 'prop') {
       g.toggleProp?.(me);
+    } else if (id === 'split') {
+      g.activateBrothersSplit?.(me);
     } else if (id === 'shelter') {
       const d = FX.dome(g.scene, p.x, p.z, cfg.radius, cfg.time);
       g.addFx(d);
@@ -130,18 +134,18 @@ export class AbilitySet {
       }
       snd.land?.(12);
     } else if (id === 'fear') {
-      g.addFx(FX.spiritPulse(g.scene, p.x, p.y, p.z, cfg.radius, 0xff5d78));
+      g.addFx(FX.fearWave(g.scene, p.x, p.y, p.z, cfg.radius));
       for (const gh of g.ghosts) if (gh.active && Math.hypot(gh.pos.x - p.x, gh.pos.z - p.z) <= cfg.radius) {
         gh.stun(cfg.stun); gh.slow(cfg.slow);
       }
       snd.brothersCue?.('fear');
     } else if (id === 'hypnosis') {
-      g.addFx(FX.spiritPulse(g.scene, p.x, p.y, p.z, cfg.radius, 0xb978ff, true));
+      g.addFx(FX.hypnosisVortex(g.scene, p.x, p.y, p.z, cfg.radius));
       for (const gh of g.ghosts) if (gh.active && Math.hypot(gh.pos.x - p.x, gh.pos.z - p.z) <= cfg.radius)
         gh.confuse(cfg.time);
       snd.brothersCue?.('hypnosis');
     } else if (id === 'glare') {
-      g.addFx(FX.spiritPulse(g.scene, p.x, p.y, p.z, cfg.radius, 0xffc46e));
+      g.addFx(FX.glareFlash(g.scene, p.x, p.y, p.z, cfg.radius));
       for (const gh of g.ghosts) if (gh.active && Math.hypot(gh.pos.x - p.x, gh.pos.z - p.z) <= cfg.radius) {
         gh.reveal(); gh.stun(cfg.stun);
         g.addFx(FX.marker(g.scene, () => gh.pos, cfg.mark));
@@ -158,6 +162,7 @@ export class AbilitySet {
       if (threat && td < A().fear.radius && this.ready('fear')) return this.use('fear');
       if (threat && td < A().hypnosis.radius && this.ready('hypnosis')) return this.use('hypnosis');
       if (threat && td < A().glare.radius && this.ready('glare')) return this.use('glare');
+      if (threat && td < 5 && this.ready('split') && !this.agent.splitUsed) return this.use('split');
     }
     // Маскировка под предмет: в прятках, когда Безлика не видно, — превращаемся и замираем.
     // Безлик подошёл вплотную — бросаем маскировку и бежим.

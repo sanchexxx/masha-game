@@ -50,6 +50,55 @@ export class Round {
     return a;
   }
 
+  // Разделение Братьев: один участник раунда, три независимые цели для Безлика.
+  activateBrothersSplit(a) {
+    if (a.hero.id !== 'brothers' || !a.alive || a.splitActive || a.splitUsed) return false;
+    a.splitUsed = true;
+    a.splitActive = true;
+    a.brothersRevives = 0;
+    a.bodyCtrl = a.ctrl;
+    a.activeHead = 0;
+    const origin = a.ctrl.pos.clone();
+    const yaw = a.ctrl.yaw;
+    const headHero = { ...a.hero, radius: 0.39, height: 0.94,
+      physics: { ...CONFIG.heroes.brothers, walk: 6.1, run: 9.4, jump: 2.15,
+        gravity: 0.96, mass: 0.7, air: 18 } };
+    a.splitHeads = [0, -1, 1].map((side, index) => {
+      const ctrl = new PlayerController(headHero, this.world);
+      const spawn = origin.clone();
+      spawn.x += side * Math.cos(yaw) * 1.35;
+      spawn.z -= side * Math.sin(yaw) * 1.35;
+      ctrl.spawn(spawn, yaw + side * 0.65);
+      ctrl.vel.set(side * Math.cos(yaw) * 3.2, 4.2, -side * Math.sin(yaw) * 3.2);
+      ctrl.grounded = false;
+      const head = { hero: a.hero, name: a.name, ctrl, alive: true, hidden: false,
+        protected: true, invulnerableT: 1.2, prop: null, headOwner: a, headIndex: index,
+        spreadT: index === 0 ? 0 : 1.1, hopT: 0.7 + index * 0.35 };
+      head.brain = new BotBrain(head, this.world, this.navFor(headHero.radius));
+      head.brain.allies = () => this.agents;
+      return head;
+    });
+    a.ctrl = a.splitHeads[0].ctrl;
+    this.emit('split', { agent: a });
+    return true;
+  }
+
+  #splitTargets() {
+    return this.agents.flatMap(a => a.splitActive ? a.splitHeads.filter(h => h.alive) : [a]);
+  }
+
+  #resetBrothers(a) {
+    if (a.hero.id !== 'brothers') return;
+    if (a.bodyCtrl) {
+      a.splitActive = false;
+      if (a.alive) a.bodyCtrl.spawn(a.ctrl.pos.clone(), a.ctrl.yaw);
+      a.ctrl = a.bodyCtrl;
+      a.bodyCtrl = null;
+      a.splitHeads = null;
+    }
+    // Разделение даёт три жизни только один раз за матч, даже при смене фазы.
+  }
+
   // opts: { mode, hero, skin, ghosts (1–3), withBots, remotes: [{id, name, hero, skin}] — игроки с других устройств }
   start(opts) {
     this.opts = opts;
@@ -133,6 +182,10 @@ export class Round {
       if (!a.alive) continue;
       a.invulnerableT = Math.max(0, a.invulnerableT - dt);
       a.abilities.update(dt);
+      if (a.splitActive) {
+        this.#stepSplit(a, dt, inp, camYaw, live);
+        continue;
+      }
       let ai;
       if (a.isPlayer) ai = inp || {};
       else if (a.remote) ai = this.#takeNet(a.remote);
@@ -157,19 +210,20 @@ export class Round {
       if (a.protected) a.ctrl.stamina = Math.min(1, a.ctrl.stamina + dt * 0.25);   // в приюте отдыхается быстрее
     }
     separate(this.agents);
+    const targets = this.#splitTargets();
 
     // Безлики
     const k = Math.min(1, this.t / this.duration);
     for (const g of this.activeGhosts) {
       g.speedMul = this.phase === 'chase' && !g.isPlayer && !g.remote ? C.round.chaseBotSpeed : 1;
       const gin = g.isPlayer ? inp || {} : g.remote ? this.#takeNet(g.remote) : null;
-      g.update(dt, time, this.agents, k, { domes: this.domes }, gin, g.isPlayer ? camYaw : gin?.camYaw || 0);
+      g.update(dt, time, targets, k, { domes: this.domes }, gin, g.isPlayer ? camYaw : gin?.camYaw || 0);
       if (g.poof) { g.poof = false; this.emit('poof', { x: g.pos.x, y: g.pos.y, z: g.pos.z, ghost: g }); }
     }
 
     // Поимки
     for (const g of this.activeGhosts) {
-      for (const a of this.agents) {
+      for (const a of targets) {
         if (!g.catches(a)) continue;
         this.#caught(a, g);
       }
@@ -183,7 +237,64 @@ export class Round {
     }
   }
 
+  #stepSplit(a, dt, inp, camYaw, live) {
+    for (const h of a.splitHeads) {
+      if (!h.alive) continue;
+      h.invulnerableT = Math.max(0, h.invulnerableT - dt);
+      h.hopT -= dt;
+      const active = h.headIndex === a.activeHead;
+      let ai = active
+        ? a.isPlayer ? inp || {} : a.remote ? this.#takeNet(a.remote) : a.brain.update(dt, live)
+        : h.brain.update(dt, live);
+      if (!active && h.spreadT > 0) {
+        h.spreadT -= dt;
+        const side = h.headIndex === 1 ? -1 : 1;
+        ai = { x: side * Math.cos(a.bodyCtrl.yaw), y: side * Math.sin(a.bodyCtrl.y),
+          run: true, jump: h.ctrl.grounded && h.hopT <= 0 };
+      } else if (!active && h.ctrl.grounded && h.hopT <= 0) ai = { ...ai, jump: true };
+      h.ctrl.update(dt, ai, active && a.isPlayer ? camYaw : active && a.remote ? ai.camYaw || 0 : 0);
+      if (h.ctrl.jumped) {
+        h.hopT = 1.2 + h.headIndex * 0.32;
+        this.emit('headHop', { agent: a, index: h.headIndex });
+      }
+      const p = h.ctrl.pos, water = this.world.waterAt?.(p.x, p.z);
+      h.hidden = (this.world.inBush(p.x, p.z, p.y) && !h.ctrl.running)
+        || (!!water && h.ctrl.diving && p.y < water.level - 0.55 && h.ctrl.speed < 1);
+      h.protected = h.invulnerableT > 0 || this.domes.some(d => Math.hypot(p.x - d.x, p.z - d.z) < d.r);
+    }
+    const current = a.splitHeads[a.activeHead];
+    a.ctrl = current.ctrl;
+    a.hidden = current.hidden;
+    a.protected = current.protected;
+    if (!a.isPlayer && !a.remote) a.abilities.botThink(a.brain.threat,
+      a.brain.threat ? a.brain.threat.pos.distanceTo(a.ctrl.pos) : Infinity);
+  }
+
   #caught(a, g) {
+    if (a.headOwner) {
+      const owner = a.headOwner;
+      a.alive = false;
+      g.reveal();
+      g.stun(CONFIG.ghost.grab);
+      const remaining = owner.splitHeads.filter(h => h.alive);
+      this.emit('headCaught', { agent: owner, index: a.headIndex, remaining: remaining.length,
+        pos: a.ctrl.pos.clone(), ghost: g });
+      if (remaining.length) {
+        if (owner.activeHead === a.headIndex) {
+          const next = remaining[0];
+          owner.activeHead = next.headIndex;
+          owner.ctrl = next.ctrl;
+          next.invulnerableT = Math.max(next.invulnerableT, 1.1);
+          this.emit('headSwitch', { agent: owner, index: next.headIndex, remaining: remaining.length });
+        }
+        return;
+      }
+      owner.splitActive = false;
+      owner.brothersRevives = 0;
+      owner.eliminatedByHeads = true;
+      this.#caught(owner, g);
+      return;
+    }
     if (a.brothersRevives > 0) {
       a.brothersRevives--;
       a.invulnerableT = 1.8;
@@ -208,7 +319,7 @@ export class Round {
 
   // Переход к догонялкам: пойманные возвращаются, первый найденный становится Безликом
   #toChase() {
-    const first = this.caughtOrder.find(c => c.phase === 'hide')?.agent;
+    const first = this.caughtOrder.find(c => c.phase === 'hide' && !c.agent.eliminatedByHeads)?.agent;
     const hideSurvivors = this.agents.filter(a => a.alive).map(a => a.name);
     this.hideSurvivors = hideSurvivors;
     const at = xz => new THREE.Vector3(xz[0], 0, xz[1]);
@@ -225,7 +336,13 @@ export class Round {
       newGhostName = 'ты';
     } else {
       // кто станет Безликом: первый найденный, а если никого не нашли — случайный герой
-      const pick = first || this.agents[(Math.random() * this.agents.length) | 0];
+      const eligible = this.agents.filter(a => !a.eliminatedByHeads);
+      if (!eligible.length) {
+        this.phase = 'over';
+        this.emit('end', { result: this.result() });
+        return;
+      }
+      const pick = first || eligible[(Math.random() * eligible.length) | 0];
       newGhost = pick;
       newGhostName = pick.name;
       this.agents = this.agents.filter(a => a !== pick);
@@ -248,6 +365,8 @@ export class Round {
     // найденные герои возвращаются на старт
     const spawns = this.botSpawns.slice();
     for (const a of this.agents) {
+      if (a.eliminatedByHeads) continue;
+      this.#resetBrothers(a);
       if (a.prop) this.toggleProp(a);
       if (!a.alive) {
         a.alive = true;
@@ -255,12 +374,12 @@ export class Round {
         if (a.char) a.char.root.visible = true;
       }
       a.ctrl.stamina = 1;
-      a.brothersRevives = a.hero.id === 'brothers' ? 1 : 0;
+      a.brothersRevives = a.hero.id === 'brothers' && !a.splitUsed ? 1 : 0;
       a.invulnerableT = 0;
     }
     this.setPhase('chase');
     this.emit('phase', { phase: 'chase', newGhostName, newGhostIsPlayer: !!this.playerGhost && this.mode !== 'hunter', agent: newGhost });
-    if (!this.agents.length) { this.phase = 'over'; this.emit('end', { result: this.result() }); }
+    if (!this.agents.some(a => a.alive)) { this.phase = 'over'; this.emit('end', { result: this.result() }); }
   }
 
   // Игрок вышел из комнаты посреди раунда — дальше за его героя бегает бот

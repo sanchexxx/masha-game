@@ -14,7 +14,7 @@ import { Input } from '../player/input.js?v=2026100901';
 import { ThirdPersonCamera } from '../player/camera.js?v=2026100901';
 import { Ghost } from '../enemies/ghost.js?v=2026100901';
 import { NavGrid } from '../enemies/pathfinder.js?v=2026100901';
-import { burst } from '../abilities/fx.js?v=2026100901';
+import { burst, stubbornGlow } from '../abilities/fx.js?v=2026101006';
 import { Round } from './round.js?v=2026100901';
 import { Sound } from './audio.js?v=2026100901';
 import { UI } from '../ui/ui.js?v=2026100901';
@@ -433,7 +433,8 @@ export class Game {
     return list[this.focus % Math.max(1, list.length)] || R.agents[0] || R.activeGhosts[0];
   }
   #configureCam(f) {
-    if (f?.hero) this.cam.configure(f.hero.cam);
+    if (f?.splitActive) this.cam.configure({ distance: 4.5, height: 1.18, side: 0.35 });
+    else if (f?.hero) this.cam.configure(f.hero.cam);
     else this.cam.configure(GHOST.cam);
   }
   #nextFocus() {
@@ -633,7 +634,9 @@ export class Game {
       root.position.copy(a.ctrl.pos);
       root.rotation.y = a.ctrl.yaw;
       root.scale.y += ((a.ctrl.crouching ? 0.62 : 1) - root.scale.y) * Math.min(1, dt * 14);   // присел — сжался
-      a.char.update(dt, { ...a.ctrl.animState(t), action: a.abilities.pose() });
+      a.char.update(dt, { ...a.ctrl.animState(t), action: a.abilities.pose(),
+        split: a.splitActive ? { heads: a.splitHeads.map(h => ({ x: h.ctrl.pos.x, y: h.ctrl.pos.y,
+          z: h.ctrl.pos.z, yaw: h.ctrl.yaw, speed: h.ctrl.speed, alive: h.alive })) } : null });
     }
 
     // Тыковки: собирает игрок (героем или Безликом)
@@ -661,7 +664,7 @@ export class Game {
     const heroView = R.player?.alive ? R.player : (this.mode === 'watch' && follow.hero && follow.alive !== undefined ? follow : null);
     const near = heroView ? this.#nearestGhost(heroView.ctrl.pos) : null;
     const dist = near ? near.d : 99;
-    const sees = !!(near && near.g.sees && near.g.target === heroView && !near.g.disguised);
+    const sees = !!(near && near.g.sees && (near.g.target === heroView || near.g.target?.headOwner === heroView) && !near.g.disguised);
     const headLeft = Math.ceil(C.round.headStart - R.t);
     if (R.phase === 'hide' && R.spawned === 0) {
       if (R.playerGhost) this.ui.status(`Закрой глаза и считай: ${headLeft}… Герои прячутся!`, 'calm');
@@ -672,6 +675,7 @@ export class Game {
       this.ui.status(pg.disguised ? `Ты замаскирован${pg.disguise.prop ? ` под ${pg.disguise.prop.name}` : ` под «${pg.disguise.hero.name}»`} — подкрадись!` : R.phase === 'hide' ? `Найди спрятавшихся! Осталось: ${left}` : `Догони всех! Осталось: ${left}`, '');
     } else if (this.mode === 'watch') this.ui.status(follow.hero && follow.alive !== undefined ? `Смотрим: ${follow.name}${follow.hidden ? ' · в укрытии' : ''}${follow.prop ? ` · притворился: ${follow.prop.kind.name}` : ''}` : 'Смотрим: Безлик', sees ? 'danger' : '');
     else if (!R.player?.alive) this.ui.status('Тебя нашли! Смотри, как прячутся другие…', '');
+    else if (R.player.splitActive) this.ui.status(`Три головы: ${R.player.splitHeads.filter(h => h.alive).length}/3 · прыгай и уходи от Безлика!`, sees ? 'danger' : 'calm');
     else if (sees) this.ui.status('Он тебя видит! Беги!', 'danger');
     else if (R.player.protected) this.ui.status('Ты под куполом — здесь не поймают', 'calm');
     else if (R.player.prop) this.ui.status(`Ты — ${R.player.prop.kind.name}. Не шевелись! (Q — снова стать собой)`, 'calm');
@@ -695,6 +699,26 @@ export class Game {
       this.cam.shake = Math.max(this.cam.shake, 0.6);
       if (e.ghost.isPlayer) this.ui.toast('Ты вышел на охоту! Ищи!');
       else if (e.i === 0) this.ui.toast(R.phase === 'hide' ? 'Безлики вышли искать!' : 'Догонялки начались!');
+    } else if (e.type === 'split') {
+      if (e.agent.isPlayer) {
+        this.#configureCam(e.agent);
+        this.cam.snap(e.agent.ctrl.pos);
+        this.ui.toast('Головы разбежались! У тебя три жизни.');
+      }
+      this.addFx(burst(this.scene, e.agent.ctrl.pos.x, e.agent.ctrl.pos.z, 3, 0xa774ff));
+      this.sound.brothersCue?.('resist');
+    } else if (e.type === 'headHop') {
+      if (e.agent.isPlayer) this.sound.brotherHop?.(e.index);
+    } else if (e.type === 'headCaught') {
+      if (e.agent.isPlayer) this.ui.toast(e.remaining ? `Голову поймали! Осталось ${e.remaining}/3.` : 'Все три головы пойманы!');
+      else this.ui.toast(`Безлик поймал голову ${e.agent.name}. Осталось ${e.remaining}/3.`);
+      this.addFx(burst(this.scene, e.pos.x, e.pos.z, 1.8, 0xff4b76));
+    } else if (e.type === 'headSwitch') {
+      if (e.agent.isPlayer) {
+        this.#configureCam(e.agent);
+        this.cam.snap(e.agent.ctrl.pos);
+        this.ui.toast(`Теперь ты управляешь головой ${e.index + 1}!`);
+      }
     } else if (e.type === 'caught') {
       const a = e.agent;
       this.addFx(burst(this.scene, a.ctrl.pos.x, a.ctrl.pos.z, 2.5, 0x9a5ae0));
@@ -711,7 +735,7 @@ export class Game {
       if (a.isPlayer && e.phase === 'chase') { this.round.phase = 'over'; this.#end(R.result()); }
     } else if (e.type === 'resisted') {
       const a = e.agent;
-      this.addFx(burst(this.scene, a.ctrl.pos.x, a.ctrl.pos.z, 3, 0x76ffd0));
+      this.addFx(stubbornGlow(this.scene, a.ctrl.pos.x, a.ctrl.pos.y, a.ctrl.pos.z));
       this.ui.toast(a.isPlayer ? 'Три Брата вырвались! Упрямство потрачено до следующей фазы.' : `${a.name} вырвались из поимки!`);
     } else if (e.type === 'poof') {
       this.addFx(poof(this.scene, e.x, e.y, e.z, e.ghost ? 0xc9a8ff : 0xfff1d6));
@@ -744,6 +768,8 @@ export class Game {
       if (a === me) continue;
       if (!hunter || this.mode === 'watch') dots.push({ x: a.ctrl.pos.x, z: a.ctrl.pos.z, kind: 'ally' });
     }
+    if (me?.splitActive) for (const h of me.splitHeads) if (h.alive && h.headIndex !== me.activeHead)
+      dots.push({ x: h.ctrl.pos.x, z: h.ctrl.pos.z, kind: 'ally' });
     for (const g of R.activeGhosts) {
       if (g.state === 'hidden' || g === me) continue;
       // своих Безликов водящий видит; герой — только если Безлик в прямой видимости и без маски
@@ -769,6 +795,8 @@ export class Game {
       this.ui.cooldowns(id => {
         if (id === 'dash') return { k: c.dashCd / c.phys.dash.cooldown };
         const a = set.get(id);
+        if (id === 'split') return { k: R.player.splitUsed ? 1 : 0,
+          n: R.player.splitActive ? R.player.splitHeads.filter(h => h.alive).length : '' };
         return { k: a ? a.cdLeft / set.cooldown(a) : 0 };
       });
     }

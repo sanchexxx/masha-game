@@ -44,7 +44,7 @@ export class PlayerController {
     this.crouching = false;
   }
 
-  get phys() { return CONFIG.heroes[this.hero.id]; }
+  get phys() { return this.hero.physics || CONFIG.heroes[this.hero.id]; }
   get radius() { return this.hero.radius; }
   // Присел — ниже почти вдвое: прячется за ящиками и заборами, пролезает в низкие щели
   get height() { return this.hero.height * (this.crouching ? 0.58 : 1); }

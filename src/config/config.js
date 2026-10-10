@@ -79,6 +79,7 @@ export const CONFIG = {
     fear: { cd: 22, radius: 5.8, stun: 1.15, slow: 2.4 },
     hypnosis: { cd: 19, radius: 8.5, time: 3.1 },
     glare: { cd: 15, radius: 12, mark: 4.5, stun: 0.35 },
+    split: { cd: 999 },
   },
 
   bots: {

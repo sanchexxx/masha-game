@@ -56,6 +56,33 @@ export class Sound {
     }
   }
 
+  // Короткий мультяшный возглас каждой подпрыгивающей головы.
+  async brotherHop(index = 0) {
+    if (this.muted) return;
+    if (!this.ctx) this.unlock();
+    if (!this.ctx) return;
+    let pending = this.voiceCache.get('select');
+    if (!pending) {
+      pending = fetch('/assets/audio/brothers/select.m4a?v=2026101004')
+        .then(r => { if (!r.ok) throw new Error('voice'); return r.arrayBuffer(); })
+        .then(data => this.ctx.decodeAudioData(data));
+      this.voiceCache.set('select', pending);
+    }
+    try {
+      const buffer = await pending;
+      if (this.muted || !this.ctx) return;
+      const source = this.ctx.createBufferSource();
+      source.buffer = buffer;
+      source.playbackRate.value = [1.32, 1.55, 1.78][index] || 1.4;
+      const gain = this.ctx.createGain();
+      const now = this.ctx.currentTime;
+      gain.gain.setValueAtTime(0.11, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      source.connect(gain).connect(this.master);
+      source.start(now, Math.min(buffer.duration * 0.18, 0.35), Math.min(0.23, buffer.duration * 0.45));
+    } catch { this.voiceCache.delete('select'); this.chime([340 + index * 60]); }
+  }
+
   #ambient() {
     const c = this.ctx;
     // мягкий аккорд-гул

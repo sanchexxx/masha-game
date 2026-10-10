@@ -74,6 +74,124 @@ export function spiritPulse(scene, x, y, z, radius, color, spiral = false) {
   };
 }
 
+// Нарисованные прямо в Canvas огоньки сохраняют чёткий силуэт и глаза на телефоне.
+const spiritTextures = new Map();
+const symbolTextures = new Map();
+function symbolTexture(kind) {
+  if (symbolTextures.has(kind)) return symbolTextures.get(kind);
+  const canvas = document.createElement('canvas'); canvas.width = canvas.height = 128;
+  const c = canvas.getContext('2d');
+  const color = kind === 'glare' ? '#ffd47a' : '#e5a7ff';
+  c.strokeStyle = color; c.lineWidth = 9; c.lineCap = 'round';
+  c.shadowColor = color; c.shadowBlur = 15;
+  if (kind === 'glare') {
+    c.beginPath(); c.moveTo(9, 64); c.quadraticCurveTo(64, 9, 119, 64);
+    c.quadraticCurveTo(64, 119, 9, 64); c.stroke();
+    c.beginPath(); c.arc(64, 64, 17, 0, Math.PI * 2); c.stroke();
+    c.fillStyle = '#fff4cc'; c.beginPath(); c.arc(64, 64, 8, 0, Math.PI * 2); c.fill();
+  } else {
+    c.beginPath();
+    for (let i = 0; i <= 110; i++) {
+      const t = i / 110, a = t * Math.PI * 5.5, r = 3 + t * 47;
+      const x = 64 + Math.cos(a) * r, y = 64 + Math.sin(a) * r;
+      if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
+    }
+    c.stroke();
+  }
+  const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace;
+  symbolTextures.set(kind, tex); return tex;
+}
+function spiritTexture(color) {
+  if (spiritTextures.has(color)) return spiritTextures.get(color);
+  const canvas = document.createElement('canvas'); canvas.width = canvas.height = 128;
+  const c = canvas.getContext('2d');
+  c.shadowColor = color; c.shadowBlur = 20; c.fillStyle = color;
+  c.beginPath();
+  c.moveTo(64, 5); c.bezierCurveTo(31, 34, 75, 35, 32, 74);
+  c.bezierCurveTo(19, 90, 27, 113, 61, 118);
+  c.bezierCurveTo(99, 121, 111, 95, 94, 75);
+  c.bezierCurveTo(76, 54, 76, 40, 64, 5); c.fill();
+  c.shadowBlur = 0; c.fillStyle = '#fff0e8';
+  c.beginPath(); c.ellipse(61, 80, 27, 25, 0, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#4c153b';
+  for (const ex of [51, 72]) { c.beginPath(); c.ellipse(ex, 79, 3.5, 5, 0, 0, Math.PI * 2); c.fill(); }
+  c.beginPath(); c.ellipse(62, 96, 5, 6, 0, 0, Math.PI * 2); c.fill();
+  const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace;
+  spiritTextures.set(color, tex); return tex;
+}
+
+function spiritScene(scene, x, y, z, radius, color, kind) {
+  const group = new THREE.Group(); group.position.set(x, y, z); scene.add(group);
+  const sprites = [];
+  const count = kind === 'fear' ? 7 : kind === 'hypnosis' || kind === 'stubborn' ? 5 : 3;
+  const tex = spiritTexture(kind === 'fear' ? '#ff4166' : kind === 'hypnosis' ? '#b45aff' : kind === 'stubborn' ? '#42f8b7' : '#ffc357');
+  for (let i = 0; i < count; i++) {
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false,
+      blending: THREE.AdditiveBlending, opacity: 0 });
+    const sp = new THREE.Sprite(mat);
+    sp.scale.setScalar(kind === 'fear' ? 1.7 : 1.25);
+    group.add(sp); sprites.push(sp);
+  }
+  const rings = [0, 1].map(i => {
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0,
+      side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.94, 1, 64), mat);
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.06 + i * 0.08; group.add(ring); return ring;
+  });
+  let symbol = null;
+  if (kind === 'hypnosis' || kind === 'glare') {
+    symbol = new THREE.Sprite(new THREE.SpriteMaterial({ map: symbolTexture(kind), transparent: true,
+      depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, opacity: 0 }));
+    symbol.position.set(0, 2.1, 0);
+    symbol.scale.setScalar(kind === 'glare' ? 3.2 : 2.6);
+    group.add(symbol);
+  }
+  const trails = [];
+  for (let i = 0; i < (kind === 'fear' ? 4 : 3); i++) {
+    const mesh = new THREE.Mesh(new THREE.TorusGeometry(1.4 + i * 0.28, kind === 'glare' ? 0.035 : 0.075, 5, 52, Math.PI * 1.25),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+    mesh.rotation.set(Math.PI * (0.2 + i * 0.15), i * 1.1, i * 1.4); mesh.position.y = 1.1 + i * 0.27;
+    group.add(mesh); trails.push(mesh);
+  }
+  let t = 0;
+  const dur = kind === 'fear' || kind === 'stubborn' ? 1.6 : kind === 'hypnosis' ? 2.1 : 1.2;
+  return { update(dt) {
+    t += dt;
+    const fade = Math.min(1, t * 6) * Math.min(1, (dur - t) * 2.5);
+    sprites.forEach((sp, i) => {
+      const a = i * Math.PI * 2 / count + (kind === 'hypnosis' ? t * 2.5 : t * 0.85);
+      const r = (0.7 + (i % 3) * 0.3) + Math.min(1, t) * (kind === 'fear' ? 1.9 : 1.2);
+      sp.position.set(Math.cos(a) * r, 0.85 + (i % 3) * 0.48 + Math.sin(t * 5 + i) * 0.22, Math.sin(a) * r);
+      sp.material.opacity = Math.max(0, fade * (kind === 'fear' ? 0.92 : 0.72));
+      sp.material.rotation = Math.sin(t * 4 + i) * 0.2;
+    });
+    rings.forEach((ring, i) => {
+      const k = Math.min(1, Math.max(0, (t - i * 0.16) / 0.8));
+      ring.scale.setScalar(0.35 + k * radius);
+      ring.material.opacity = fade * (1 - k) * 0.85;
+    });
+    trails.forEach((mesh, i) => {
+      mesh.rotation.z += dt * (kind === 'hypnosis' ? 3.5 : 1.3) * (i % 2 ? -1 : 1);
+      mesh.scale.setScalar(0.6 + t * (kind === 'fear' ? 1.6 : 0.7));
+      mesh.material.opacity = fade * (kind === 'glare' ? 0.35 : 0.6);
+    });
+    if (symbol) {
+      symbol.material.opacity = fade * 0.92;
+      symbol.material.rotation = kind === 'hypnosis' ? t * 3 : 0;
+      symbol.scale.setScalar((kind === 'glare' ? 3.2 : 2.6) * (0.8 + t * 0.26));
+    }
+    if (t < dur) return true;
+    scene.remove(group);
+    group.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+    return false;
+  } };
+}
+
+export function fearWave(scene, x, y, z, radius) { return spiritScene(scene, x, y, z, radius, 0xff315a, 'fear'); }
+export function hypnosisVortex(scene, x, y, z, radius) { return spiritScene(scene, x, y, z, radius, 0xb263ff, 'hypnosis'); }
+export function glareFlash(scene, x, y, z, radius) { return spiritScene(scene, x, y, z, radius, 0xffbb55, 'glare'); }
+export function stubbornGlow(scene, x, y, z) { return spiritScene(scene, x, y, z, 3.4, 0x42f8b7, 'stubborn'); }
+
 // Вспышка тёплого света: расходящееся кольцо + поднимающиеся искры
 export function burst(scene, x, z, r, color = 0xff8f9a) {
   const ring = groundRing(scene, x, z, 1, color);

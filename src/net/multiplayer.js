@@ -8,6 +8,7 @@ import { HEROES, GHOST } from '../characters/index.js?v=2026100901';
 import { Net } from './net.js?v=2026100901';
 import { makeRoster, makeSnapshot, GuestView } from './sync.js?v=2026100901';
 import { wallet } from '../world/props.js?v=2026100901';
+import * as AbilityFx from '../abilities/fx.js?v=2026101006';
 
 const $ = id => document.getElementById(id);
 const NAME_KEY = 'masha-game-name';
@@ -198,6 +199,10 @@ export class Multiplayer {
     if (e.type === 'caught') this.net.send({ t: 'ev', k: 'caught', name: e.agent.name, pid: pidOf(e.agent), phase: e.phase, by: e.ghost.isPlayer ? 'host' : e.ghost.remote || null });
     else if (e.type === 'resisted') this.net.send({ t: 'ev', k: 'resisted', name: e.agent.name, pid: pidOf(e.agent) });
     else if (e.type === 'ability') this.net.send({ t: 'ev', k: 'ability', id: e.id, pid: pidOf(e.agent) });
+    else if (e.type === 'split') this.net.send({ t: 'ev', k: 'split', pid: pidOf(e.agent) });
+    else if (e.type === 'headHop') this.net.send({ t: 'ev', k: 'headHop', pid: pidOf(e.agent), index: e.index });
+    else if (e.type === 'headCaught') this.net.send({ t: 'ev', k: 'headCaught', pid: pidOf(e.agent), name: e.agent.name, remaining: e.remaining });
+    else if (e.type === 'headSwitch') this.net.send({ t: 'ev', k: 'headSwitch', pid: pidOf(e.agent), index: e.index });
     else if (e.type === 'ghostSpawn') this.net.send({ t: 'ev', k: 'spawn', i: e.i, phase: this.g.round.phase, pid: e.ghost.isPlayer ? 'host' : e.ghost.remote || null });
     else if (e.type === 'phase') {
       this.net.send({ t: 'roster', roster: makeRoster(this.g.round) });
@@ -284,7 +289,13 @@ export class Multiplayer {
     const focus = me?.pos || watched?.pos || (gv.agents.values().next().value?.pos) || new THREE.Vector3(0, 0, 22);
     const mine = me?.kind === 'agent' ? me.v.s : null, gmine = me?.kind === 'ghost' ? me.g : null;
     g.mainFirstPersonTarget = spectating ? watched : null;
-    if (me?.kind !== this.lastKind) { g.cam.configure(me?.kind === 'ghost' ? GHOST.cam : (me?.v?.def.cam || HEROES[0].cam)); this.lastKind = me?.kind; }
+    const cameraKind = me?.kind === 'agent' && me.v.s?.[18] ? 'head' : me?.kind;
+    if (cameraKind !== this.lastKind) {
+      g.cam.configure(cameraKind === 'head' ? { distance: 4.5, height: 1.18, side: 0.35 }
+        : me?.kind === 'ghost' ? GHOST.cam : (me?.v?.def.cam || HEROES[0].cam));
+      g.cam.snap(focus);
+      this.lastKind = cameraKind;
+    }
     if (spectating) g.firstPerson({ ctrl: { pos: watched.pos, yaw: watched.yaw }, hero: watched.def });
     else g.cam.update(dt, focus, inp);
     this.focusPos = focus;
@@ -315,7 +326,7 @@ export class Multiplayer {
     else if (gmine) status = gmine[10] || gmine[11] ? 'Ты замаскирован — подкрадись!' : snap.ph === 'hide' ? `Найди спрятавшихся! Осталось: ${alive}` : `Догони всех! Осталось: ${alive}`;
     else if (!me) status = 'Тебя нашли! Смотри, как прячутся другие…';
     else if (mine[11]) status = 'Ты — предмет. Не шевелись! (Q — снова стать собой)';
-    else status = mine[14] ? 'Тихо… тебя ищут' : snap.ph === 'chase' ? 'Догонялки! Не попадись!' : 'Безлики ищут. Спрячься или замаскируйся!';
+    else status = mine[18] ? `Три головы: ${mine[18].filter(h => h[5]).length}/3 · убегай от Безлика!` : mine[14] ? 'Тихо… тебя ищут' : snap.ph === 'chase' ? 'Догонялки! Не попадись!' : 'Безлики ищут. Спрячься или замаскируйся!';
     g.ui.status(status, 'calm');
     g.ui.mmLabel(snap.ph === 'hide' && snap.sp === 0 && !gmine ? 'Найди место<br>и спрячься!' : '');
     // панель умений: герой или Безлик
@@ -325,10 +336,13 @@ export class Multiplayer {
       g.ui.abilityBar(gmine ? g.ghostAbilities : mine ? g.heroAbilities(me.v.def.id) : []);
     }
     if (gmine) g.ui.cooldowns(id => id === 'dash' ? { k: gmine[14] > 0 ? 0 : 1, n: gmine[14] } : id === 'fly' ? { k: 1 - gmine[15] } : { k: gmine[10] || gmine[11] ? 0 : gmine[16] / CONFIG.ghost.disguise.cd });
-    else if (mine) g.ui.cooldowns(id => id === 'dash' ? { k: mine[17] } : { k: 0 });
+    else if (mine) g.ui.cooldowns(id => id === 'dash' ? { k: mine[17] }
+      : id === 'split' ? { k: mine[19] ? 1 : 0, n: mine[18] ? mine[18].filter(h => h[5]).length : '' } : { k: 0 });
     // мини-карта
     const dots = [];
     for (const v of gv.agents.values()) if (v.s && v.s[10] && v !== me?.v && !gmine) dots.push({ x: v.s[1], z: v.s[3], kind: 'ally' });
+    if (mine?.[18]) for (const h of mine[18]) if (h[5] && Math.hypot(h[0] - focus.x, h[2] - focus.z) > 0.4)
+      dots.push({ x: h[0], z: h[2], kind: 'ally' });
     for (const s of snap.g) if (s[5] && s !== gmine && (gmine || (!s[10] && !s[11] && Math.hypot(s[1] - focus.x, s[3] - focus.z) < 18))) dots.push({ x: s[1], z: s[3], kind: 'ghost' });
     dots.push({ x: focus.x, z: focus.z, kind: 'me' });
     g.ui.minimap(focus, g.cam.yaw, dots);
@@ -365,8 +379,30 @@ export class Multiplayer {
     } else if (m.k === 'resisted') {
       ui.toast(m.pid === me ? 'Ты вырвался из поимки! Упрямство потрачено.' : `${m.name} вырвались из поимки!`);
       if (m.pid === me) g.sound.brothersCue?.('resist');
+      const p = [...this.guest.agents.values()].find(v => v.pid === m.pid)?.pos;
+      if (p) g.addFx(AbilityFx.stubbornGlow(g.scene, p.x, p.y, p.z));
+    } else if (m.k === 'split') {
+      if (m.pid === me) ui.toast('Головы разбежались! У тебя три жизни.');
+      g.sound.brothersCue?.('resist');
+    } else if (m.k === 'headHop') {
+      if (m.pid === me) g.sound.brotherHop?.(m.index);
+    } else if (m.k === 'headCaught') {
+      ui.toast(m.pid === me ? `Голову поймали! Осталось ${m.remaining}/3.` : `Безлик поймал голову ${m.name}. Осталось ${m.remaining}/3.`);
+    } else if (m.k === 'headSwitch') {
+      if (m.pid === me) {
+        ui.toast(`Теперь ты управляешь головой ${m.index + 1}!`);
+        const v = [...this.guest.agents.values()].find(a => a.pid === me);
+        if (v) v.pos = null;
+      }
     } else if (m.k === 'ability' && ['fear', 'hypnosis', 'glare'].includes(m.id)) {
       g.sound.brothersCue?.(m.id);
+      const caster = [...this.guest.agents.values()].find(v => v.pid === m.pid);
+      const p = caster?.pos;
+      if (p) {
+        const cfg = CONFIG.abilities[m.id];
+        const make = m.id === 'fear' ? AbilityFx.fearWave : m.id === 'hypnosis' ? AbilityFx.hypnosisVortex : AbilityFx.glareFlash;
+        g.addFx(make(g.scene, p.x, p.y, p.z, cfg.radius));
+      }
     } else if (m.k === 'spawn') {
       g.sound.ghostAppear();
       g.cam.shake = 0.6;
