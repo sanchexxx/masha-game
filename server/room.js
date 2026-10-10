@@ -3,7 +3,7 @@
 //  • от хозяина — всем (или одному, если указано to);
 //  • от гостя — только хозяину (с пометкой from).
 // Этот же код работает и в Cloudflare (worker.js), и на локальном сервере для проверки (dev.mjs).
-export const MAX_PLAYERS = 8;
+export const MAX_PLAYERS = 15;
 
 export class RoomCore {
   constructor(send, onChange = () => {}) {
@@ -13,6 +13,7 @@ export class RoomCore {
     this.hostConn = null;
     this.seq = 0;
     this.started = false;
+    this.bots = true;
   }
 
   join(conn) {
@@ -41,6 +42,7 @@ export class RoomCore {
     }
     if (m.t === 'vote') { me.vote = String(m.map || 'village').slice(0, 16); return this.#lobby(); }
     if (conn === this.hostConn) {
+      if (m.t === 'bots') { if (this.started) return; this.bots = !!m.enabled; return this.#lobby(); }
       if (m.t === 'start') this.started = true;
       if (m.t === 'lobbyBack') this.started = false;
       if (m.t === 'start' || m.t === 'lobbyBack') this.onChange(this.summary());
@@ -74,11 +76,11 @@ export class RoomCore {
   #lobby() {
     const host = this.hostConn ? this.players.get(this.hostConn)?.id : null;
     const players = [...this.players.values()];
-    for (const c of this.players.keys()) this.send(c, { t: 'lobby', players, host, started: this.started });
+    for (const c of this.players.keys()) this.send(c, { t: 'lobby', players, host, started: this.started, bots: this.bots });
     this.onChange(this.summary());
   }
 
   summary() {
-    return { players: this.players.size, host: this.hostConn ? this.players.get(this.hostConn)?.name : '', started: this.started };
+    return { players: this.players.size, host: this.hostConn ? this.players.get(this.hostConn)?.name : '', started: this.started, bots: this.bots };
   }
 }

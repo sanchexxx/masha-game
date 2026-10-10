@@ -1,7 +1,7 @@
 // Cloudflare Worker: раздаёт саму игру (статические файлы) и держит комнаты совместной игры.
 // /room/КОД — WebSocket в комнату. Каждая комната — отдельный Durable Object «Room».
 import { DurableObject } from 'cloudflare:workers';
-import { RoomCore } from './room.js';
+import { MAX_PLAYERS, RoomCore } from './room.js';
 
 export class Room extends DurableObject {
   constructor(ctx, env) {
@@ -57,8 +57,8 @@ export class RoomDirectory extends DurableObject {
     if (request.method === 'DELETE') await this.storage.delete(key);
     else if (request.method === 'POST') await this.storage.put(key, {
       code: data.code, host: String(data.host || 'Игрок').slice(0, 20),
-      players: Math.min(8, Math.max(0, Number(data.players) || 0)),
-      started: !!data.started, updated: Date.now(),
+      players: Math.min(MAX_PLAYERS, Math.max(0, Number(data.players) || 0)),
+      started: !!data.started, bots: data.bots !== false, updated: Date.now(),
     });
     else return new Response('Method not allowed', { status: 405 });
     return new Response(null, { status: 204 });

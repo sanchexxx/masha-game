@@ -6,6 +6,7 @@ export class Net {
     this.id = null;
     this.host = null;
     this.players = [];
+    this.bots = true;
     this.handlers = new Map();
     this.code = null;
     this.heartbeat = null;
@@ -44,7 +45,7 @@ export class Net {
           this.heartbeat = setInterval(() => this.send({ t: 'ping' }), 25000);
           finish(true);
         }
-        if (m.t === 'lobby') { this.players = m.players; this.host = m.host; }
+        if (m.t === 'lobby') { this.players = m.players; this.host = m.host; this.bots = m.bots !== false; }
         this.#emit(m.t, m);
         this.#emit('*', m);
       };
@@ -66,7 +67,7 @@ export class Net {
     const ws = this.ws;
     clearInterval(this.heartbeat);
     this.heartbeat = null;
-    this.ws = null; this.id = null; this.host = null; this.players = []; this.code = null;
+    this.ws = null; this.id = null; this.host = null; this.players = []; this.bots = true; this.code = null;
     try { ws?.close(); } catch {}
   }
 

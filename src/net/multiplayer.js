@@ -13,6 +13,8 @@ import * as AbilityFx from '../abilities/fx.js?v=2026101006';
 const $ = id => document.getElementById(id);
 const NAME_KEY = 'masha-game-name';
 const HERO_ICON = { kid: '🐱', masha: '🦶', catbus: '🐈', moti: '🛡️', brothers: '👥', noface: '🎭' };
+const MAX_PLAYERS = 15;
+const MAX_HUMAN_GHOSTS = 4;
 const heroById = id => HEROES.find(h => h.id === id) || (id === GHOST.id ? GHOST : HEROES[0]);
 
 export class Multiplayer {
@@ -41,6 +43,8 @@ export class Multiplayer {
     ui.on('lb-leave', () => this.leave());
     ui.on('lb-hero', () => this.g.toSelect());
     ui.on('lb-start', () => this.hostStart());
+    ui.on('lb-bots-on', () => { if (this.isHost) net.send({ t: 'bots', enabled: true }); });
+    ui.on('lb-bots-off', () => { if (this.isHost) net.send({ t: 'bots', enabled: false }); });
     ui.on('lb-copy', () => { navigator.clipboard?.writeText(this.url).then(() => ui.toast('Ссылка скопирована!'), () => {}); $('lb-url').select(); });
     ui.on('lb-share', () => { if (navigator.share) navigator.share({ title: 'Прятки с Безликом', text: 'Играем вместе! Комната ' + net.code, url: this.url }).catch(() => {}); else { navigator.clipboard?.writeText(this.url); ui.toast('Ссылка скопирована!'); } });
     ui.on('rooms-create', () => this.createRoom());
@@ -56,7 +60,33 @@ export class Multiplayer {
     nameInp.addEventListener('change', () => { try { localStorage.setItem(NAME_KEY, nameInp.value.trim()); } catch {} net.update(this.hello()); });
 
     net.on('lobby', m => { if (this.g.state === 'lobby') this.renderLobby(); this.#hostChanged(m); this.#lateJoiners(m); });
-    net.on('left', m => { if (this.isHost && this.g.state === 'play') { const R = this.g.round; const a = R.agents.find(x => x.remote === m.id); if (a) { this.g.ui.toast(`${a.name} вышел — за него играет бот`); R.convertToBot(a); } for (const gh of R.activeGhosts) if (gh.remote === m.id) gh.remote = null; } });
+    net.on('left', m => {
+      if (!this.isHost || this.g.state !== 'play') return;
+      const R = this.g.round;
+      const a = R.agents.find(x => x.remote === m.id);
+      const gh = R.activeGhosts.find(x => x.remote === m.id);
+      if (this.net.bots) {
+        if (a) { this.g.ui.toast(`${a.name} вышел — за него играет бот`); R.convertToBot(a); }
+        if (gh) gh.remote = null;
+      } else {
+        if (a) {
+          R.agents = R.agents.filter(x => x !== a);
+          this.g.scene.remove(a.char.root);
+        }
+        if (gh) {
+          R.activeGhosts = R.activeGhosts.filter(x => x !== gh);
+          gh.reset(R.ghostSpawn(0));
+          gh.remote = null;
+        }
+        R.netIn.delete(m.id);
+        this.net.send({ t: 'roster', roster: makeRoster(R) });
+        this.g.ui.toast(`${this.net.name(m.id)} вышел из игры`);
+        if (!R.activeGhosts.length || !R.agents.length) {
+          this.g.ui.toast('Игрок вышел — возвращаемся в комнату');
+          this.showLobby();
+        }
+      }
+    });
     net.on('close', () => { if (this.g.state !== 'loading') { this.g.ui.toast('Связь с комнатой потеряна'); this.#stopGuest(); if (['lobby', 'guest'].includes(this.g.state)) this.g.toSelect(); } });
     // гость
     net.on('start', m => this.#guestStart(m));
@@ -94,8 +124,8 @@ export class Multiplayer {
       if (!response.ok) throw new Error('rooms');
       const { rooms } = await response.json();
       if (this.g.state !== 'rooms') return;
-      const open = rooms.filter(r => r.players < 8);
-      box.innerHTML = open.length ? open.map(r => `<div class="room-row"><div class="room-info"><strong>Комната ${esc(r.code)}</strong><small>${esc(r.host)} · ${r.players}/8 игроков · ${r.started ? 'Игра идёт — можно присоединиться' : 'Ожидает игроков'}</small></div><button class="gold" data-room="${esc(r.code)}">Войти</button></div>`).join('')
+      const open = rooms.filter(r => r.players < MAX_PLAYERS);
+      box.innerHTML = open.length ? open.map(r => `<div class="room-row"><div class="room-info"><strong>Комната ${esc(r.code)}</strong><small>${esc(r.host)} · ${r.players}/${MAX_PLAYERS} игроков · ${r.bots === false ? 'Без ботов' : 'С ботами'} · ${r.started ? 'Игра идёт — можно присоединиться' : 'Ожидает игроков'}</small></div><button class="gold" data-room="${esc(r.code)}">Войти</button></div>`).join('')
         : '<div class="lb-card">Пока нет открытых комнат. Создай первую!</div>';
     } catch {
       if (this.g.state === 'rooms') box.textContent = 'Не удалось получить список комнат. Нажми «Обновить список».';
@@ -153,13 +183,13 @@ export class Multiplayer {
 
   renderLobby() {
     const net = this.net, host = net.host;
-    $('lb-count').textContent = `${net.players.length}/8`;
+    $('lb-count').textContent = `${net.players.length}/${MAX_PLAYERS}`;
     $('lb-players').innerHTML = net.players.map(p => `<div class="lb-p ${p.id === net.id ? 'me' : ''}"><span class="ic">${HERO_ICON[p.hero] || '🐾'}</span><span class="nm">${esc(p.name)}${p.id === host ? ' 👑' : ''}</span><span class="hr">${heroById(p.hero).name}</span></div>`).join('');
     const votes = {};
     for (const p of net.players) votes[p.vote] = (votes[p.vote] || 0) + 1;
     const maps = this.g.maps;
     const box = $('lb-maps');
-    box.innerHTML = maps.map(m => `<button class="map-card ${m.ready ? '' : 'soon'}" data-id="${m.id}"><div class="m-title">${m.icon} ${m.name}</div><div class="m-pic" style="background-image:url(${m.pic})"></div><span class="m-diff ${m.hard ? 'hard' : ''}">${m.hard ? 'Сложный' : 'Обычный'}</span><div class="m-votes">${'🐾'.repeat(votes[m.id] || 0)}</div></button>`).join('');
+    box.innerHTML = maps.map(m => `<button class="map-card ${m.ready ? '' : 'soon'}" data-id="${m.id}"><div class="m-title">${m.icon} ${m.name}</div><div class="m-pic" style="background-image:url(${m.pic})"></div><span class="m-diff ${m.hard ? 'hard' : ''}">${m.hard ? 'Сложный' : 'Обычный'}</span><div class="m-votes">🐾 ${votes[m.id] || 0}</div></button>`).join('');
     const mine = net.players.find(p => p.id === net.id)?.vote;
     box.querySelectorAll('.map-card').forEach(b => {
       b.classList.toggle('active', b.dataset.id === mine);
@@ -170,6 +200,14 @@ export class Multiplayer {
       });
     });
     const amHost = net.isHost;
+    for (const [id, enabled] of [['lb-bots-on', true], ['lb-bots-off', false]]) {
+      const button = $(id);
+      button.disabled = !amHost;
+      button.classList.toggle('active', net.bots === enabled);
+    }
+    $('lb-bots-note').textContent = amHost
+      ? 'Ты выбираешь состав комнаты. Без ботов нужны хотя бы один герой и один Безлик среди игроков.'
+      : 'Режим выбирает хозяин комнаты. Без ботов нужны игроки за героя и Безлика.';
     $('lb-start').classList.toggle('hidden', !amHost);
     $('lb-wait').classList.toggle('hidden', amHost);
   }
@@ -204,12 +242,22 @@ export class Multiplayer {
   // ---------- Хозяин ----------
   remotes() {
     if (!this.isHost) return [];
-    return this.net.players.filter(p => p.id !== this.net.id).map(p => ({ id: p.id, name: p.name, hero: heroById(p.hero), skin: p.skin }));
+    return this.net.players.filter(p => p.id !== this.net.id && p.ready).map(p => ({ id: p.id, name: p.name, hero: heroById(p.hero), skin: p.skin }));
   }
 
   hostStart() {
     if (!this.isHost) return;
     const g = this.g;
+    const ready = this.net.players.filter(p => p.ready);
+    const ghosts = ready.filter(p => p.hero === GHOST.id).length;
+    if (ghosts > MAX_HUMAN_GHOSTS) {
+      g.ui.toast(`В комнате может быть до ${MAX_HUMAN_GHOSTS} игроков за Безлика. Пусть кто-то сменит героя.`);
+      return;
+    }
+    if (!this.net.bots && (!ghosts || !ready.some(p => p.hero !== GHOST.id))) {
+      g.ui.toast('Для игры без ботов нужны игрок за Безлика и хотя бы один герой.');
+      return;
+    }
     const votes = new Map();
     for (const p of this.net.players) {
       if (!g.maps.some(m => m.id === p.vote && m.ready)) continue;

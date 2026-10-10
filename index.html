@@ -412,12 +412,19 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .lb-link small, .lb-note { color: #e8d6b8; font-size: 12.5px; line-height: 1.35; }
 .lb-name { display: block; margin-top: 12px; color: #fff3da; font-weight: 800; font-size: 14px; }
 .lb-name input { margin-top: 5px; }
-.lb-players { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.lb-players { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; max-height: 300px; overflow-y: auto; }
 .lb-p { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 12px; background: rgba(0, 0, 0, .28); font-weight: 800; }
 .lb-p .ic { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 18px; background: linear-gradient(var(--parch), var(--parch2)); }
 .lb-p .nm { flex: 1; }
 .lb-p .hr { color: #e8d6b8; font-size: 13px; font-weight: 700; }
 .lb-p.me { outline: 2px solid var(--gold1); }
+.lb-bots { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin: 14px 0; }
+.lb-bots .lb-title { margin: 0; }
+.lb-bot-buttons { display: flex; gap: 8px; }
+.lb-bot-buttons button { margin: 0; padding: 9px 16px; min-width: 130px; font-size: 15px; }
+.lb-bot-buttons button.active { border-color: #ffe2a8; background: linear-gradient(var(--parch), var(--parch2)); color: #281606; box-shadow: 0 0 0 2px rgba(255, 226, 168, .35); }
+.lb-bot-buttons button:disabled { opacity: .75; cursor: default; }
+.lb-bots .lb-note { flex-basis: 100%; }
 .lb-wait { text-align: center; color: #ffe2a8; font-weight: 800; }
 .map-card .m-votes { display: flex; justify-content: center; gap: 4px; min-height: 22px; margin-top: 6px; font-size: 15px; }
 .gold.small { font-size: 15px; }
@@ -425,6 +432,8 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   .room-row { flex-wrap: wrap; }
   .room-row button { width: 100%; }
   .lb-grid { grid-template-columns: 1fr; }
+  .lb-bot-buttons { width: 100%; }
+  .lb-bot-buttons button { flex: 1; min-width: 0; }
   #lb-qr { width: 104px; height: 104px; }
   .maps-foot { flex-wrap: wrap; }
   .maps-foot .ghost-btn { width: calc(50% - 6px); }
@@ -659,8 +668,13 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
       <div class="lb-card">
         <div class="lb-title">Игроки <span id="lb-count"></span></div>
         <div id="lb-players" class="lb-players"></div>
-        <small class="lb-note">Свободные места займут боты. Выбрать героя — «Сменить героя».</small>
+        <small class="lb-note">До 15 игроков, из них до 4 за Безлика. Выбрать героя — «Сменить героя».</small>
       </div>
+    </div>
+    <div class="lb-card lb-bots">
+      <div class="lb-title">Состав игры</div>
+      <div class="lb-bot-buttons"><button class="ghost-btn" id="lb-bots-on">С ботами</button><button class="ghost-btn" id="lb-bots-off">Без ботов</button></div>
+      <small class="lb-note" id="lb-bots-note"></small>
     </div>
     <div class="lb-title center">Голосуем за карту</div>
     <div class="map-cards" id="lb-maps"></div>
@@ -765,7 +779,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   window.__bundleVariant = legacy ? 'legacy' : 'modern';
   window.__bootStage = 'скачиваем файл игры (' + window.__bundleVariant + ')';
   var script = document.createElement('script');
-  script.src = legacy ? '/src/main.legacy.bundle.js?v=2026101010' : '/src/main.bundle.js?v=2026101010';
+  script.src = legacy ? '/src/main.legacy.bundle.js?v=2026101011' : '/src/main.bundle.js?v=2026101011';
   script.onerror = function () { say('не загрузился файл игры (' + window.__bundleVariant + ')'); };
   script.onload = function () {
     if (!window.__bootEntered) say('файл игры скачан, но браузер не смог выполнить его (' + window.__bundleVariant + ')');

@@ -26,7 +26,8 @@ import { Multiplayer } from '../net/multiplayer.js?v=2026100901';
 
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 const isMobile = isTouch && Math.min(screen.width, screen.height) < 820;
-const MAX_GHOSTS = 4;
+// До четырёх игроков-Безликов и ещё одно место для героя, ставшего Безликом в догонялках.
+const MAX_GHOSTS = 5;
 const GHOST_ABILITIES = [
   { id: 'dash', key: 'E', icon: '💨', name: 'Рывок' },
   { id: 'mask-hero', key: '1', icon: '🎭', name: 'Стать героем' },
@@ -370,7 +371,8 @@ export class Game {
     this.showcase = null;
     this.input.reset();
     const hero = this.hero.id === GHOST.id ? HEROES[0] : this.hero;
-    this.round.start({ mode, hero, skin: this.#skinFor(hero), mSkin: this.skin, ghosts: this.ghostCount, withBots: this.withBots, remotes: this.mp.remotes() });
+    const withBots = this.mp.isHost ? this.mp.net.bots : this.withBots;
+    this.round.start({ mode, hero, skin: this.#skinFor(hero), mSkin: this.skin, ghosts: this.ghostCount, withBots, remotes: this.mp.remotes() });
     this.mp.hostStarted();
     this.pumpkins.spawn(CONFIG.round.pumpkins);
     this.focus = 0;
