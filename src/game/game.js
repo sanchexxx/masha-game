@@ -380,7 +380,7 @@ export class Game {
     const intro = document.getElementById('mode-intro');
     if (!intro) return;
     intro.innerHTML = gameMode === 'delivery'
-      ? `<b>🏮 Доставка фонаря</b><span>Найди фонарь под золотым лучом — он подберётся сам. Неси его через карту к голубому лучу храма Безликов: доставка автоматическая. Цель: ${goal || 5} фонарей за ${Math.ceil((duration || 240) / 60)} минут.</span>`
+      ? `<b>🏮 Доставка фонаря</b><span>Найди фонарь под золотым лучом — он подберётся сам. Неси его через карту к голубому лучу храма Безликов: доставка автоматическая. Цель: ${goal || 5} фонарей. Время: ${Math.floor((duration || 240) / 60)}:${String((duration || 240) % 60).padStart(2, '0')}.</span>`
       : '<b>🎭 Прятки с Безликом</b><span>Сначала спрячься. Когда выйдет Безлик, не дай себя поймать. Затем начнутся догонялки.</span>';
     intro.classList.remove('hidden');
     clearTimeout(this.modeIntroTimer);
