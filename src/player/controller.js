@@ -121,9 +121,10 @@ export class PlayerController {
     this.boostT = Math.max(0, this.boostT - dt);
     this.stagger = Math.max(0, this.stagger - dt);
     const tired = this.exhausted ? 0.85 : 1;                // выдохся — даже шагом медленнее
-    const mul = this.moveMul * this.slowMul * (this.boostT > 0 ? this.boostMul : 1) * (this.stagger > 0 ? 0.45 : 1);
+    const waterMul = this.pos.y < 0.32 && this.world.inWater?.(this.pos.x, this.pos.z) ? 0.7 : 1;
+    const mul = this.moveMul * this.slowMul * waterMul * (this.boostT > 0 ? this.boostMul : 1) * (this.stagger > 0 ? 0.45 : 1);
     let maxSpeed = (this.running ? ph.run : ph.walk * tired * (this.crouching ? 0.5 : 1)) * wishLen * mul;
-    if (dashing) maxSpeed = ph.run * ph.dash.mul * this.moveMul * this.slowMul;
+    if (dashing) maxSpeed = ph.run * ph.dash.mul * this.moveMul * this.slowMul * waterMul;
     const target = (dashing && wishLen < 0.2 ? _wish.set(Math.sin(this.yaw), 0, Math.cos(this.yaw)) : _wish).multiplyScalar(maxSpeed);
     _hv.set(this.vel.x, 0, this.vel.z);
     let accel = this.grounded ? (wishLen > 0.01 ? ph.accel : ph.decel) : ph.air;

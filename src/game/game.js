@@ -5,7 +5,8 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config/config.js?v=2026100901';
 import { HEROES, GHOST } from '../characters/index.js?v=2026100901';
-import { buildMap, HALF } from '../world/map.js?v=2026100901';
+import { buildMap } from '../world/map.js?v=2026100901';
+import { buildForest } from '../world/forest.js?v=2026100901';
 import { buildFireflies, buildSoot } from '../world/effects.js?v=2026100901';
 import { buildProp, poof, Pumpkins, wallet } from '../world/props.js?v=2026100901';
 import { Input } from '../player/input.js?v=2026100901';
@@ -13,7 +14,7 @@ import { ThirdPersonCamera } from '../player/camera.js?v=2026100901';
 import { Ghost } from '../enemies/ghost.js?v=2026100901';
 import { NavGrid } from '../enemies/pathfinder.js?v=2026100901';
 import { burst } from '../abilities/fx.js?v=2026100901';
-import { Round, GHOST_SPAWNS } from './round.js?v=2026100901';
+import { Round } from './round.js?v=2026100901';
 import { Sound } from './audio.js?v=2026100901';
 import { UI } from '../ui/ui.js?v=2026100901';
 import { Tuner, loadSavedPhysics } from '../ui/tuner.js?v=2026100901';
@@ -25,7 +26,6 @@ import { Multiplayer } from '../net/multiplayer.js?v=2026100901';
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 const isMobile = isTouch && Math.min(screen.width, screen.height) < 820;
 const MAX_GHOSTS = 4;
-const SPAWN = new THREE.Vector3(0, 0, 22);
 const GHOST_ABILITIES = [
   { id: 'dash', key: 'E', icon: '💨', name: 'Рывок' },
   { id: 'mask-hero', key: '1', icon: '🎭', name: 'Стать героем' },
@@ -48,6 +48,7 @@ export class Game {
     this.withBots = true;
     this.ghostCount = CONFIG.ghost.count;
     this.mapId = 'village';
+    this.activeMapId = 'village';
     this.look = loadLook();        // внешность «Моего котика»
   }
 
@@ -116,6 +117,7 @@ export class Game {
     this.round = new Round({
       world: this.world, scene: this.scene, navFor: r => this.navFor(r), ghosts: this.ghostPool, heroes: HEROES,
       makeChar: (h, s) => this.#acquire(h, s), makeProp: k => buildProp(k), sound: this.sound, cam: this.cam,
+      playerSpawn: this.map.playerSpawn, botSpawns: this.map.botSpawns, ghostSpawns: this.map.ghostSpawns,
     });
     this.round.addFx = f => this.fx.push(f);
 
@@ -144,7 +146,7 @@ export class Game {
       skin: s => { this.skin = s; this.selectHero('moti'); },
     }, { ghosts: this.ghostCount, bots: this.withBots });
     this.tuner = new Tuner(HEROES, () => this.hero?.id || 'masha');
-    ui.minimapInit(this.world, HALF);
+    ui.minimapInit(this.world, this.world.half);
     this.mp = new Multiplayer(this);
     ui.wallet(wallet.get());
 
@@ -202,7 +204,63 @@ export class Game {
 
   addFx(f) { this.fx.push(f); }
 
-  // Картинки карт — снимки нашей же деревни с разных мест (лес = бамбуковая роща, храм = святилище)
+  // Перестраиваем арену только при выборе другой карты. Герои из пула остаются,
+  // а коллизии, боты, точки появления и миникарта получают новый мир.
+  async activateMap(id) {
+    if (id === this.activeMapId) return;
+    if (id !== 'forest' && id !== 'village') throw new Error(`Неизвестная карта: ${id}`);
+    const previousState = this.state;
+    this.state = 'loading';
+    this.ui.show('loading', true);
+    try {
+      this.ui.progress(0.12, id === 'forest' ? 'Пробуждаем Лес духов…' : 'Строим деревню духов…');
+      await frame();
+      const nextScene = new THREE.Scene();
+      const nextMap = id === 'forest' ? buildForest(nextScene, { isMobile }) : buildMap(nextScene, { isMobile });
+      this.ui.progress(0.43, 'Прокладываем маршруты…');
+      await frame();
+      this.#releaseAll();
+      const oldScene = this.scene;
+      oldScene.remove(this.showGhost.root);
+      for (const g of this.ghostPool) oldScene.remove(g.root);
+      this.scene = nextScene;
+      this.map = nextMap;
+      this.world = nextMap.world;
+      this.navs.clear();
+      this.fireflies = buildFireflies(this.scene, isMobile ? 50 : CONFIG.graphics.fireflies, 28);
+      this.soot = buildSoot(this.scene, this.world, isMobile ? 10 : 16);
+      const ghostNav = this.navFor(GHOST.radius);
+      this.ghostPool = Array.from({ length: MAX_GHOSTS }, () => new Ghost(GHOST, this.world, this.scene, ghostNav, { heroes: HEROES }));
+      this.cam.blockers = nextMap.cameraBlockers;
+      this.pumpkins = new Pumpkins(this.scene, this.navFor(0.42));
+      this.showLight = new THREE.PointLight(0xffe0b0, 14, 9, 1.6);
+      this.scene.add(this.showLight, this.showGhost.root);
+      this.round = new Round({
+        world: this.world, scene: this.scene, navFor: r => this.navFor(r), ghosts: this.ghostPool, heroes: HEROES,
+        makeChar: (h, s) => this.#acquire(h, s), makeProp: k => buildProp(k), sound: this.sound, cam: this.cam,
+        playerSpawn: nextMap.playerSpawn, botSpawns: nextMap.botSpawns, ghostSpawns: nextMap.ghostSpawns,
+      });
+      this.round.addFx = f => this.fx.push(f);
+      this.ui.progress(0.68, 'Оживляем укрытия…');
+      await frame();
+      for (let i = 0; i < HEROES.length; i++) {
+        this.navFor(HEROES[i].radius);
+        this.ui.progress(0.68 + .06 * (i + 1), 'Прокладываем маршруты…');
+        await frame();
+      }
+      this.ui.minimapInit(this.world, this.world.half);
+      this.activeMapId = id;
+      this.selectHero(this.hero.id);
+      this.renderer.compile(this.scene, this.camera);
+      // После смены уровня освобождаем буферы прежней статичной сцены.
+      oldScene.traverse(o => o.geometry?.dispose());
+    } finally {
+      this.state = previousState;
+      this.ui.hideLoading();
+    }
+  }
+
+  // Картинки выбора: деревня — кадр из игры, лес — иллюстрация новой арены.
   #buildMapCards() {
     const shot = (from, to) => {
       this.camera.position.set(...from);
@@ -212,7 +270,7 @@ export class Game {
       return this.renderer.domElement.toDataURL('image/jpeg', 0.72);
     };
     this.maps = [
-      { id: 'forest', name: 'Лес духов', icon: '🌲', ready: false, pic: shot([-26, 3.2, -26], [-36, 2.4, -36]) },
+      { id: 'forest', name: 'Лес духов', icon: '🌲', ready: true, pic: '/forest-preview.svg' },
       { id: 'village', name: 'Деревня духов', icon: '🏠', ready: true, pic: shot([0, 5, 30], [0, 1.5, 4]) },
       { id: 'temple', name: 'Заброшенный храм', icon: '⛩️', ready: false, hard: true, pic: shot([0, 3.5, -8], [0, 2.4, -24]) },
     ];
@@ -256,9 +314,9 @@ export class Game {
   selectHero(id) {
     this.hero = id === GHOST.id ? GHOST : HEROES.find(h => h.id === id);
     this.#releaseAll();
-    for (const g of this.ghostPool) { g.reveal(); g.reset(new THREE.Vector3(0, 0, -21)); }
+    for (const g of this.ghostPool) { g.reveal(); g.reset(this.map.ghostSpawn); }
     this.showGhost.root.visible = id === GHOST.id;
-    this.showcase = id === GHOST.id ? null : this.round.makeAgent(this.hero, true, SPAWN, this.#skinFor(this.hero));
+    this.showcase = id === GHOST.id ? null : this.round.makeAgent(this.hero, true, this.map.playerSpawn, this.#skinFor(this.hero));
     this.ui.showHero(this.hero, this.skin);
     if (this.hero.custom) this.ui.buildCreator(this.look, LOOK_OPTIONS, (k, v) => this.#setLook(k, v));
     this.cam.configure(this.hero.cam);
@@ -294,9 +352,13 @@ export class Game {
   }
 
   // ---------- Раунд ----------
-  beginRound(mode) {
+  async beginRound(mode) {
+    if (this.roundStarting) return;
+    this.roundStarting = true;
+    try {
     this.mode = mode;
     this.sound.unlock();
+    await this.activateMap(this.mapId);
     this.#releaseAll();
     this.showGhost.root.visible = false;
     this.showcase = null;
@@ -319,6 +381,11 @@ export class Game {
     this.#aliveHud();
     this.ui.pumpkins(0);
     this.showLight.intensity = 0;
+    } catch (e) {
+      console.error('Не удалось открыть карту', e);
+      this.ui.hideLoading();
+      this.ui.toast('Не удалось открыть карту. Попробуй выбрать её ещё раз.');
+    } finally { this.roundStarting = false; }
   }
 
   #abilityBar() {
@@ -369,7 +436,7 @@ export class Game {
     this.focus++;
     this.#configureCam(this.#focusTarget());
   }
-  #posOf(f) { return f ? f.ctrl.pos : SPAWN; }
+  #posOf(f) { return f ? f.ctrl.pos : this.map.playerSpawn; }
 
   #placeFirstPerson(target, camera) {
     if (!target?.ctrl) return;
@@ -459,7 +526,7 @@ export class Game {
     }
     this.fx = this.fx.filter(f => f.update(dt) !== false);
 
-    const center = this.state === 'play' ? this.#posOf(this.#focusTarget()) : this.state === 'guest' ? this.mp.focusPos || SPAWN : SPAWN;
+    const center = this.state === 'play' ? this.#posOf(this.#focusTarget()) : this.state === 'guest' ? this.mp.focusPos || this.map.playerSpawn : this.map.playerSpawn;
     this.map.updateLights(center);
     this.fireflies(t);
     this.soot(dt, t, center);
@@ -475,7 +542,7 @@ export class Game {
 
   #showcase(dt, t) {
     const isGhost = this.hero.id === GHOST.id;
-    const p = SPAWN;
+    const p = this.map.playerSpawn;
     if (isGhost) {
       const r = this.showGhost.root;
       r.position.copy(p);

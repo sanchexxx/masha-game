@@ -22,6 +22,9 @@ export class Round {
   //         makeProp(kind) → Object3D | null, addFx(fx), sound, cam }
   constructor(host) {
     Object.assign(this, host);
+    this.playerSpawn = host.playerSpawn || new THREE.Vector3(0, 0, 22);
+    this.botSpawns = host.botSpawns || BOT_SPAWNS;
+    this.ghostSpawns = host.ghostSpawns || GHOST_SPAWNS;
     this.agents = [];
     this.domes = [];
     this.fx = [];
@@ -56,23 +59,23 @@ export class Round {
     this.stats = { found: 0, chaseCatches: 0, pumpkins: 0, playerFoundAt: null, playerCaughtInChase: false };
     this.player = null;
     this.playerGhost = null;
-    const spawns = BOT_SPAWNS.slice().sort(() => Math.random() - 0.5);
+    const spawns = this.botSpawns.slice().sort(() => Math.random() - 0.5);
     const at = xz => new THREE.Vector3(xz[0], 0, xz[1]);
     const remotes = opts.remotes || [];
     const remoteGhosts = remotes.filter(r => r.hero.id === 'noface');
     if (opts.mode === 'play' || (opts.mode === 'hunter' && remotes.length)) {
-      if (opts.mode === 'play') this.player = this.makeAgent(opts.hero, true, new THREE.Vector3(0, 0, 22), opts.skin);
-      remotes.filter(r => r.hero.id !== 'noface').forEach((r, i) => this.makeAgent(r.hero, false, new THREE.Vector3(-3 + i * 2, 0, 23), r.skin, r.id, r.name));
+      if (opts.mode === 'play') this.player = this.makeAgent(opts.hero, true, this.playerSpawn.clone(), opts.skin);
+      remotes.filter(r => r.hero.id !== 'noface').forEach((r, i) => this.makeAgent(r.hero, false, at(this.botSpawns[i % this.botSpawns.length]), r.skin, r.id, r.name));
       const taken = new Set([opts.hero.id, ...remotes.map(r => r.hero.id)]);
       if (opts.withBots) for (const h of this.heroes) if (!taken.has(h.id) && h.bot !== false) this.makeAgent(h, false, at(spawns.pop()), 'classic');
     } else {
       for (const h of this.heroes) if (h.bot !== false) this.makeAgent(h, false, at(spawns.pop()), h.id === 'moti' ? opts.mSkin || 'classic' : 'classic');
     }
-    for (const g of this.ghosts) { g.isPlayer = false; g.remote = null; g.reset(at(GHOST_SPAWNS[0])); }
+    for (const g of this.ghosts) { g.isPlayer = false; g.remote = null; g.reset(at(this.ghostSpawns[0])); }
     const humansAsGhosts = (opts.mode === 'hunter' ? 1 : 0) + remoteGhosts.length;
     const n = Math.min(this.ghosts.length, Math.max(1, Math.min(3, opts.ghosts), humansAsGhosts));
     this.activeGhosts = this.ghosts.slice(0, n);
-    this.activeGhosts.forEach((g, i) => g.reset(at(GHOST_SPAWNS[i])));
+    this.activeGhosts.forEach((g, i) => g.reset(at(this.ghostSpawns[i % this.ghostSpawns.length])));
     let gi = 0;
     if (opts.mode === 'hunter') { this.playerGhost = this.activeGhosts[gi++]; this.playerGhost.isPlayer = true; }
     for (const r of remoteGhosts) { const g = this.activeGhosts[gi++]; g.remote = r.id; g.remoteName = r.name; }
@@ -144,7 +147,9 @@ export class Round {
       a.ctrl.update(dt, ai, a.isPlayer ? camYaw : a.remote ? ai.camYaw || 0 : 0);
       if (a.prop?.obj) { a.prop.obj.position.copy(a.ctrl.pos); }
       const p = a.ctrl.pos;
-      a.hidden = (this.world.inBush(p.x, p.z, p.y) && !a.ctrl.running) || (!!a.prop && a.ctrl.speed < 0.6);
+      a.hidden = (this.world.inBush(p.x, p.z, p.y) && !a.ctrl.running)
+        || (!!this.world.inWater?.(p.x, p.z) && a.ctrl.crouching && a.ctrl.speed < 0.9)
+        || (!!a.prop && a.ctrl.speed < 0.6);
       a.protected = this.domes.some(d => Math.hypot(p.x - d.x, p.z - d.z) < d.r);
       if (a.protected) a.ctrl.stamina = Math.min(1, a.ctrl.stamina + dt * 0.25);   // в приюте отдыхается быстрее
     }
@@ -196,7 +201,7 @@ export class Round {
     const hunterPos = this.playerGhost ? this.playerGhost.pos.clone() : null;
     // все Безлики — заново
     const keepRemote = this.activeGhosts.filter(g => g.remote).map(g => [g.remote, g.remoteName]);
-    for (const g of this.ghosts) { g.reveal(); g.reset(at(GHOST_SPAWNS[0])); g.isPlayer = false; g.remote = null; }
+    for (const g of this.ghosts) { g.reveal(); g.reset(at(this.ghostSpawns[0])); g.isPlayer = false; g.remote = null; }
     const n = Math.min(this.ghosts.length, CONFIG.round.chaseGhosts);
     this.activeGhosts = this.ghosts.slice(0, n);
     let newGhost = null, newGhostName = null;
@@ -221,18 +226,18 @@ export class Round {
       }
     }
     // остальные Безлики — по углам деревни
-    this.activeGhosts.forEach((g, i) => { if (i > 0) g.reset(at(GHOST_SPAWNS[i % GHOST_SPAWNS.length])); });
+    this.activeGhosts.forEach((g, i) => { if (i > 0) g.reset(at(this.ghostSpawns[i % this.ghostSpawns.length])); });
     if (this.mode === 'hunter') this.playerGhost.reset(hunterPos);
     // живые игроки-Безлики из пряток остаются Безликами
     let gi = 1;
     for (const [id, name] of keepRemote) { while (gi < this.activeGhosts.length && this.activeGhosts[gi].remote) gi++; const g = this.activeGhosts[gi++]; if (g) { g.remote = id; g.remoteName = name; } }
     // найденные герои возвращаются на старт
-    const spawns = BOT_SPAWNS.slice();
+    const spawns = this.botSpawns.slice();
     for (const a of this.agents) {
       if (a.prop) this.toggleProp(a);
       if (!a.alive) {
         a.alive = true;
-        a.ctrl.spawn(at(spawns.pop() || [0, 22]), Math.PI);
+        a.ctrl.spawn(at(spawns.pop() || [this.playerSpawn.x, this.playerSpawn.z]), Math.PI);
         if (a.char) a.char.root.visible = true;
       }
       a.ctrl.stamina = 1;

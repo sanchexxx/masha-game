@@ -119,7 +119,7 @@ export class UI {
   }
   mmLabel(text) { const l = $('mm-label'); l.innerHTML = text; l.style.opacity = text ? 1 : 0; }
 
-  // Карточки карт: одна играбельная, остальные — «скоро»
+  // Карточки игровых карт.
   buildMaps(list, onPick) {
     const box = $('map-cards');
     box.innerHTML = list.map(m => `<button class="map-card ${m.ready ? '' : 'soon'}" data-id="${m.id}"><div class="m-title">${m.icon} ${m.name}</div><div class="m-pic" style="background-image:url(${m.pic})"></div><span class="m-diff ${m.hard ? 'hard' : ''}">${m.hard ? 'Сложный' : 'Обычный'}</span></button>`).join('');
@@ -133,8 +133,19 @@ export class UI {
     this.mm = { c, x, half, bg: document.createElement('canvas') };
     const bg = this.mm.bg; bg.width = bg.height = 300;
     const b = bg.getContext('2d'), k = 300 / (half * 2), P = v => (v + half) * k;
-    b.fillStyle = '#6b5436'; b.fillRect(0, 0, 300, 300);
-    b.fillStyle = '#8a6d45'; b.fillRect(P(-1.7), 0, 3.4 * k, 300); b.fillRect(0, P(-1.6), 300, 3.2 * k);   // дорожки
+    b.fillStyle = world.theme === 'forest' ? '#264840' : '#6b5436'; b.fillRect(0, 0, 300, 300);
+    if (world.theme === 'forest') {
+      b.fillStyle = '#2e7890';
+      for (const p of world.waterZones || []) {
+        b.beginPath(); b.ellipse(P(p.x), P(p.z), p.rx * k, p.rz * k, 0, 0, Math.PI * 2); b.fill();
+      }
+      b.strokeStyle = '#aa8960'; b.lineWidth = 2.8 * k; b.lineCap = 'round'; b.lineJoin = 'round';
+      for (const line of world.paths || []) {
+        b.beginPath(); line.forEach(([px, pz], i) => i ? b.lineTo(P(px), P(pz)) : b.moveTo(P(px), P(pz))); b.stroke();
+      }
+    } else {
+      b.fillStyle = '#8a6d45'; b.fillRect(P(-1.7), 0, 3.4 * k, 300); b.fillRect(0, P(-1.6), 300, 3.2 * k);
+    }
     b.fillStyle = '#3f6a3a'; for (const s of world.bushes) { b.beginPath(); b.arc(P(s.x), P(s.z), s.r * k, 0, 7); b.fill(); }
     b.fillStyle = '#2b1a10'; for (const r of world.boxes) if (r.top > 1.2 && r.bottom < 1) b.fillRect(P(r.minX), P(r.minZ), (r.maxX - r.minX) * k, (r.maxZ - r.minZ) * k);
     b.fillStyle = '#243a22'; for (const r of world.circles) if (r.top > 3) { b.beginPath(); b.arc(P(r.x), P(r.z), Math.max(1.5, r.r * k), 0, 7); b.fill(); }

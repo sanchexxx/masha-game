@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" role="img" aria-label="Лес духов: храм, мост и свет фонарей">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#0a1030"/><stop offset=".6" stop-color="#343767"/><stop offset="1" stop-color="#133d4b"/></linearGradient>
+    <linearGradient id="water" x2="0" y2="1"><stop stop-color="#4d8aa2"/><stop offset="1" stop-color="#123a4f"/></linearGradient>
+    <radialGradient id="warm"><stop stop-color="#fff1b4"/><stop offset=".16" stop-color="#ffb758" stop-opacity=".95"/><stop offset="1" stop-color="#ff9b36" stop-opacity="0"/></radialGradient>
+    <radialGradient id="moon"><stop stop-color="#faf9f1"/><stop offset=".73" stop-color="#e3e9fc"/><stop offset="1" stop-color="#bcc9fb"/></radialGradient>
+    <linearGradient id="fog" x2="0" y2="1"><stop stop-color="#9da5dc" stop-opacity="0"/><stop offset="1" stop-color="#bdc5ed" stop-opacity=".32"/></linearGradient>
+  </defs>
+  <rect width="800" height="420" fill="url(#sky)"/>
+  <circle cx="638" cy="69" r="48" fill="url(#moon)"/>
+  <circle cx="638" cy="69" r="72" fill="#b7c4fd" opacity=".08"/>
+  <g fill="#060c24" opacity=".75">
+    <path d="M0 245 70 180 140 231 208 150 282 221 345 172 433 244 520 152 632 230 704 172 800 236v184H0Z"/>
+    <path d="M0 286 74 214 150 260 208 194 286 254 344 210 430 286 531 207 630 267 725 218 800 266v154H0Z" opacity=".7"/>
+  </g>
+  <path d="M0 328Q150 293 280 326T545 316Q660 282 800 325v95H0Z" fill="url(#water)"/>
+  <path d="M0 318Q155 271 290 313T550 302Q675 261 800 303v117H0Z" fill="url(#fog)"/>
+  <g fill="#12382e" stroke="#0b2530" stroke-width="5">
+    <path d="M21 283 47 142 77 283Z"/><path d="M48 283 85 105 125 283Z"/><path d="M102 284 133 160 160 284Z"/>
+    <path d="M674 283 710 133 745 283Z"/><path d="M713 284 755 109 797 284Z"/><path d="M759 294 793 171 822 294Z"/>
+  </g>
+  <g fill="#2b5747" opacity=".8"><circle cx="212" cy="235" r="47"/><circle cx="264" cy="244" r="39"/><circle cx="315" cy="225" r="54"/><circle cx="542" cy="250" r="42"/><circle cx="589" cy="235" r="35"/></g>
+  <g stroke="#5c2e31" stroke-width="12" fill="none"><path d="M470 242V157M582 242V157M452 161H601"/><path d="M461 187H591" stroke-width="7"/></g>
+  <g fill="#a93939"><path d="M419 159 526 126 634 159l-14 22H433Z"/><path d="M449 210h153v15H449Z"/></g>
+  <g fill="#252944"><path d="m424 154 102-55 103 55-20 12-84-39-81 39Z"/><path d="m447 205 78-37 79 37-13 10-66-25-65 25Z"/></g>
+  <g stroke="#4b3028" stroke-width="10" fill="none"><path d="M133 315Q315 260 628 303"/><path d="M132 338Q328 281 629 326"/></g>
+  <g stroke="#b58957" stroke-width="3"><path d="M134 315Q313 262 629 303"/><path d="M133 338Q320 284 630 326"/></g>
+  <g stroke="#4b3028" stroke-width="8"><path d="m166 306 2 55m44-72 1 57m46-64 1 55m46-62 1 52m47-56 1 51m47-50 1 48m46-45 1 46m47-41 1 40m47-38 1 40"/></g>
+  <g><circle cx="169" cy="309" r="27" fill="url(#warm)"/><circle cx="262" cy="282" r="27" fill="url(#warm)"/><circle cx="354" cy="271" r="27" fill="url(#warm)"/><circle cx="448" cy="275" r="27" fill="url(#warm)"/><circle cx="545" cy="293" r="27" fill="url(#warm)"/><circle cx="474" cy="202" r="28" fill="url(#warm)"/><circle cx="575" cy="202" r="28" fill="url(#warm)"/></g>
+  <g fill="#ffd69a" stroke="#6b3829" stroke-width="4"><rect x="164" y="303" width="10" height="15"/><rect x="256" y="277" width="10" height="15"/><rect x="349" y="266" width="10" height="15"/><rect x="443" y="270" width="10" height="15"/><rect x="540" y="288" width="10" height="15"/><rect x="468" y="197" width="12" height="16"/><rect x="569" y="197" width="12" height="16"/></g>
+  <g fill="#e4bdf8" opacity=".7"><circle cx="87" cy="176" r="2"/><circle cx="142" cy="130" r="2"/><circle cx="375" cy="107" r="3"/><circle cx="694" cy="117" r="2"/><circle cx="330" cy="169" r="2"/></g>
+  <rect width="800" height="420" fill="none" stroke="#d7af72" stroke-opacity=".35" stroke-width="10"/>
+</svg>

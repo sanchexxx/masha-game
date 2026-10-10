@@ -161,6 +161,15 @@ export class Multiplayer {
   hostStart() {
     if (!this.isHost) return;
     const g = this.g;
+    const votes = new Map();
+    for (const p of this.net.players) {
+      if (!g.maps.some(m => m.id === p.vote && m.ready)) continue;
+      votes.set(p.vote, (votes.get(p.vote) || 0) + 1);
+    }
+    if (votes.size) {
+      const mine = this.net.players.find(p => p.id === this.net.id)?.vote;
+      g.mapId = [...votes.keys()].sort((a, b) => votes.get(b) - votes.get(a) || (a === mine ? -1 : b === mine ? 1 : 0))[0];
+    }
     g.beginRound(g.hero.id === GHOST.id ? 'hunter' : 'play');
   }
 
@@ -170,7 +179,7 @@ export class Multiplayer {
     const R = this.g.round;
     // имя хозяина — на его героя
     if (R.player) R.player.name = this.myName || R.player.name;
-    this.net.send({ t: 'start', roster: makeRoster(R), mode: R.mode });
+    this.net.send({ t: 'start', roster: makeRoster(R), mode: R.mode, map: this.g.mapId });
     this.sendT = 0;
   }
 
@@ -214,11 +223,15 @@ export class Multiplayer {
   }
 
   // ---------- Гость ----------
-  #guestStart(m) {
+  async #guestStart(m) {
     const g = this.g;
+    g.mapId = m.map === 'forest' ? 'forest' : 'village';
+    this.guest?.clear();
+    this.guest = null;
+    try { await g.activateMap(g.mapId); }
+    catch (e) { console.error('Не удалось открыть карту комнаты', e); g.ui.toast('Не удалось загрузить карту комнаты'); return; }
     g.releaseAll();
-    if (!this.guest) this.guest = new GuestView({ scene: g.scene, heroes: [...HEROES, GHOST], ghosts: g.ghostPool, acquire: (h, s) => g.acquireChar(h, s) });
-    this.guest.clear();
+    this.guest = new GuestView({ scene: g.scene, heroes: [...HEROES, GHOST], ghosts: g.ghostPool, acquire: (h, s) => g.acquireChar(h, s) });
     this.guest.setRoster(m.roster);
     this.guestMode = m.mode;
     this.guestFocus = 0;
@@ -267,6 +280,7 @@ export class Multiplayer {
     const spectating = !me && living.length > 0;
     const watched = spectating ? living[this.guestFocus % living.length] : null;
     const focus = me?.pos || watched?.pos || (gv.agents.values().next().value?.pos) || new THREE.Vector3(0, 0, 22);
+    const mine = me?.kind === 'agent' ? me.v.s : null, gmine = me?.kind === 'ghost' ? me.g : null;
     g.mainFirstPersonTarget = spectating ? watched : null;
     if (me?.kind !== this.lastKind) { g.cam.configure(me?.kind === 'ghost' ? GHOST.cam : (me?.v?.def.cam || HEROES[0].cam)); this.lastKind = me?.kind; }
     if (spectating) g.firstPerson({ ctrl: { pos: watched.pos, yaw: watched.yaw }, hero: watched.def });
@@ -293,7 +307,6 @@ export class Multiplayer {
     g.ui.phase(snap.ph === 'chase' ? 'chase' : 'hide');
     const alive = snap.a.filter(a => a[10]).length;
     g.ui.alive(alive, snap.a.length, snap.ph === 'hide' ? 'Спрятались' : 'Убегают');
-    const mine = me?.kind === 'agent' ? me.v.s : null, gmine = me?.kind === 'ghost' ? me.g : null;
     g.ui.hud({ left: snap.left, stamina: mine ? mine[15] : gmine ? gmine[13] : 1, tired: mine ? !!mine[16] : false, hidden: mine ? !!mine[14] : false });
     let status;
     if (snap.ph === 'hide' && snap.sp === 0) status = gmine ? 'Закрой глаза и считай… Герои прячутся!' : 'Безлики скоро выйдут — прячься!';
