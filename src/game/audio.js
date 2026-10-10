@@ -2,7 +2,7 @@
 // Безлика, сердцебиение, когда он близко, прыжки и шаги.
 
 export class Sound {
-  constructor() { this.ctx = null; this.muted = false; }
+  constructor() { this.ctx = null; this.muted = false; this.voiceCache = new Map(); this.voiceLast = 0; }
 
   unlock() {
     if (this.ctx) { this.ctx.resume(); return; }
@@ -18,6 +18,42 @@ export class Sound {
   setMuted(m) {
     this.muted = m;
     if (this.master) this.master.gain.value = m ? 0 : 0.55;
+  }
+
+  // Записанные русские реплики звучат одинаково на iOS, Android и ПК.
+  // Три слегка разнесённых и пониженных голоса создают характер трёх братьев.
+  async brothersCue(id) {
+    if (!['select', 'fear', 'hypnosis', 'glare', 'resist'].includes(id) || this.muted) return;
+    if (!this.ctx) this.unlock();
+    if (!this.ctx) return;
+    const now = performance.now();
+    if (now - this.voiceLast < 550 && id !== 'resist') return;
+    this.voiceLast = now;
+    let pending = this.voiceCache.get(id);
+    if (!pending) {
+      pending = fetch(`/assets/audio/brothers/${id}.m4a?v=2026101004`)
+        .then(response => { if (!response.ok) throw new Error('voice'); return response.arrayBuffer(); })
+        .then(data => this.ctx.decodeAudioData(data));
+      this.voiceCache.set(id, pending);
+    }
+    try {
+      const buffer = await pending;
+      if (this.muted || !this.ctx) return;
+      const t = this.ctx.currentTime;
+      for (const [rate, gain, delay, cutoff] of [[0.76, 0.27, 0, 2100], [0.87, 0.18, 0.07, 3100], [0.98, 0.12, 0.13, 4400]]) {
+        const source = this.ctx.createBufferSource();
+        source.buffer = buffer;
+        source.playbackRate.value = rate;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass'; filter.frequency.value = cutoff;
+        const volume = this.ctx.createGain(); volume.gain.value = gain;
+        source.connect(filter).connect(volume).connect(this.master);
+        source.start(t + delay);
+      }
+    } catch {
+      this.voiceCache.delete(id);
+      this.chime([220, 260, 196]);
+    }
   }
 
   #ambient() {

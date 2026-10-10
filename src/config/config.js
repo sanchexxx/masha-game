@@ -33,6 +33,7 @@ export const CONFIG = {
     masha:  { walk: 5.2, run: 9.0,  accel: 60, decel: 42, air: 20, jump: 2.2, gravity: 1.0,  turn: 16, stamina: 6.5, regen: 0.22, mass: 1.0, reach: 1.25, climb: 3.6, dash: { mul: 1.45, time: 0.35, cooldown: 4 } },
     catbus: { walk: 5.8, run: 11.0, accel: 32, decel: 22, air: 10, jump: 1.8, gravity: 1.15, turn: 7,  stamina: 5.0, regen: 0.18, mass: 3.0, reach: 1.0,  climb: 2.6, dash: { mul: 1.3,  time: 0.6,  cooldown: 6 } },
     moti:   { walk: 4.6, run: 8.2,  accel: 26, decel: 30, air: 8,  jump: 1.6, gravity: 1.3,  turn: 9,  stamina: 8.0, regen: 0.25, mass: 4.0, reach: 1.35, climb: 2.4, dash: { mul: 1.25, time: 0.5,  cooldown: 7 } },
+    brothers: { walk: 4.7, run: 8.0, accel: 28, decel: 32, air: 9, jump: 1.55, gravity: 1.2, turn: 10, stamina: 7.0, regen: 0.23, mass: 3.5, reach: 1.4, climb: 2.5, dash: { mul: 1.3, time: 0.46, cooldown: 6 } },
     // Безлик ездит на той же физике. Скорость — как у героев; бег тоже тратит силы.
     // Рывков ограниченно: 3 заряда, новый копится 12 с. Не прыгает — парит вверх (fly), пока есть силы.
     noface: { walk: 4.6, run: 8.4,  accel: 14, decel: 12, air: 8,  jump: 0,   gravity: 1.0,  turn: 5,  stamina: 9.0, regen: 0.16, mass: 5.0, reach: 0,    climb: 0,   dash: { mul: 1.55, time: 0.8, cooldown: 1.2, charges: 3, recharge: 12 }, fly: { speed: 2.6, time: 2.6, regen: 0.25 } },
@@ -75,6 +76,9 @@ export const CONFIG = {
     wave:    { cd: 1.5 },                             // G — приветствие
     dash:    {},                                      // E — рывок (цифры в heroes.*.dash)
     prop:    { cd: 4, walk: 0.45 },                   // Q — маскировка под предмет (Маша, НэкоБус); walk — скорость «ползущего» предмета
+    fear: { cd: 22, radius: 5.8, stun: 1.15, slow: 2.4 },
+    hypnosis: { cd: 19, radius: 8.5, time: 3.1 },
+    glare: { cd: 15, radius: 12, mark: 4.5, stun: 0.35 },
   },
 
   bots: {

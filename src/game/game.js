@@ -323,6 +323,7 @@ export class Game {
     this.showGhost.root.visible = id === GHOST.id;
     this.showcase = id === GHOST.id ? null : this.round.makeAgent(this.hero, true, this.map.playerSpawn, this.#skinFor(this.hero));
     this.ui.showHero(this.hero, this.skin);
+    if (id === 'brothers') this.sound.brothersCue?.('select');
     if (this.hero.custom) this.ui.buildCreator(this.look, LOOK_OPTIONS, (k, v) => this.#setLook(k, v));
     this.cam.configure(this.hero.cam);
   }
@@ -708,6 +709,10 @@ export class Game {
         }
       } else this.ui.toast(e.byPlayer ? `Попался: ${a.name}! 🎃+${e.phase === 'hide' ? CONFIG.round.reward.found : CONFIG.round.reward.catch}` : `${e.phase === 'hide' ? 'Нашли' : 'Догнали'}: ${a.name}`);
       if (a.isPlayer && e.phase === 'chase') { this.round.phase = 'over'; this.#end(R.result()); }
+    } else if (e.type === 'resisted') {
+      const a = e.agent;
+      this.addFx(burst(this.scene, a.ctrl.pos.x, a.ctrl.pos.z, 3, 0x76ffd0));
+      this.ui.toast(a.isPlayer ? 'Три Брата вырвались! Упрямство потрачено до следующей фазы.' : `${a.name} вырвались из поимки!`);
     } else if (e.type === 'poof') {
       this.addFx(poof(this.scene, e.x, e.y, e.z, e.ghost ? 0xc9a8ff : 0xfff1d6));
       if (e.agent?.isPlayer && e.kind) this.ui.toast(`Ты превратился: ${e.kind}!`);

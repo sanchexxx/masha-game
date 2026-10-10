@@ -45,6 +45,35 @@ function groundRing(scene, x, z, r, color) {
   return ring;
 }
 
+// Волна Братьев: два коротких светящихся контура, фиолетовый вариант закручивается.
+export function spiritPulse(scene, x, y, z, radius, color, spiral = false) {
+  const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9,
+    side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
+  const geo = new THREE.RingGeometry(0.86, 1, 48);
+  const rings = [0, 1].map(i => {
+    const ring = new THREE.Mesh(geo, material);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(x, y + 0.12 + i * 0.05, z);
+    scene.add(ring);
+    return ring;
+  });
+  let t = 0;
+  return {
+    update(dt) {
+      t += dt;
+      rings.forEach((ring, i) => {
+        const k = Math.min(1, Math.max(0, (t - i * 0.12) / 0.62));
+        const size = 0.3 + radius * k;
+        ring.scale.set(size, size, size);
+        if (spiral) ring.rotation.z = t * (i ? -7 : 6);
+      });
+      material.opacity = Math.max(0, 0.9 - t * 1.25);
+      if (t > 0.75) { rings.forEach(ring => scene.remove(ring)); geo.dispose(); material.dispose(); return false; }
+      return true;
+    },
+  };
+}
+
 // Вспышка тёплого света: расходящееся кольцо + поднимающиеся искры
 export function burst(scene, x, z, r, color = 0xff8f9a) {
   const ring = groundRing(scene, x, z, 1, color);

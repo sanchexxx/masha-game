@@ -11,7 +11,7 @@ import { wallet } from '../world/props.js?v=2026100901';
 
 const $ = id => document.getElementById(id);
 const NAME_KEY = 'masha-game-name';
-const HERO_ICON = { kid: '🐱', masha: '🦶', catbus: '🐈', moti: '🛡️', noface: '🎭' };
+const HERO_ICON = { kid: '🐱', masha: '🦶', catbus: '🐈', moti: '🛡️', brothers: '👥', noface: '🎭' };
 const heroById = id => HEROES.find(h => h.id === id) || (id === GHOST.id ? GHOST : HEROES[0]);
 
 export class Multiplayer {
@@ -196,6 +196,8 @@ export class Multiplayer {
     if (!this.isHost) return;
     const pidOf = a => a?.isPlayer ? 'host' : a?.remote || null;
     if (e.type === 'caught') this.net.send({ t: 'ev', k: 'caught', name: e.agent.name, pid: pidOf(e.agent), phase: e.phase, by: e.ghost.isPlayer ? 'host' : e.ghost.remote || null });
+    else if (e.type === 'resisted') this.net.send({ t: 'ev', k: 'resisted', name: e.agent.name, pid: pidOf(e.agent) });
+    else if (e.type === 'ability') this.net.send({ t: 'ev', k: 'ability', id: e.id, pid: pidOf(e.agent) });
     else if (e.type === 'ghostSpawn') this.net.send({ t: 'ev', k: 'spawn', i: e.i, phase: this.g.round.phase, pid: e.ghost.isPlayer ? 'host' : e.ghost.remote || null });
     else if (e.type === 'phase') {
       this.net.send({ t: 'roster', roster: makeRoster(this.g.round) });
@@ -360,6 +362,11 @@ export class Multiplayer {
       else if (m.by === me) ui.toast(`Попался: ${m.name}!`);
       else ui.toast(`${m.phase === 'hide' ? 'Нашли' : 'Догнали'}: ${m.name}`);
       g.sound.chime([392, 330]);
+    } else if (m.k === 'resisted') {
+      ui.toast(m.pid === me ? 'Ты вырвался из поимки! Упрямство потрачено.' : `${m.name} вырвались из поимки!`);
+      if (m.pid === me) g.sound.brothersCue?.('resist');
+    } else if (m.k === 'ability' && ['fear', 'hypnosis', 'glare'].includes(m.id)) {
+      g.sound.brothersCue?.(m.id);
     } else if (m.k === 'spawn') {
       g.sound.ghostAppear();
       g.cam.shake = 0.6;

@@ -41,7 +41,8 @@ export class Round {
   makeAgent(hero, isPlayer, spawn, skin, remote = null, name = null) {
     const ctrl = new PlayerController(hero, this.world);
     ctrl.spawn(spawn, isPlayer || remote ? Math.PI : Math.random() * Math.PI * 2);
-    const a = { hero, name: name || hero.name, ctrl, char: this.makeChar(hero, skin), isPlayer, remote, alive: true, hidden: false, protected: false, prop: null, skin };
+    const a = { hero, name: name || hero.name, ctrl, char: this.makeChar(hero, skin), isPlayer, remote, alive: true, hidden: false, protected: false, prop: null, skin,
+      brothersRevives: hero.id === 'brothers' ? 1 : 0, invulnerableT: 0 };
     a.key = this.keySeq = (this.keySeq || 0) + 1;     // номер для совместной игры
     a.abilities = new AbilitySet(a, this);
     if (!isPlayer && !remote) { a.brain = new BotBrain(a, this.world, this.navFor(hero.radius)); a.brain.allies = () => this.agents; }
@@ -130,6 +131,7 @@ export class Round {
     const live = this.activeGhosts.filter(g => g.active);
     for (const a of this.agents) {
       if (!a.alive) continue;
+      a.invulnerableT = Math.max(0, a.invulnerableT - dt);
       a.abilities.update(dt);
       let ai;
       if (a.isPlayer) ai = inp || {};
@@ -151,7 +153,7 @@ export class Round {
       a.hidden = (this.world.inBush(p.x, p.z, p.y) && !a.ctrl.running)
         || (!!water && a.ctrl.diving && p.y < water.level - 0.55 && a.ctrl.speed < 1.0)
         || (!!a.prop && a.ctrl.speed < 0.6);
-      a.protected = this.domes.some(d => Math.hypot(p.x - d.x, p.z - d.z) < d.r);
+      a.protected = a.invulnerableT > 0 || this.domes.some(d => Math.hypot(p.x - d.x, p.z - d.z) < d.r);
       if (a.protected) a.ctrl.stamina = Math.min(1, a.ctrl.stamina + dt * 0.25);   // в приюте отдыхается быстрее
     }
     separate(this.agents);
@@ -182,6 +184,17 @@ export class Round {
   }
 
   #caught(a, g) {
+    if (a.brothersRevives > 0) {
+      a.brothersRevives--;
+      a.invulnerableT = 1.8;
+      a.protected = true;
+      a.ctrl.stamina = 1;
+      a.ctrl.exhausted = false;
+      g.stun(0.75);
+      this.sound?.brothersCue?.('resist');
+      this.emit('resisted', { agent: a, ghost: g });
+      return;
+    }
     a.alive = false;
     if (a.prop) this.toggleProp(a);
     if (a.char) a.char.root.visible = false;
@@ -242,6 +255,8 @@ export class Round {
         if (a.char) a.char.root.visible = true;
       }
       a.ctrl.stamina = 1;
+      a.brothersRevives = a.hero.id === 'brothers' ? 1 : 0;
+      a.invulnerableT = 0;
     }
     this.setPhase('chase');
     this.emit('phase', { phase: 'chase', newGhostName, newGhostIsPlayer: !!this.playerGhost && this.mode !== 'hunter', agent: newGhost });

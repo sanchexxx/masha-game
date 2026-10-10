@@ -55,7 +55,7 @@ export class Ghost {
     this.unseen = 0;
     this.wanderTarget = null;
     this.sees = false;
-    this.stunT = 0; this.slowT = 0;
+    this.stunT = 0; this.slowT = 0; this.confusedT = 0;
     this.stuckT = 0; this.stuckFrom = null;
     this.aiFlightT = 0;
     this.disguise = null;          // {hero, char, t}
@@ -76,6 +76,7 @@ export class Ghost {
 
   stun(sec) { this.stunT = Math.max(this.stunT, sec); this.ctrl.dashT = 0; this.reveal(); }
   slow(sec) { this.slowT = Math.max(this.slowT, sec); }
+  confuse(sec) { this.confusedT = Math.max(this.confusedT, sec); this.reveal(); }
   knock(dx, dz, dist) {
     const next = { x: this.pos.x + dx * dist, y: this.pos.y, z: this.pos.z + dz * dist };
     this.world.resolve(next, this.radius, this.pos.y + 0.3, this.pos.y + 2.2);
@@ -155,6 +156,7 @@ export class Ghost {
 
     this.stunT = Math.max(0, this.stunT - dt);
     this.slowT = Math.max(0, this.slowT - dt);
+    this.confusedT = Math.max(0, this.confusedT - dt);
     this.disguiseCd = Math.max(0, this.disguiseCd - dt);
     if (this.disguise) { this.disguise.t -= dt; if (this.disguise.t <= 0) this.reveal(); }
 
@@ -163,6 +165,7 @@ export class Ghost {
     let move;
     if (this.human) move = inp;
     else move = this.#think(dt, pick, targets);
+    if (this.confusedT > 0 && move) move = { ...move, x: -(move.y || 0), y: move.x || 0, run: false, dash: false };
 
     const c = this.ctrl;
     c.moveMul = this.stunT > 0 ? 0 : 1;

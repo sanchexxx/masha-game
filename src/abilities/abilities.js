@@ -27,6 +27,11 @@ export const HERO_ABILITIES = {
   catbus: [
     { id: 'prop', key: 'Q', name: 'Маскировка', icon: '🎭', tag: 'Прятки', anim: 'poof', dur: 0.25, lock: 0 },
   ],
+  brothers: [
+    { id: 'fear', key: '1', name: 'Страх', icon: '🔥', tag: 'Контроль', anim: 'fear', dur: 0.75, lock: 0.3 },
+    { id: 'hypnosis', key: '2', name: 'Гипноз', icon: '🌀', tag: 'Контроль', anim: 'hypnosis', dur: 0.85, lock: 0.35 },
+    { id: 'glare', key: '3', name: 'Грозный взгляд', icon: '👁️', tag: 'Поиск', anim: 'glare', dur: 0.6, lock: 0.15 },
+  ],
 };
 
 export class AbilitySet {
@@ -47,6 +52,7 @@ export class AbilitySet {
     if (this.agent.action && this.agent.action.lock > 0) return false;
     a.cdLeft = this.cooldown(a);
     this.agent.action = { name: a.anim, t: 0, dur: a.dur, lock: a.lock, id: a.id, fired: false };
+    if (this.agent.ctrl.hero.id === 'brothers') this.game.emit?.('ability', { agent: this.agent, id });
     return true;
   }
 
@@ -123,6 +129,24 @@ export class AbilitySet {
         g.cam.shake = Math.max(g.cam.shake, 0.4);
       }
       snd.land?.(12);
+    } else if (id === 'fear') {
+      g.addFx(FX.spiritPulse(g.scene, p.x, p.y, p.z, cfg.radius, 0xff5d78));
+      for (const gh of g.ghosts) if (gh.active && Math.hypot(gh.pos.x - p.x, gh.pos.z - p.z) <= cfg.radius) {
+        gh.stun(cfg.stun); gh.slow(cfg.slow);
+      }
+      snd.brothersCue?.('fear');
+    } else if (id === 'hypnosis') {
+      g.addFx(FX.spiritPulse(g.scene, p.x, p.y, p.z, cfg.radius, 0xb978ff, true));
+      for (const gh of g.ghosts) if (gh.active && Math.hypot(gh.pos.x - p.x, gh.pos.z - p.z) <= cfg.radius)
+        gh.confuse(cfg.time);
+      snd.brothersCue?.('hypnosis');
+    } else if (id === 'glare') {
+      g.addFx(FX.spiritPulse(g.scene, p.x, p.y, p.z, cfg.radius, 0xffc46e));
+      for (const gh of g.ghosts) if (gh.active && Math.hypot(gh.pos.x - p.x, gh.pos.z - p.z) <= cfg.radius) {
+        gh.reveal(); gh.stun(cfg.stun);
+        g.addFx(FX.marker(g.scene, () => gh.pos, cfg.mark));
+      }
+      snd.brothersCue?.('glare');
     }
   }
 
@@ -130,6 +154,11 @@ export class AbilitySet {
   botThink(threat, td) {
     const c = this.agent.ctrl;
     const g = this.game, p = c.pos;
+    if (this.get('fear')) {
+      if (threat && td < A().fear.radius && this.ready('fear')) return this.use('fear');
+      if (threat && td < A().hypnosis.radius && this.ready('hypnosis')) return this.use('hypnosis');
+      if (threat && td < A().glare.radius && this.ready('glare')) return this.use('glare');
+    }
     // Маскировка под предмет: в прятках, когда Безлика не видно, — превращаемся и замираем.
     // Безлик подошёл вплотную — бросаем маскировку и бежим.
     if (this.get('prop')) {

@@ -1,6 +1,6 @@
 // Интерфейс поверх 3D: загрузка, выбор героя, HUD, итог раунда.
 const $ = id => document.getElementById(id);
-const ICONS = { kid: '🐱', masha: '🦶', catbus: '🐈', moti: '🛡️', noface: '🎭' };
+const ICONS = { kid: '🐱', masha: '🦶', catbus: '🐈', moti: '🛡️', brothers: '👥', noface: '🎭' };
 
 export class UI {
   constructor() {
