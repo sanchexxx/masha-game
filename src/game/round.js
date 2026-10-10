@@ -194,7 +194,7 @@ export class Round {
 
   // В каждой доставке фонарь и святилище появляются в достижимых точках карты.
   #deliveryPoint(away = null, avoid = null) {
-    const nav = this.navFor(0.7);
+    const nav = this.navFor(0.85); // и большой Котобус пройдёт к цели
     for (let tries = 0; tries < 100; tries++) {
       const x = (Math.random() * 2 - 1) * (nav.half - 3);
       const z = (Math.random() * 2 - 1) * (nav.half - 3);
