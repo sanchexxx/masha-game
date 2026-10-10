@@ -190,6 +190,17 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .btn-dash { position: absolute; border-radius: 50%; background: rgba(20, 18, 50, .6); border: 2px solid rgba(255, 230, 170, .55); right: max(40px, env(safe-area-inset-right)); bottom: max(136px, calc(env(safe-area-inset-bottom) + 130px)); width: 60px; height: 60px; font-size: 24px; }
 .btn-dash.down { transform: scale(.92); background: rgba(240, 185, 74, .45); }
 
+/* Игровые способности стоят компактно над сенсорным кластером справа. */
+#hud .abil-bar { top: auto; left: auto; right: max(22px, env(safe-area-inset-right)); bottom: max(132px, calc(env(safe-area-inset-bottom) + 124px)); width: min(276px, 42vw); max-width: calc(100vw - 24px); display: flex; flex-flow: row wrap; justify-content: flex-end; gap: 7px; transform: none; }
+#hud .ab { flex: 0 0 48px; width: 48px; height: 48px; }
+@media (max-width: 760px) {
+  #hud .abil-bar { right: max(14px, env(safe-area-inset-right)); bottom: max(154px, calc(env(safe-area-inset-bottom) + 146px)); width: auto; max-width: min(148px, 45vw); gap: 6px; }
+  #hud .ab { flex-basis: 40px; width: 40px; height: 40px; }
+}
+@media (max-width: 760px) and (orientation: landscape) {
+  #hud .abil-bar { bottom: max(116px, calc(env(safe-area-inset-bottom) + 108px)); max-width: min(190px, 32vw); }
+}
+
 #tuner { position: fixed; z-index: 30; top: 12px; right: 12px; bottom: 12px; width: min(360px, calc(100vw - 24px)); display: none; flex-direction: column; background: rgba(14, 12, 36, .94); border: 1px solid var(--panel-line); border-radius: 18px; padding: 12px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); touch-action: pan-y; user-select: none; }
 #tuner.show { display: flex; }
 .tn-head { display: flex; justify-content: space-between; align-items: center; font-size: 16px; margin-bottom: 8px; }

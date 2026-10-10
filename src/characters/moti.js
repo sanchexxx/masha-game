@@ -1,7 +1,7 @@
 // Дядюшка Моти — добродушный пушистый великан (2,4 м) в шляпе, с домиком-рюкзаком для духов
 // и фонарём с лапкой. По развороту персонажа: спереди / сбоку / сзади, 4 скина, анимации действий.
 import * as THREE from 'three';
-import { mat, mesh, G, joint, fluffySphere, walkCycle, squash, canvasTexture } from './common.js?v=2026100901';
+import { mat, mesh, G, joint, fluffySphere, walkCycle, swimCycle, squash, canvasTexture } from './common.js?v=2026100901';
 
 export const MOTI_SKINS = {
   classic: { name: 'Классический', fur: 0xf2ede3, shade: 0xe3dccd, hat: 0xc4312a, hatBand: 0x8e211c, cloth: 0xc4312a },
@@ -150,7 +150,8 @@ export function buildMoti(skinId = 'classic') {
 
   // st.action = { name: 'swing'|'cast'|'summon'|'wave'|'path', k: 0..1 }
   function update(dt, st) {
-    walkCycle(rig, { ...st, speed: st.speed * 0.8 }, dt, { stride: 0.55, armSwing: 0.35, bob: 0.06, freq: 0.8 });
+    if (st.swimming) swimCycle(rig, st, dt);
+    else walkCycle(rig, { ...st, speed: st.speed * 0.8 }, dt, { stride: 0.55, armSwing: 0.35, bob: 0.06, freq: 0.8 });
     body.rotation.z = Math.sin(rig.phase) * 0.06 * rig.blend;
     body.rotation.y = 0;
     mouth.scale.y = 0.001;

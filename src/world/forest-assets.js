@@ -7,6 +7,7 @@ const FILES = {
   rock: 'moss-rock.webp',
   wood: 'aged-wood.webp',
   roof: 'indigo-roof.webp',
+  water: 'pond-water.webp',
   maple: 'maple-foliage.webp',
   cedar: 'cedar-foliage.webp',
 };

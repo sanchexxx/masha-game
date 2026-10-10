@@ -147,8 +147,9 @@ export class Round {
       a.ctrl.update(dt, ai, a.isPlayer ? camYaw : a.remote ? ai.camYaw || 0 : 0);
       if (a.prop?.obj) { a.prop.obj.position.copy(a.ctrl.pos); }
       const p = a.ctrl.pos;
+      const water = this.world.waterAt?.(p.x, p.z);
       a.hidden = (this.world.inBush(p.x, p.z, p.y) && !a.ctrl.running)
-        || (!!this.world.inWater?.(p.x, p.z) && a.ctrl.crouching && a.ctrl.speed < 0.9)
+        || (!!water && a.ctrl.diving && p.y < water.level - 0.55 && a.ctrl.speed < 1.0)
         || (!!a.prop && a.ctrl.speed < 0.6);
       a.protected = this.domes.some(d => Math.hypot(p.x - d.x, p.z - d.z) < d.r);
       if (a.protected) a.ctrl.stamina = Math.min(1, a.ctrl.stamina + dt * 0.25);   // в приюте отдыхается быстрее

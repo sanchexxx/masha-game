@@ -7,7 +7,7 @@ import { CONFIG } from '../config/config.js?v=2026100901';
 import { HEROES, GHOST } from '../characters/index.js?v=2026100901';
 import { buildMap } from '../world/map.js?v=2026100901';
 import { buildForest } from '../world/forest.js?v=2026100901';
-import { loadForestAssets } from '../world/forest-assets.js?v=2026101002';
+import { loadForestAssets } from '../world/forest-assets.js?v=2026101003';
 import { buildFireflies, buildSoot } from '../world/effects.js?v=2026100901';
 import { buildProp, poof, Pumpkins, wallet } from '../world/props.js?v=2026100901';
 import { Input } from '../player/input.js?v=2026100901';
@@ -607,6 +607,10 @@ export class Game {
 
     // В укрытии герой может подсматривать за ближайшим Безликом от его лица.
     const player = R.player;
+    const crouchButton = document.querySelector('#touch .btn-crouch');
+    if (crouchButton) crouchButton.title = player?.ctrl.swimming
+      ? (player.ctrl.diving ? 'Всплыть (C)' : 'Нырнуть и скрыться (C)')
+      : 'Присесть (C)';
     const hideViewGhost = player?.alive && R.phase === 'hide'
       && (player.hidden || player.prop || player.ctrl.crouching)
       ? R.activeGhosts.filter(g => g.state !== 'hidden').sort((a, b) => a.pos.distanceTo(player.ctrl.pos) - b.pos.distanceTo(player.ctrl.pos))[0]

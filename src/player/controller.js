@@ -37,6 +37,8 @@ export class PlayerController {
     this.climbing = false;       // на лестнице
     this.flying = false;         // Безлик парит вверх
     this.flyEnergy = 1;
+    this.swimming = false;
+    this.diving = false;
     this.dashCharges = 0;
     this.chargeT = 0;
     this.crouching = false;
@@ -57,7 +59,7 @@ export class PlayerController {
     this.grounded = true;
     this.dashT = this.dashCd = this.boostT = this.stagger = 0;
     this.mantle = null;
-    this.climbing = this.flying = this.crouching = false;
+    this.climbing = this.flying = this.crouching = this.swimming = this.diving = false;
     this.flyEnergy = 1;
     this.dashCharges = this.phys.dash.charges ?? 0;
     this.chargeT = 0;
@@ -79,13 +81,16 @@ export class PlayerController {
     this.dashed = false;
     this.jumped = false;
     this.landed = false;
+    const water = this.world.waterAt?.(this.pos.x, this.pos.z) || null;
+    const wasSwimming = this.swimming;
+    this.swimming = !!water && this.pos.y < water.level + 0.18;
 
     // Подтягивание на уступ: короткая анимация, физика отключена
     if (this.mantle) return this.#doMantle(dt);
 
     // Присесть: только на земле; встать — если над головой есть место
-    if (inp.crouch && this.grounded && ph.jump > 0) this.crouching = true;
-    else if (this.crouching && (!inp.crouch || !this.grounded)) {
+    if (inp.crouch && (this.grounded || this.swimming) && (ph.jump > 0 || this.swimming)) this.crouching = true;
+    else if (this.crouching && (!inp.crouch || (!this.grounded && !this.swimming))) {
       if (this.world.ceilingAt(this.pos.x, this.pos.z, this.radius, this.pos.y + 0.1) > this.pos.y + this.hero.height) this.crouching = false;
     }
 
@@ -121,7 +126,7 @@ export class PlayerController {
     this.boostT = Math.max(0, this.boostT - dt);
     this.stagger = Math.max(0, this.stagger - dt);
     const tired = this.exhausted ? 0.85 : 1;                // выдохся — даже шагом медленнее
-    const waterMul = this.pos.y < 0.32 && this.world.inWater?.(this.pos.x, this.pos.z) ? 0.7 : 1;
+    const waterMul = this.swimming ? (this.running ? 0.92 : 0.68) : 1;
     const mul = this.moveMul * this.slowMul * waterMul * (this.boostT > 0 ? this.boostMul : 1) * (this.stagger > 0 ? 0.45 : 1);
     let maxSpeed = (this.running ? ph.run : ph.walk * tired * (this.crouching ? 0.5 : 1)) * wishLen * mul;
     if (dashing) maxSpeed = ph.run * ph.dash.mul * this.moveMul * this.slowMul * waterMul;
@@ -152,7 +157,7 @@ export class PlayerController {
     if (inp.jump) this.jumpBuf = W.jumpBuffer;
     else this.jumpBuf -= dt;
     this.coyote = this.grounded || this.climbing ? W.coyoteTime : this.coyote - dt;
-    if (this.jumpBuf > 0 && this.coyote > 0 && ph.jump > 0 && !this.crouching) {
+    if (!this.swimming && this.jumpBuf > 0 && this.coyote > 0 && ph.jump > 0 && !this.crouching) {
       this.vel.y = Math.sqrt(2 * g * ph.jump);
       if (this.climbing && lad) { this.vel.x += lad.nx * 4; this.vel.z += lad.nz * 4; }   // оттолкнулись от лестницы
       this.grounded = false;
@@ -165,7 +170,22 @@ export class PlayerController {
 
     // Парение (Безлик): держишь прыжок — поднимаешься, пока есть силы
     this.flying = false;
-    if (ph.fly) {
+    if (this.swimming) {
+      // Не переносим на пловца наземный буфер прыжка: на берегу он не должен
+      // неожиданно подпрыгнуть от нажатия, сделанного под водой.
+      this.jumpBuf = 0;
+      this.climbing = false;
+      this.diving = !!inp.crouch;
+      const surface = water.level - this.hero.height * 0.46;
+      const target = this.diving ? water.bottom + 0.38 : surface;
+      // Плавучесть возвращает к поверхности; приседание направляет вниз, прыжок — вверх.
+      const buoyancy = (target - this.pos.y) * 7.5 - this.vel.y * 3.5;
+      this.vel.y += THREE.MathUtils.clamp(buoyancy * dt, -5 * dt, 5 * dt);
+      if (inp.jump || inp.jumpHold) this.vel.y = Math.min(4.2, this.vel.y + 13 * dt);
+      if (this.diving) this.vel.y = Math.max(-3.2, this.vel.y - 10 * dt);
+      this.vel.y = THREE.MathUtils.clamp(this.vel.y, -3.2, 4.2);
+      this.grounded = false;
+    } else if (ph.fly) {
       const want = inp.jumpHold || inp.jump;
       if (want && this.flyEnergy > 0) {
         this.flying = true;
@@ -179,11 +199,23 @@ export class PlayerController {
       this.vel.y = ph.climb ?? 3.2;
       this.vel.x *= 0.5; this.vel.z *= 0.5;
       this.grounded = false;
-    } else if (!this.flying) {
+    } else if (!this.flying && !this.swimming) {
       // Безлик плывёт: падает мягко
       this.vel.y = Math.max(-W.maxFall * (ph.fly ? 0.3 : 1), this.vel.y - g * dt * (ph.fly && this.vel.y < 0 ? 0.35 : 1));
     }
     this.#integrate(dt);
+
+    // Из глубины можно выйти на любой берег: при пересечении края поднимаемся на сушу.
+    if (this.swimming && !this.world.waterAt?.(this.pos.x, this.pos.z)) {
+      const shore = this.world.groundAt(this.pos.x, this.pos.z, this.radius, this.pos.y + W.stepHeight);
+      if (this.pos.y < shore) this.pos.y = shore;
+      this.vel.y = 0;
+      this.grounded = true;
+      this.swimming = this.diving = false;
+      this.crouching = false;
+    }
+    // Отпустил приседание, пока ещё у берега: состояние воды обновится со следующего кадра.
+    if (wasSwimming && !this.world.waterAt?.(this.pos.x, this.pos.z)) this.crouching = false;
 
     // Уступ впереди, а мы в воздухе и жмём к нему — подтягиваемся
     if (!this.grounded && !this.mantle && wishLen > 0.3 && this.vel.y < 4 && ph.reach > 0) {
@@ -278,6 +310,7 @@ export class PlayerController {
     return {
       t, speed: m ? 0 : this.speed || 0, grounded: this.grounded && !m, vy: m || this.climbing ? 3 : this.vel.y,
       running: this.running || this.dashT > 0, landed: this.landed, landSpeed: this.landSpeed, crouch: this.crouching,
+      swimming: this.swimming, diving: this.diving,
     };
   }
 }

@@ -1,7 +1,7 @@
 // «Мой котик» — свой персонаж, как на Машиных картинках: ребёнок с ушками и хвостом котика,
 // в вязаном свитере со значком, джинсах и белых кроссовках. Внешность собирается из выбора в редакторе.
 import * as THREE from 'three';
-import { mat, mesh, G, joint, canvasTexture, animeEye, walkCycle, squash, fluffySphere } from './common.js?v=2026100901';
+import { mat, mesh, G, joint, canvasTexture, animeEye, walkCycle, swimCycle, squash, fluffySphere } from './common.js?v=2026100901';
 
 export const LOOK_OPTIONS = {
   gender: [['girl', 'Девочка'], ['boy', 'Мальчик']],
@@ -211,7 +211,8 @@ export function buildKid(lookIn) {
   model.scale.setScalar(1.05);
 
   function update(dt, st) {
-    walkCycle(rig, st, dt, { stride: 0.9, armSwing: 0.9, bob: 0.05 });
+    if (st.swimming) swimCycle(rig, st, dt);
+    else walkCycle(rig, st, dt, { stride: 0.9, armSwing: 0.9, bob: 0.05 });
     const a = st.action;
     if (a && a.name === 'wave') {
       const env = Math.sin(Math.min(1, a.k) * Math.PI);

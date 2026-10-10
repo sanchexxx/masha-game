@@ -6,7 +6,7 @@ import { canvasTexture, mat, mesh, G, fluffySphere } from '../characters/common.
 import { radialTexture } from '../characters/noface.js?v=2026100901';
 import { buildProp } from './props.js?v=2026100901';
 import { mergeStatic } from './merge.js?v=2026100901';
-import { forestTexture } from './forest-assets.js?v=2026101002';
+import { forestTexture } from './forest-assets.js?v=2026101003';
 import { HALF } from './map.js?v=2026100901';
 
 export function buildForest(scene, { isMobile }) {
@@ -17,8 +17,21 @@ export function buildForest(scene, { isMobile }) {
     [[-31, 34], [-12, 29], [2, 23], [9, 9], [17, -6], [25, -20]],
     [[2, 23], [24, 26], [31, 9], [25, -20]],
   ];
-  world.waterZones = [{ x: 0, z: 23, rx: 17, rz: 10 }, { x: -4, z: 11, rx: 13, rz: 6 }];
-  world.inWater = (x, z) => world.waterZones.some(p => ((x - p.x) / p.rx) ** 2 + ((z - p.z) / p.rz) ** 2 < 1);
+  world.waterZones = [
+    { x: 0, z: 23, rx: 17, rz: 10, level: 0.06, bottom: -2.25 },
+    // Нижняя заводь заканчивается там, где начинается большой пруд: отверстия
+    // в terrain ShapeGeometry не пересекаются, поэтому поверхность пола не трескается.
+    { x: -4, z: 8.7, rx: 13, rz: 4.3, level: 0.06, bottom: -1.9 },
+  ];
+  world.waterAt = (x, z) => world.waterZones.find(p => ((x - p.x) / p.rx) ** 2 + ((z - p.z) / p.rz) ** 2 < 1) || null;
+  world.inWater = (x, z) => !!world.waterAt(x, z);
+  const groundAt = world.groundAt.bind(world);
+  world.groundAt = (x, z, r, maxTop) => {
+    const ground = groundAt(x, z, r, maxTop);
+    const water = world.waterAt(x, z);
+    // Raised bridges and islands remain walkable; the surrounding ground is cut away.
+    return water && ground <= 0.25 ? water.bottom : ground;
+  };
   const cameraBlockers = [];
   const blockerMat = new THREE.MeshBasicMaterial();
   const blocker = (x, y, z, w, h, d) => {
@@ -96,7 +109,18 @@ export function buildForest(scene, { isMobile }) {
   });
   groundTex.wrapS = groundTex.wrapT = THREE.RepeatWrapping;
   if (!forestTexture('ground')) groundTex.repeat.set(20, 20);
-  const floor = add(new THREE.PlaneGeometry(HALF * 4, HALF * 4), new THREE.MeshStandardMaterial({ map: groundTex, roughness: 1 }), { rx: -Math.PI / 2, shadow: false });
+  const terrainShape = new THREE.Shape();
+  terrainShape.moveTo(-HALF * 2, -HALF * 2);
+  terrainShape.lineTo(HALF * 2, -HALF * 2);
+  terrainShape.lineTo(HALF * 2, HALF * 2);
+  terrainShape.lineTo(-HALF * 2, HALF * 2);
+  terrainShape.closePath();
+  for (const p of world.waterZones) {
+    const cut = new THREE.Path();
+    cut.absellipse(p.x, -p.z, p.rx, p.rz, 0, Math.PI * 2, true, 0);
+    terrainShape.holes.push(cut);
+  }
+  const floor = add(new THREE.ShapeGeometry(terrainShape, 8), new THREE.MeshStandardMaterial({ map: groundTex, roughness: 1 }), { rx: -Math.PI / 2, shadow: false });
   floor.receiveShadow = true; floor.userData.keep = true;
   const trail = mat(0x494638, { roughness: 1 });
   function segment(ax, az, bx, bz, width, material = trail, y = 0.025) {
@@ -114,10 +138,17 @@ export function buildForest(scene, { isMobile }) {
   segment(-29, 17, -10, 22, 2.4); segment(9, 9, 31, 9, 2.5);
   segment(-8, -28, 24, -25, 2.6); segment(-28, 1, -8, -28, 2.3);
 
-  // Неглубокие заводи проходимы: вода замедляет, но не обрывает маршрут.
-  const waterMat = new THREE.MeshStandardMaterial({ color: 0x235c72, metalness: 0.15, roughness: 0.24, transparent: true, opacity: 0.86, emissive: 0x113d59, emissiveIntensity: 0.7, depthWrite: false });
+  // Пруды можно переплыть, нырнуть на дно или использовать как укрытие.
+  const waterTex = forestTexture('water', 3, 3);
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0xb1d8df, map: waterTex, bumpMap: waterTex, bumpScale: 0.045,
+    metalness: 0.12, roughness: 0.24, transparent: true, opacity: 0.88,
+    emissive: 0x0a3448, emissiveIntensity: 0.45, depthWrite: false, side: THREE.DoubleSide,
+  });
+  const underwaterMat = new THREE.MeshStandardMaterial({ map: groundTex, color: 0x425560, roughness: 1, side: THREE.DoubleSide });
   for (const p of world.waterZones) {
-    add(new THREE.CircleGeometry(1, 48), waterMat, { x: p.x, y: 0.055, z: p.z, sx: p.rx, sy: p.rz, rx: -Math.PI / 2, shadow: false });
+    add(new THREE.CircleGeometry(1, 64), underwaterMat, { x: p.x, y: p.bottom, z: p.z, sx: p.rx * .96, sy: p.rz * .96, rx: -Math.PI / 2, shadow: false });
+    add(new THREE.CircleGeometry(1, 64), waterMat, { x: p.x, y: p.level, z: p.z, sx: p.rx, sy: p.rz, rx: -Math.PI / 2, shadow: false });
     for (let i = 0; i < 7; i++) {
       const a = i * Math.PI * 2 / 7, x = p.x + Math.cos(a) * p.rx * .86, z = p.z + Math.sin(a) * p.rz * .86;
       add(boulderGeo, i % 2 ? rock : rockLight, { x, y: .12, z, sx: .85, sy: .38, sz: .7 });
@@ -591,6 +622,11 @@ export function buildForest(scene, { isMobile }) {
   }
   function updateVisuals(t) {
     waterfall.material.opacity = .73 + Math.sin(t * 3.3) * .09;
+    if (waterMat.map) {
+      waterMat.map.offset.x = (t * .012) % 1;
+      waterMat.map.offset.y = (t * -.008) % 1;
+      waterMat.bumpMap.offset.copy(waterMat.map.offset);
+    }
     for (let i = 0; i < wisps.length; i++) wisps[i].position.y = .7 + Math.sin(t * 1.4 + i * 2.1) * .28;
     for (let i = 0; i < petalCount; i++) {
       const [x, y, z, phase] = petalBases[i];

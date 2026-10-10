@@ -1,6 +1,6 @@
 // Маша — главная героиня: каре с чёлкой и хвостиком, полосатая футболка, розовые шорты.
 import * as THREE from 'three';
-import { mat, mesh, G, joint, canvasTexture, animeEye, walkCycle, squash } from './common.js?v=2026100901';
+import { mat, mesh, G, joint, canvasTexture, animeEye, walkCycle, swimCycle, squash } from './common.js?v=2026100901';
 
 export function buildMasha() {
   const root = new THREE.Group();
@@ -89,7 +89,8 @@ export function buildMasha() {
   model.scale.setScalar(1.12);
 
   function update(dt, st) {
-    walkCycle(rig, st, dt, { stride: 0.95, armSwing: 0.85, bob: 0.045 });
+    if (st.swimming) swimCycle(rig, st, dt);
+    else walkCycle(rig, st, dt, { stride: 0.95, armSwing: 0.85, bob: 0.045 });
     const a = st.action;
     if (a && a.name === 'wave') {
       const env = Math.sin(Math.min(1, a.k) * Math.PI);

@@ -440,11 +440,14 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 
 /* Компактный игровой HUD: способности над правым кластером управления. */
 #hud .abil-bar {
+  top: auto;
   left: auto;
   right: max(22px, env(safe-area-inset-right));
-  bottom: max(222px, calc(env(safe-area-inset-bottom) + 212px));
+  bottom: max(132px, calc(env(safe-area-inset-bottom) + 124px));
   width: min(276px, 42vw);
+  max-width: calc(100vw - 24px);
   display: flex;
+  flex-direction: row;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 7px;
@@ -503,14 +506,16 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   }
   #hud .pumpkins-hud { font-size: 11px; }
   #hud .abil-bar {
-    right: max(16px, env(safe-area-inset-right));
-    bottom: max(218px, calc(env(safe-area-inset-bottom) + 208px));
-    width: 150px;
-    justify-content: center;
-    gap: 5px;
+    top: auto;
+    right: max(14px, env(safe-area-inset-right));
+    bottom: max(154px, calc(env(safe-area-inset-bottom) + 146px));
+    width: auto;
+    max-width: min(148px, 45vw);
+    justify-content: flex-end;
+    gap: 6px;
   }
-  #hud .ab { flex-basis: 44px; width: 44px; height: 44px; border-radius: 13px; }
-  #hud .ab i { font-size: 21px; }
+  #hud .ab { flex-basis: 40px; width: 40px; height: 40px; border-radius: 12px; }
+  #hud .ab i { font-size: 19px; }
   #hud .ab em { right: 3px; top: 1px; font-size: 9px; }
   #hud .ab small { display: none; }
   #hud .ghost-view {
@@ -532,17 +537,24 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .landscape #hud .status { max-width: 48vw; font-size: 10px; }
 .landscape #hud .ghost-view { top: max(48px, calc(env(safe-area-inset-top) + 42px)); width: min(36vw, 340px); }
 .landscape #hud .abil-bar {
+  top: auto;
   right: max(10px, env(safe-area-inset-right));
-  bottom: max(132px, calc(env(safe-area-inset-bottom) + 124px));
-  width: min(210px, 32vw);
+  bottom: max(116px, calc(env(safe-area-inset-bottom) + 108px));
+  width: auto;
+  max-width: min(190px, 32vw);
   gap: 5px;
 }
-.landscape #hud .ab { flex-basis: 44px; width: 44px; height: 44px; }
+.landscape #hud .ab { flex-basis: 40px; width: 40px; height: 40px; }
 .landscape #touch .rbtn { width: 52px; height: 52px; }
 .landscape #touch .btn-crouch { right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); }
 .landscape #touch .btn-run { right: max(68px, calc(env(safe-area-inset-right) + 68px)); bottom: max(8px, env(safe-area-inset-bottom)); }
 .landscape #touch .btn-jump { right: max(8px, env(safe-area-inset-right)); bottom: max(66px, calc(env(safe-area-inset-bottom) + 62px)); width: 46px; height: 46px; }
 .landscape #touch .btn-dash { right: max(66px, calc(env(safe-area-inset-right) + 66px)); bottom: max(66px, calc(env(safe-area-inset-bottom) + 62px)); width: 44px; height: 44px; }
+@media (max-height: 650px) {
+  #hud .abil-bar { bottom: max(104px, calc(env(safe-area-inset-bottom) + 96px)); }
+  #hud .ab { flex-basis: 36px; width: 36px; height: 36px; }
+  #hud .ab i { font-size: 17px; }
+}
 
 </style>
 <!-- Для старых WebKit загружается совместимая сборка с WebGL 1; графика игры одинаковая. -->
@@ -726,7 +738,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   window.__bundleVariant = legacy ? 'legacy' : 'modern';
   window.__bootStage = 'скачиваем файл игры (' + window.__bundleVariant + ')';
   var script = document.createElement('script');
-  script.src = legacy ? '/src/main.legacy.bundle.js?v=2026101002' : '/src/main.bundle.js?v=2026101002';
+  script.src = legacy ? '/src/main.legacy.bundle.js?v=2026101003' : '/src/main.bundle.js?v=2026101003';
   script.onerror = function () { say('не загрузился файл игры (' + window.__bundleVariant + ')'); };
   script.onload = function () {
     if (!window.__bootEntered) say('файл игры скачан, но браузер не смог выполнить его (' + window.__bundleVariant + ')');

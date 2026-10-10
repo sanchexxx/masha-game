@@ -132,6 +132,19 @@ export function walkCycle(rig, st, dt, { stride = 0.9, armSwing = 0.7, bob = 0.0
   if (rig.head) rig.head.rotation.x = -0.08 * blend + Math.sin(st.t * 1.7) * 0.02;
 }
 
+// Простая гребковая анимация для героев в воде; использует те же точки рига,
+// поэтому не добавляет к сцене геометрию и подходит старым мобильным GPU.
+export function swimCycle(rig, st, dt, options = {}) {
+  walkCycle(rig, { ...st, grounded: true, speed: st.speed * 0.28 }, dt,
+    { stride: 0.16, armSwing: 0.12, bob: 0.025, freq: 0.75 });
+  const t = st.t * 4.2;
+  if (rig.legL) rig.legL.rotation.x = 0.24 + Math.sin(t) * 0.22;
+  if (rig.legR) rig.legR.rotation.x = 0.24 + Math.sin(t + Math.PI) * 0.22;
+  if (rig.armL) { rig.armL.rotation.x = -1.05 + Math.sin(t + Math.PI) * 0.24; rig.armL.rotation.z = 0.32; }
+  if (rig.armR) { rig.armR.rotation.x = -1.05 + Math.sin(t) * 0.24; rig.armR.rotation.z = -0.32; }
+  if (rig.body) rig.body.rotation.x = st.diving ? 0.3 : -0.12;
+}
+
 // Приземление: короткое «сплющивание».
 export function squash(root, st, dt) {
   root.userData.sq = root.userData.sq ?? 0;

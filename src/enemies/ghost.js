@@ -57,6 +57,7 @@ export class Ghost {
     this.sees = false;
     this.stunT = 0; this.slowT = 0;
     this.stuckT = 0; this.stuckFrom = null;
+    this.aiFlightT = 0;
     this.disguise = null;          // {hero, char, t}
     this.disguiseCd = 6;
     this.caughtN = 0;
@@ -290,7 +291,13 @@ export class Ghost {
       const runner = this.target.ctrl.running || this.target.ctrl.dashT > 0;
       if (runner || pick.d < 4 || c.dashCharges >= (c.phys.dash.charges ?? 1)) inp.dash = true;
     }
-    inp.jumpHold = above;
+    // Если обычный маршрут упёрся в стену, Безлик набирает высоту и перелетает её.
+    // При этом он расходует тот же запас парения, что и игрок, и не летит бесконечно.
+    if (!this.disguise && c.flyEnergy > 0.18 && (this.stuckT > 0.38 || (c.hitWall && this.stuckT > 0.15))) {
+      this.aiFlightT = Math.max(this.aiFlightT, 1.05);
+    }
+    inp.jumpHold = above || this.aiFlightT > 0;
+    this.aiFlightT = Math.max(0, this.aiFlightT - dt);
     return inp;
   }
 
@@ -338,12 +345,15 @@ export class Ghost {
   #checkStuck(dt) {
     if (this.stunT > 0) { this.stuckT = 0; this.stuckFrom = null; return; }
     if (!this.stuckFrom) this.stuckFrom = this.pos.clone();
+    if (this.pos.distanceTo(this.stuckFrom) >= 0.6) {
+      this.stuckFrom.copy(this.pos);
+      this.stuckT = 0;
+      return;
+    }
     this.stuckT += dt;
     if (this.stuckT > 1.5) {
-      if (this.pos.distanceTo(this.stuckFrom) < 0.6) {
-        this.wanderTarget = null; this.path = null;
-        if (!this.sees) { this.lastSeen = null; if (this.state === 'hunt') { this.state = 'search'; this.target = null; } }
-      }
+      this.wanderTarget = null; this.path = null;
+      if (!this.sees) { this.lastSeen = null; if (this.state === 'hunt') { this.state = 'search'; this.target = null; } }
       this.stuckT = 0; this.stuckFrom = this.pos.clone();
     }
   }
