@@ -224,7 +224,7 @@ export class Round {
     const l = d.lantern;
     if (!l.carrier) {
       for (const a of this.agents) {
-        if (!a.alive || a.ctrl.pos.y > 1.8 || Math.hypot(a.ctrl.pos.x - l.x, a.ctrl.pos.z - l.z) > 1.6) continue;
+        if (!a.alive || a.ctrl.pos.y > 2.2 || Math.hypot(a.ctrl.pos.x - l.x, a.ctrl.pos.z - l.z) > 2.2) continue;
         l.carrier = a.key;
         if (a.prop) this.toggleProp(a);
         this.emit('lanternPickup', { agent: a });

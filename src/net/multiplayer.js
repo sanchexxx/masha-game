@@ -440,9 +440,17 @@ export class Multiplayer {
     g.ui.alive(alive, snap.a.length, snap.ph === 'delivery' ? `🏮 Доставлено ${snap.d?.delivered || 0}/${snap.d?.goal || 3} · героев` : snap.ph === 'hide' ? 'Спрятались' : 'Убегают');
     g.ui.hud({ left: snap.left, stamina: mine ? mine[15] : gmine ? gmine[13] : 1, tired: mine ? !!mine[16] : false, hidden: mine ? !!mine[14] : false });
     let status;
-    if (snap.ph === 'delivery') status = gmine ? `Помешай доставке! Фонари: ${snap.d?.delivered || 0}/${snap.d?.goal || 3}`
-      : snap.d?.lantern?.carrier === me?.v?.s?.[0] ? 'Неси фонарь к светящемуся святилищу!'
-      : `Подбери фонарь и доставь к святилищу · ${snap.d?.delivered || 0}/${snap.d?.goal || 3}`;
+    if (snap.ph === 'delivery') {
+      const carrying = snap.d?.lantern?.carrier === me?.v?.s?.[0];
+      const carrier = snap.d?.lantern?.carrier && [...gv.agents.values()].find(v => v.s?.[0] === snap.d.lantern.carrier);
+      const nearLantern = mine && !snap.d?.lantern?.carrier
+        && Math.hypot(mine[1] - snap.d.lantern.x, mine[3] - snap.d.lantern.z) < 4;
+      status = gmine ? `Помешай доставке! Фонари: ${snap.d?.delivered || 0}/${snap.d?.goal || 3}`
+        : carrying ? 'Неси фонарь к светящемуся святилищу!'
+        : nearLantern ? 'Подойди к фонарю — он подберётся автоматически!'
+        : carrier ? `${carrier.name} несёт фонарь — помоги ему добраться до святилища`
+        : `Найди светящийся фонарь · ${snap.d?.delivered || 0}/${snap.d?.goal || 3}`;
+    }
     else if (snap.ph === 'hide' && snap.sp === 0) status = gmine ? 'Закрой глаза и считай… Герои прячутся!' : 'Безлики скоро выйдут — прячься!';
     else if (gmine) status = gmine[10] || gmine[11] ? 'Ты замаскирован — подкрадись!' : snap.ph === 'hide' ? `Найди спрятавшихся! Осталось: ${alive}` : `Догони всех! Осталось: ${alive}`;
     else if (!me) status = ghostViews.length ? 'Взгляд Безлика: смотри, как он ищет героев' : 'Тебя нашли! Смотри, как прячутся другие…';

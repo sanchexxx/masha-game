@@ -794,7 +794,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   window.__bundleVariant = legacy ? 'legacy' : 'modern';
   window.__bootStage = 'скачиваем файл игры (' + window.__bundleVariant + ')';
   var script = document.createElement('script');
-  script.src = legacy ? '/src/main.legacy.bundle.js?v=2026101013' : '/src/main.bundle.js?v=2026101013';
+  script.src = legacy ? '/src/main.legacy.bundle.js?v=2026101014' : '/src/main.bundle.js?v=2026101014';
   script.onerror = function () { say('не загрузился файл игры (' + window.__bundleVariant + ')'); };
   script.onload = function () {
     if (!window.__bootEntered) say('файл игры скачан, но браузер не смог выполнить его (' + window.__bundleVariant + ')');

@@ -709,9 +709,14 @@ export class Game {
     if (R.phase === 'delivery') {
       const d = R.delivery;
       const carrying = d.lantern.carrier === R.player?.key;
+      const lanternCarrier = d.lantern.carrier && R.agents.find(a => a.key === d.lantern.carrier);
+      const nearLantern = R.player && !R.playerGhost && !d.lantern.carrier
+        && Math.hypot(R.player.ctrl.pos.x - d.lantern.x, R.player.ctrl.pos.z - d.lantern.z) < 4;
       this.ui.status(R.playerGhost ? `Помешай доставке! Фонари: ${d.delivered}/${d.goal}`
         : carrying ? `Неси фонарь к светящемуся святилищу! ${d.delivered}/${d.goal}`
-        : `Подбери фонарь и отнеси к святилищу · ${d.delivered}/${d.goal}`, 'calm');
+        : nearLantern ? 'Подойди к фонарю — он подберётся автоматически!'
+        : lanternCarrier ? `${lanternCarrier.name} несёт фонарь — помоги ему добраться до святилища`
+        : `Найди светящийся фонарь · ${d.delivered}/${d.goal}`, 'calm');
     } else if (R.phase === 'hide' && R.spawned === 0) {
       if (R.playerGhost) this.ui.status(`Закрой глаза и считай: ${headLeft}… Герои прячутся!`, 'calm');
       else this.ui.status(`Безлики выйдут через ${headLeft} — прячься!`, 'calm');
