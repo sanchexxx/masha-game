@@ -4,7 +4,7 @@ import { buildCatbus } from './catbus.js?v=2026100901';
 import { buildMoti, MOTI_SKINS } from './moti.js?v=2026100901';
 import { buildNoFace } from './noface.js?v=2026100901';
 import { buildKid, loadLook } from './kid.js?v=2026100901';
-import { buildBrothers } from './brothers.js?v=2026101006';
+import { buildBrothers } from './brothers.js?v=2026101008';
 
 const lookOf = skin => { try { return skin && skin !== 'classic' ? JSON.parse(skin) : loadLook(); } catch { return loadLook(); } };
 
