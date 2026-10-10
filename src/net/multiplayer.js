@@ -196,7 +196,8 @@ export class Multiplayer {
   hostEvent(e) {
     if (!this.isHost) return;
     const pidOf = a => a?.isPlayer ? 'host' : a?.remote || null;
-    if (e.type === 'caught') this.net.send({ t: 'ev', k: 'caught', name: e.agent.name, pid: pidOf(e.agent), phase: e.phase, by: e.ghost.isPlayer ? 'host' : e.ghost.remote || null });
+    if (e.type === 'caught') this.net.send({ t: 'ev', k: 'caught', name: e.agent.name, pid: pidOf(e.agent), phase: e.phase,
+      eliminated: !!e.agent.eliminatedByHeads, by: e.ghost.isPlayer ? 'host' : e.ghost.remote || null });
     else if (e.type === 'resisted') this.net.send({ t: 'ev', k: 'resisted', name: e.agent.name, pid: pidOf(e.agent) });
     else if (e.type === 'ability') this.net.send({ t: 'ev', k: 'ability', id: e.id, pid: pidOf(e.agent) });
     else if (e.type === 'split') this.net.send({ t: 'ev', k: 'split', pid: pidOf(e.agent) });
@@ -372,7 +373,8 @@ export class Multiplayer {
     const g = this.g, ui = g.ui, me = this.net.id;
     if (!this.guest) return;
     if (m.k === 'caught') {
-      if (m.pid === me) ui.toast(m.phase === 'hide' ? 'Тебя нашли! Подожди догонялок.' : 'Тебя догнали!');
+      if (m.pid === me) ui.toast(m.eliminated ? 'Все три головы пойманы. Ты выбыл из матча.'
+        : m.phase === 'hide' ? 'Тебя нашли! Подожди догонялок.' : 'Тебя догнали!');
       else if (m.by === me) ui.toast(`Попался: ${m.name}!`);
       else ui.toast(`${m.phase === 'hide' ? 'Нашли' : 'Догнали'}: ${m.name}`);
       g.sound.chime([392, 330]);

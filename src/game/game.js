@@ -727,7 +727,8 @@ export class Game {
         this.cam.shake = 1;
         if (e.phase === 'hide') {
           const first = R.caughtOrder.filter(c => c.phase === 'hide').length === 1;
-          this.ui.toast(first ? 'Тебя нашли первым — в догонялках ТЫ будешь Безликом!' : 'Тебя нашли! Подожди догонялок.');
+          this.ui.toast(a.eliminatedByHeads ? 'Все три головы пойманы. Ты выбыл из матча.'
+            : first ? 'Тебя нашли первым — в догонялках ТЫ будешь Безликом!' : 'Тебя нашли! Подожди догонялок.');
           this.focus = 0;
           this.#configureCam(this.#focusTarget());
         }
