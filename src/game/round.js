@@ -193,17 +193,22 @@ export class Round {
   get left() { return Math.max(0, this.duration - this.t); }
 
   // В каждой доставке фонарь и святилище появляются в достижимых точках карты.
-  #deliveryPoint(away = null, avoid = null) {
+  #deliveryPoint({ from = null, min = 0, max = 100, avoid = null } = {}) {
     const nav = this.navFor(0.85); // и большой Котобус пройдёт к цели
-    for (let tries = 0; tries < 100; tries++) {
-      const x = (Math.random() * 2 - 1) * (nav.half - 3);
-      const z = (Math.random() * 2 - 1) * (nav.half - 3);
+    for (let tries = 0; tries < 160; tries++) {
+      const anchored = from && tries < 100;
+      const angle = Math.random() * Math.PI * 2;
+      const radius = min + Math.random() * (max - min);
+      const x = anchored ? from.x + Math.cos(angle) * radius : (Math.random() * 2 - 1) * (nav.half - 3);
+      const z = anchored ? from.z + Math.sin(angle) * radius : (Math.random() * 2 - 1) * (nav.half - 3);
+      if (Math.abs(x) > nav.half - 3 || Math.abs(z) > nav.half - 3) continue;
       const [i, j] = nav.toCell(x, z);
       if (!nav.free(i, j) || this.world.waterAt?.(x, z)) continue;
-      if (away && Math.hypot(x - away.x, z - away.z) < 14) continue;
+      if (this.world.groundAt(x, z, 0.7, 99) > 1.1) continue;
+      if (from && Math.hypot(x - from.x, z - from.z) < min) continue;
       if (avoid && Math.hypot(x - avoid.x, z - avoid.z) < 8) continue;
       if (!nav.find(this.playerSpawn.x, this.playerSpawn.z, x, z)) continue;
-      if (away && !nav.find(away.x, away.z, x, z)) continue;
+      if (from && !nav.find(from.x, from.z, x, z)) continue;
       return { x: Math.round(x * 10) / 10, z: Math.round(z * 10) / 10 };
     }
     return { x: this.playerSpawn.x, z: this.playerSpawn.z };
@@ -211,8 +216,8 @@ export class Round {
 
   nextDelivery(first = false) {
     const previous = this.delivery?.shrine;
-    const lantern = this.#deliveryPoint(previous);
-    const shrine = this.#deliveryPoint(lantern, previous);
+    const lantern = this.#deliveryPoint({ from: previous || this.playerSpawn, min: previous ? 9 : 7, max: previous ? 19 : 16 });
+    const shrine = this.#deliveryPoint({ from: lantern, min: 14, max: 26, avoid: previous });
     this.delivery.lantern = { ...lantern, carrier: null };
     this.delivery.shrine = shrine;
     this.emit('deliveryNext', { first, lantern, shrine });

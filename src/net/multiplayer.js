@@ -9,6 +9,7 @@ import { Net } from './net.js?v=2026100901';
 import { makeRoster, makeSnapshot, GuestView } from './sync.js?v=2026100901';
 import { wallet } from '../world/props.js?v=2026100901';
 import * as AbilityFx from '../abilities/fx.js?v=2026101006';
+import { objectiveGuide } from '../world/lanterns.js';
 
 const $ = id => document.getElementById(id);
 const NAME_KEY = 'masha-game-name';
@@ -45,8 +46,8 @@ export class Multiplayer {
     ui.on('lb-start', () => this.hostStart());
     ui.on('lb-bots-on', () => { if (this.isHost) net.send({ t: 'bots', enabled: true }); });
     ui.on('lb-bots-off', () => { if (this.isHost) net.send({ t: 'bots', enabled: false }); });
-    ui.on('lb-mode-hide', () => { if (this.isHost) net.send({ t: 'gameMode', mode: 'hide' }); });
-    ui.on('lb-mode-delivery', () => { if (this.isHost) net.send({ t: 'gameMode', mode: 'delivery' }); });
+    ui.on('lb-mode-hide', () => { if (this.isHost) { net.gameMode = 'hide'; this.renderLobby(); net.send({ t: 'gameMode', mode: 'hide' }); } });
+    ui.on('lb-mode-delivery', () => { if (this.isHost) { net.gameMode = 'delivery'; this.renderLobby(); net.send({ t: 'gameMode', mode: 'delivery' }); } });
     ui.on('lb-copy', () => { navigator.clipboard?.writeText(this.url).then(() => ui.toast('Ссылка скопирована!'), () => {}); $('lb-url').select(); });
     ui.on('lb-share', () => { if (navigator.share) navigator.share({ title: 'Прятки с Безликом', text: 'Играем вместе! Комната ' + net.code, url: this.url }).catch(() => {}); else { navigator.clipboard?.writeText(this.url); ui.toast('Ссылка скопирована!'); } });
     ui.on('rooms-create', () => this.createRoom());
@@ -215,7 +216,7 @@ export class Multiplayer {
       $(id).classList.toggle('active', net.gameMode === mode);
     }
     $('lb-mode-note').textContent = net.gameMode === 'delivery'
-      ? 'Найдите фонарь и доставьте в святилище 3 раза за 4 минуты. Безлик выбивает фонарь у носителя. Точки меняются после каждой доставки.'
+      ? 'Подойдите к фонарю под золотым лучом, затем к святилищу под голубым лучом. Подбор и доставка автоматические. Нужно 3 доставки за 4 минуты.'
       : 'Сначала прячьтесь от Безлика, затем убегайте в догонялках.';
     $('lb-start').innerHTML = `Начать ${net.gameMode === 'delivery' ? 'доставку' : 'прятки'} <span>›</span>`;
     $('lb-start').classList.toggle('hidden', !amHost);
@@ -445,11 +446,12 @@ export class Multiplayer {
       const carrier = snap.d?.lantern?.carrier && [...gv.agents.values()].find(v => v.s?.[0] === snap.d.lantern.carrier);
       const nearLantern = mine && !snap.d?.lantern?.carrier
         && Math.hypot(mine[1] - snap.d.lantern.x, mine[3] - snap.d.lantern.z) < 4;
+      const guide = mine && snap.d ? objectiveGuide({ x: mine[1], z: mine[3] }, carrying ? snap.d.shrine : snap.d.lantern, g.cam.yaw) : '';
       status = gmine ? `Помешай доставке! Фонари: ${snap.d?.delivered || 0}/${snap.d?.goal || 3}`
-        : carrying ? 'Неси фонарь к светящемуся святилищу!'
+        : carrying ? `Святилище ${guide} · неси фонарь!`
         : nearLantern ? 'Подойди к фонарю — он подберётся автоматически!'
         : carrier ? `${carrier.name} несёт фонарь — помоги ему добраться до святилища`
-        : `Найди светящийся фонарь · ${snap.d?.delivered || 0}/${snap.d?.goal || 3}`;
+        : `🏮 Фонарь ${guide} · подойди и подбери · ${snap.d?.delivered || 0}/${snap.d?.goal || 3}`;
     }
     else if (snap.ph === 'hide' && snap.sp === 0) status = gmine ? 'Закрой глаза и считай… Герои прячутся!' : 'Безлики скоро выйдут — прячься!';
     else if (gmine) status = gmine[10] || gmine[11] ? 'Ты замаскирован — подкрадись!' : snap.ph === 'hide' ? `Найди спрятавшихся! Осталось: ${alive}` : `Догони всех! Осталось: ${alive}`;
@@ -512,7 +514,7 @@ export class Multiplayer {
       else ui.toast(`${m.phase === 'hide' ? 'Нашли' : 'Догнали'}: ${m.name}`);
       g.sound.chime([392, 330]);
     } else if (m.k === 'lanternPickup') {
-      ui.toast(m.pid === me ? 'Ты взял фонарь! Неси к святилищу.' : `${m.name} несёт фонарь!`);
+      ui.toast(m.pid === me ? 'Фонарь у тебя! Неси к голубому лучу святилища.' : `${m.name} несёт фонарь!`);
       g.sound.chime([660, 880]);
     } else if (m.k === 'lanternDropped') ui.toast('Безлик выбил фонарь! Подберите его снова.');
     else if (m.k === 'lanternDelivered') { ui.toast(`Фонарь доставлен! ${m.count}/${m.goal}`); g.sound.chime([784, 1046, 1318]); }

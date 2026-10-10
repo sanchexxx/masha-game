@@ -10,7 +10,7 @@ import { buildForest } from '../world/forest.js?v=2026100901';
 import { loadForestAssets } from '../world/forest-assets.js?v=2026101003';
 import { buildFireflies, buildSoot } from '../world/effects.js?v=2026100901';
 import { buildProp, poof, Pumpkins, wallet } from '../world/props.js?v=2026100901';
-import { LanternView } from '../world/lanterns.js';
+import { LanternView, objectiveGuide } from '../world/lanterns.js';
 import { Input } from '../player/input.js?v=2026100901';
 import { ThirdPersonCamera } from '../player/camera.js?v=2026100901';
 import { Ghost } from '../enemies/ghost.js?v=2026100901';
@@ -372,7 +372,7 @@ export class Game {
     if (button) button.innerHTML = `Начать ${this.gameMode === 'delivery' ? 'доставку' : 'прятки'} <span>›</span>`;
     const note = document.getElementById('maps-mode-note');
     if (note) note.textContent = this.gameMode === 'delivery'
-      ? 'Найди светящийся фонарь и отнеси к отмеченному святилищу. Три доставки за 4 минуты. Безлик может выбить фонарь.'
+      ? 'Найди фонарь под золотым лучом. Подойди — он подберётся сам. Неси к голубому лучу святилища: доставка тоже автоматическая. Три раза за 4 минуты.'
       : 'Спрячься от Безлика, переживи поиски и догонялки.';
   }
 
@@ -380,7 +380,7 @@ export class Game {
     const intro = document.getElementById('mode-intro');
     if (!intro) return;
     intro.innerHTML = gameMode === 'delivery'
-      ? '<b>🏮 Доставка фонаря</b><span>Подбери светящийся фонарь и отнеси к святилищу. После каждой доставки появляются новые точки. Нужно доставить 3 фонаря за 4 минуты. Безлик может выбить фонарь.</span>'
+      ? '<b>🏮 Доставка фонаря</b><span>Найди большой фонарь под золотым лучом. Подойди — герой возьмёт его сам. Неси к голубому лучу святилища: доставка тоже автоматическая. Нужно 3 фонаря за 4 минуты.</span>'
       : '<b>🎭 Прятки с Безликом</b><span>Сначала спрячься. Когда выйдет Безлик, не дай себя поймать. Затем начнутся догонялки.</span>';
     intro.classList.remove('hidden');
     clearTimeout(this.modeIntroTimer);
@@ -712,11 +712,12 @@ export class Game {
       const lanternCarrier = d.lantern.carrier && R.agents.find(a => a.key === d.lantern.carrier);
       const nearLantern = R.player && !R.playerGhost && !d.lantern.carrier
         && Math.hypot(R.player.ctrl.pos.x - d.lantern.x, R.player.ctrl.pos.z - d.lantern.z) < 4;
+      const guide = R.player?.alive ? objectiveGuide(R.player.ctrl.pos, carrying ? d.shrine : d.lantern, this.cam.yaw) : '';
       this.ui.status(R.playerGhost ? `Помешай доставке! Фонари: ${d.delivered}/${d.goal}`
-        : carrying ? `Неси фонарь к светящемуся святилищу! ${d.delivered}/${d.goal}`
+        : carrying ? `Святилище ${guide} · неси фонарь! ${d.delivered}/${d.goal}`
         : nearLantern ? 'Подойди к фонарю — он подберётся автоматически!'
         : lanternCarrier ? `${lanternCarrier.name} несёт фонарь — помоги ему добраться до святилища`
-        : `Найди светящийся фонарь · ${d.delivered}/${d.goal}`, 'calm');
+        : `🏮 Фонарь ${guide} · подойди и подбери · ${d.delivered}/${d.goal}`, 'calm');
     } else if (R.phase === 'hide' && R.spawned === 0) {
       if (R.playerGhost) this.ui.status(`Закрой глаза и считай: ${headLeft}… Герои прячутся!`, 'calm');
       else this.ui.status(`Безлики выйдут через ${headLeft} — прячься!`, 'calm');
@@ -751,7 +752,7 @@ export class Game {
       if (e.ghost.isPlayer) this.ui.toast('Ты вышел на охоту! Ищи!');
       else if (e.i === 0) this.ui.toast(R.phase === 'hide' ? 'Безлики вышли искать!' : 'Догонялки начались!');
     } else if (e.type === 'lanternPickup') {
-      this.ui.toast(e.agent.isPlayer ? 'Ты взял фонарь! Неси его к святилищу.' : `${e.agent.name} несёт фонарь!`);
+      this.ui.toast(e.agent.isPlayer ? 'Фонарь у тебя! Неси к голубому лучу святилища.' : `${e.agent.name} несёт фонарь!`);
       this.sound.chime([660, 880]);
     } else if (e.type === 'lanternDropped') {
       this.ui.toast('Безлик выбил фонарь! Подберите его снова.');
