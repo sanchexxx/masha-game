@@ -128,7 +128,7 @@ export class Game {
 
     ui.buildCards(HEROES, GHOST, thumbs, id => this.selectHero(id));
     ui.on('btn-choose', () => (this.mp.inRoom ? this.mp.showLobby() : this.toMaps()));
-    ui.on('btn-friends', () => (this.mp.inRoom ? this.mp.showLobby() : this.mp.createRoom()));
+    ui.on('btn-friends', () => (this.mp.inRoom ? this.mp.showLobby() : this.mp.showRooms()));
     ui.on('btn-maps-back', () => this.toSelect());
     ui.on('btn-maps-go', () => this.beginRound(this.hero.id === 'noface' ? 'hunter' : 'play'));
     ui.on('btn-watch', () => this.beginRound('watch'));
@@ -429,7 +429,8 @@ export class Game {
     if (R.player?.alive) return R.player;
     if (R.playerGhost) return R.playerGhost;
     const heroes = R.agents.filter(a => a.alive);
-    const list = heroes.length ? heroes : R.activeGhosts.filter(g => g.state !== 'hidden');
+    const ghosts = R.activeGhosts.filter(g => g.state !== 'hidden');
+    const list = this.mode !== 'watch' && !R.player?.alive ? (ghosts.length ? ghosts : heroes) : (heroes.length ? heroes : ghosts);
     return list[this.focus % Math.max(1, list.length)] || R.agents[0] || R.activeGhosts[0];
   }
   #configureCam(f) {
@@ -622,7 +623,7 @@ export class Game {
     const observing = this.mode === 'watch' || firstPersonSpectator;
     document.getElementById('watch-bar').classList.toggle('hidden', !observing);
     document.getElementById('abil-bar').classList.toggle('hidden', observing);
-    if (firstPersonSpectator) document.getElementById('btn-next').textContent = 'Другой герой ›';
+    if (firstPersonSpectator) document.getElementById('btn-next').textContent = 'Другой Безлик ›';
     else if (this.mode === 'watch') document.getElementById('btn-next').textContent = 'Следующий ›';
     if (!firstPersonSpectator) document.getElementById('touch').classList.toggle('hidden', this.mode === 'watch');
 
@@ -674,7 +675,7 @@ export class Game {
       const left = R.agents.filter(a => a.alive).length;
       this.ui.status(pg.disguised ? `Ты замаскирован${pg.disguise.prop ? ` под ${pg.disguise.prop.name}` : ` под «${pg.disguise.hero.name}»`} — подкрадись!` : R.phase === 'hide' ? `Найди спрятавшихся! Осталось: ${left}` : `Догони всех! Осталось: ${left}`, '');
     } else if (this.mode === 'watch') this.ui.status(follow.hero && follow.alive !== undefined ? `Смотрим: ${follow.name}${follow.hidden ? ' · в укрытии' : ''}${follow.prop ? ` · притворился: ${follow.prop.kind.name}` : ''}` : 'Смотрим: Безлик', sees ? 'danger' : '');
-    else if (!R.player?.alive) this.ui.status('Тебя нашли! Смотри, как прячутся другие…', '');
+    else if (!R.player?.alive) this.ui.status('Взгляд Безлика: смотри, как он ищет героев', '');
     else if (R.player.splitActive) this.ui.status(`Три головы: ${R.player.splitHeads.filter(h => h.alive).length}/3 · прыгай и уходи от Безлика!`, sees ? 'danger' : 'calm');
     else if (sees) this.ui.status('Он тебя видит! Беги!', 'danger');
     else if (R.player.protected) this.ui.status('Ты под куполом — здесь не поймают', 'calm');

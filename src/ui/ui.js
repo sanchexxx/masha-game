@@ -24,6 +24,7 @@ export class UI {
   mode(m, touch, gameMode = 'play') {
     this.show('select', m === 'select');
     this.show('maps', m === 'maps');
+    this.show('rooms', m === 'rooms');
     this.show('lobby', m === 'lobby');
     document.getElementById('watch-bar').classList.toggle('hidden', !(m === 'play' && gameMode === 'watch'));
     document.getElementById('abil-bar').classList.toggle('hidden', !(m === 'play' && gameMode === 'play'));

@@ -43,12 +43,19 @@ export class Multiplayer {
     ui.on('lb-start', () => this.hostStart());
     ui.on('lb-copy', () => { navigator.clipboard?.writeText(this.url).then(() => ui.toast('Ссылка скопирована!'), () => {}); $('lb-url').select(); });
     ui.on('lb-share', () => { if (navigator.share) navigator.share({ title: 'Прятки с Безликом', text: 'Играем вместе! Комната ' + net.code, url: this.url }).catch(() => {}); else { navigator.clipboard?.writeText(this.url); ui.toast('Ссылка скопирована!'); } });
+    ui.on('rooms-create', () => this.createRoom());
+    ui.on('rooms-refresh', () => this.refreshRooms());
+    ui.on('rooms-back', () => this.g.toSelect());
+    $('rooms-list').addEventListener('click', e => {
+      const code = e.target.closest('button[data-room]')?.dataset.room;
+      if (code) this.join(code);
+    });
     const nameInp = $('lb-name');
     nameInp.value = this.myName;
     nameInp.addEventListener('keydown', e => e.stopPropagation());
     nameInp.addEventListener('change', () => { try { localStorage.setItem(NAME_KEY, nameInp.value.trim()); } catch {} net.update(this.hello()); });
 
-    net.on('lobby', m => { if (this.g.state === 'lobby') this.renderLobby(); this.#hostChanged(m); });
+    net.on('lobby', m => { if (this.g.state === 'lobby') this.renderLobby(); this.#hostChanged(m); this.#lateJoiners(m); });
     net.on('left', m => { if (this.isHost && this.g.state === 'play') { const R = this.g.round; const a = R.agents.find(x => x.remote === m.id); if (a) { this.g.ui.toast(`${a.name} вышел — за него играет бот`); R.convertToBot(a); } for (const gh of R.activeGhosts) if (gh.remote === m.id) gh.remote = null; } });
     net.on('close', () => { if (this.g.state !== 'loading') { this.g.ui.toast('Связь с комнатой потеряна'); this.#stopGuest(); if (['lobby', 'guest'].includes(this.g.state)) this.g.toSelect(); } });
     // гость
@@ -66,6 +73,35 @@ export class Multiplayer {
   get url() { return `${location.origin}${location.pathname}?room=${this.net.code}`; }
 
   // ---------- Комната ----------
+  showRooms() {
+    if (this.inRoom) return this.showLobby();
+    this.g.state = 'rooms';
+    this.g.input.enabled = false;
+    this.g.input.releasePointer();
+    this.g.ui.mode('rooms', this.g.isTouch);
+    this.refreshRooms();
+    clearInterval(this.roomListTimer);
+    this.roomListTimer = setInterval(() => {
+      if (this.g.state === 'rooms') this.refreshRooms();
+      else { clearInterval(this.roomListTimer); this.roomListTimer = null; }
+    }, 8000);
+  }
+
+  async refreshRooms() {
+    const box = $('rooms-list');
+    try {
+      const response = await fetch('/api/rooms', { cache: 'no-store' });
+      if (!response.ok) throw new Error('rooms');
+      const { rooms } = await response.json();
+      if (this.g.state !== 'rooms') return;
+      const open = rooms.filter(r => r.players < 8);
+      box.innerHTML = open.length ? open.map(r => `<div class="room-row"><div class="room-info"><strong>Комната ${esc(r.code)}</strong><small>${esc(r.host)} · ${r.players}/8 игроков · ${r.started ? 'Игра идёт — можно присоединиться' : 'Ожидает игроков'}</small></div><button class="gold" data-room="${esc(r.code)}">Войти</button></div>`).join('')
+        : '<div class="lb-card">Пока нет открытых комнат. Создай первую!</div>';
+    } catch {
+      if (this.g.state === 'rooms') box.textContent = 'Не удалось получить список комнат. Нажми «Обновить список».';
+    }
+  }
+
   async createRoom() { return this.join(Net.newCode()); }
 
   async join(code) {
@@ -77,7 +113,7 @@ export class Multiplayer {
       return false;
     }
     try { history.replaceState(null, '', `?room=${this.net.code}`); } catch {}
-    this.showLobby();
+    if (this.g.state !== 'guest') this.showLobby();
     return true;
   }
 
@@ -101,6 +137,18 @@ export class Multiplayer {
     $('lb-url').value = this.url;
     this.#qr();
     this.renderLobby();
+  }
+
+  #lateJoiners(m) {
+    if (!this.isHost || this.g.state !== 'play' || !this.g.round || !m.started) return;
+    for (const p of m.players) {
+      if (p.id === this.net.id || this.roundPlayers?.has(p.id) || !p.ready) continue;
+      const added = this.g.round.addLatePlayer({ id: p.id, name: p.name, hero: heroById(p.hero), skin: p.skin });
+      if (added) this.net.send({ t: 'roster', roster: makeRoster(this.g.round) });
+      this.net.send({ t: 'start', to: p.id, roster: makeRoster(this.g.round), mode: this.g.round.mode, map: this.g.mapId });
+      this.g.ui.toast(added ? `${p.name} присоединился к игре` : `${p.name} наблюдает за игрой`);
+    }
+    this.roundPlayers = new Set(m.players.filter(p => p.ready).map(p => p.id));
   }
 
   renderLobby() {
@@ -181,6 +229,7 @@ export class Multiplayer {
     // имя хозяина — на его героя
     if (R.player) R.player.name = this.myName || R.player.name;
     this.net.send({ t: 'start', roster: makeRoster(R), mode: R.mode, map: this.g.mapId });
+    this.roundPlayers = new Set(this.net.players.map(p => p.id));
     this.sendT = 0;
   }
 
@@ -285,25 +334,29 @@ export class Multiplayer {
     const snap = gv.snap;
     const me = gv.me(this.net.id);
     const living = [...gv.agents.values()].filter(v => v.s?.[10]);
-    const spectating = !me && living.length > 0;
-    const watched = spectating ? living[this.guestFocus % living.length] : null;
-    const focus = me?.pos || watched?.pos || (gv.agents.values().next().value?.pos) || new THREE.Vector3(0, 0, 22);
+    const ghostViews = (snap?.g || []).filter(s => s[5] > 0).map(s => ({
+      ctrl: { pos: new THREE.Vector3(s[1], s[2], s[3]), yaw: s[4] },
+      def: GHOST, root: g.ghostPool[s[0]].root,
+    }));
+    const spectating = !me && (ghostViews.length > 0 || living.length > 0);
+    const watched = spectating ? (ghostViews.length ? ghostViews[this.guestFocus % ghostViews.length] : living[this.guestFocus % living.length]) : null;
+    const focus = me?.pos || watched?.ctrl?.pos || watched?.pos || (gv.agents.values().next().value?.pos) || new THREE.Vector3(0, 0, 22);
     const mine = me?.kind === 'agent' ? me.v.s : null, gmine = me?.kind === 'ghost' ? me.g : null;
     g.mainFirstPersonTarget = spectating ? watched : null;
-    const cameraKind = me?.kind === 'agent' && me.v.s?.[18] ? 'head' : me?.kind;
+    const cameraKind = spectating && ghostViews.length ? 'ghost' : me?.kind === 'agent' && me.v.s?.[18] ? 'head' : me?.kind;
     if (cameraKind !== this.lastKind) {
       g.cam.configure(cameraKind === 'head' ? { distance: 4.5, height: 1.18, side: 0.35 }
         : me?.kind === 'ghost' ? GHOST.cam : (me?.v?.def.cam || HEROES[0].cam));
       g.cam.snap(focus);
       this.lastKind = cameraKind;
     }
-    if (spectating) g.firstPerson({ ctrl: { pos: watched.pos, yaw: watched.yaw }, hero: watched.def });
+    if (spectating) g.firstPerson(watched.ctrl ? watched : { ctrl: { pos: watched.pos, yaw: watched.yaw }, hero: watched.def });
     else g.cam.update(dt, focus, inp);
     this.focusPos = focus;
     if (!snap) return;
     document.getElementById('watch-bar').classList.toggle('hidden', !spectating);
     document.getElementById('touch').classList.toggle('hidden', spectating);
-    if (spectating) document.getElementById('btn-next').textContent = 'Другой герой ›';
+    if (spectating) document.getElementById('btn-next').textContent = ghostViews.length ? 'Другой Безлик ›' : 'Другой герой ›';
     const watchingGhost = mine && snap.ph === 'hide' && (mine[9] || mine[11] || mine[14])
       ? snap.g.filter(s => s[5]).sort((a, b) => Math.hypot(a[1] - focus.x, a[3] - focus.z) - Math.hypot(b[1] - focus.x, b[3] - focus.z))[0]
       : null;
@@ -325,7 +378,7 @@ export class Multiplayer {
     let status;
     if (snap.ph === 'hide' && snap.sp === 0) status = gmine ? 'Закрой глаза и считай… Герои прячутся!' : 'Безлики скоро выйдут — прячься!';
     else if (gmine) status = gmine[10] || gmine[11] ? 'Ты замаскирован — подкрадись!' : snap.ph === 'hide' ? `Найди спрятавшихся! Осталось: ${alive}` : `Догони всех! Осталось: ${alive}`;
-    else if (!me) status = 'Тебя нашли! Смотри, как прячутся другие…';
+    else if (!me) status = ghostViews.length ? 'Взгляд Безлика: смотри, как он ищет героев' : 'Тебя нашли! Смотри, как прячутся другие…';
     else if (mine[11]) status = 'Ты — предмет. Не шевелись! (Q — снова стать собой)';
     else status = mine[18] ? `Три головы: ${mine[18].filter(h => h[5]).length}/3 · убегай от Безлика!` : mine[14] ? 'Тихо… тебя ищут' : snap.ph === 'chase' ? 'Догонялки! Не попадись!' : 'Безлики ищут. Спрячься или замаскируйся!';
     g.ui.status(status, 'calm');
@@ -396,8 +449,8 @@ export class Multiplayer {
         const v = [...this.guest.agents.values()].find(a => a.pid === me);
         if (v) v.pos = null;
       }
-    } else if (m.k === 'ability' && ['fear', 'hypnosis', 'glare'].includes(m.id)) {
-      g.sound.brothersCue?.(m.id);
+    } else if (m.k === 'ability' && ['fear', 'hypnosis', 'glare', 'repel'].includes(m.id)) {
+      if (m.id !== 'repel') g.sound.brothersCue?.(m.id);
       const caster = [...this.guest.agents.values()].find(v => v.pid === m.pid);
       const p = caster?.pos;
       if (p) {

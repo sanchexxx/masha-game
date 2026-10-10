@@ -17,14 +17,17 @@ export const HERO_ABILITIES = {
     { id: 'wave', key: 'G', name: 'Привет!', icon: '👋', tag: 'Эмоция', anim: 'wave', dur: 1.6, lock: 0 },
   ],
   kid: [
+    { id: 'repel', key: '1', name: 'Вспышка', icon: '✨', tag: 'Побег', anim: 'cast', dur: 0.7, lock: 0.3 },
     { id: 'prop', key: 'Q', name: 'Маскировка', icon: '🎭', tag: 'Прятки', anim: 'poof', dur: 0.25, lock: 0 },
     { id: 'wave', key: 'G', name: 'Привет!', icon: '👋', tag: 'Эмоция', anim: 'wave', dur: 1.4, lock: 0 },
   ],
   masha: [
+    { id: 'repel', key: '1', name: 'Вспышка', icon: '✨', tag: 'Побег', anim: 'cast', dur: 0.7, lock: 0.3 },
     { id: 'prop', key: 'Q', name: 'Маскировка', icon: '🎭', tag: 'Прятки', anim: 'poof', dur: 0.25, lock: 0 },
     { id: 'wave', key: 'G', name: 'Привет!', icon: '👋', tag: 'Эмоция', anim: 'wave', dur: 1.4, lock: 0 },
   ],
   catbus: [
+    { id: 'repel', key: '1', name: 'Вспышка', icon: '✨', tag: 'Побег', anim: 'cast', dur: 0.7, lock: 0.3 },
     { id: 'prop', key: 'Q', name: 'Маскировка', icon: '🎭', tag: 'Прятки', anim: 'poof', dur: 0.25, lock: 0 },
   ],
   brothers: [
@@ -54,7 +57,7 @@ export class AbilitySet {
     if (this.agent.action && this.agent.action.lock > 0) return false;
     a.cdLeft = this.cooldown(a);
     this.agent.action = { name: a.anim, t: 0, dur: a.dur, lock: a.lock, id: a.id, fired: false };
-    if (this.agent.ctrl.hero.id === 'brothers') this.game.emit?.('ability', { agent: this.agent, id });
+    this.game.emit?.('ability', { agent: this.agent, id });
     return true;
   }
 
@@ -109,7 +112,7 @@ export class AbilitySet {
         g.addFx(FX.wisp(g.scene, from, () => {
           if (!target || !target.active) target = nearestGhost(g.ghosts, p, 30);
           return target ? target.pos : null;
-        }, () => { target.slow(cfg.slow); target.stun(cfg.stun); g.sound.land?.(6); }, 7));
+        }, () => { if (target) { target.slow(cfg.slow); target.stun(cfg.stun, 'wisps'); g.sound.land?.(6); } }, 7));
       }
       snd.chime?.([440, 660, 880]);
     } else if (id === 'path') {
@@ -128,26 +131,31 @@ export class AbilitySet {
         const dx = gh.pos.x - p.x, dz = gh.pos.z - p.z, d = Math.hypot(dx, dz);
         if (d > cfg.range + gh.radius) continue;
         if ((dx * fx + dz * fz) / (d || 1) < -0.2) continue;       // сзади не достаёт
-        gh.stun(cfg.stun);
+        gh.stun(cfg.stun, 'swing');
         gh.knock(dx / (d || 1), dz / (d || 1), cfg.knock);
         g.cam.shake = Math.max(g.cam.shake, 0.4);
       }
       snd.land?.(12);
+    } else if (id === 'repel') {
+      g.addFx(FX.glareFlash(g.scene, p.x, p.y, p.z, cfg.radius));
+      for (const gh of g.ghosts) if (gh.active && Math.hypot(gh.pos.x - p.x, gh.pos.z - p.z) <= cfg.radius)
+        gh.stun(cfg.stun, 'repel');
+      snd.chime?.([784, 1046, 1568]);
     } else if (id === 'fear') {
       g.addFx(FX.fearWave(g.scene, p.x, p.y, p.z, cfg.radius));
       for (const gh of g.ghosts) if (gh.active && Math.hypot(gh.pos.x - p.x, gh.pos.z - p.z) <= cfg.radius) {
-        gh.stun(cfg.stun); gh.slow(cfg.slow);
+        gh.stun(cfg.stun, 'fear'); gh.slow(cfg.slow);
       }
       snd.brothersCue?.('fear');
     } else if (id === 'hypnosis') {
       g.addFx(FX.hypnosisVortex(g.scene, p.x, p.y, p.z, cfg.radius));
       for (const gh of g.ghosts) if (gh.active && Math.hypot(gh.pos.x - p.x, gh.pos.z - p.z) <= cfg.radius)
-        gh.confuse(cfg.time);
+        { gh.confuse(cfg.time); gh.stun(cfg.time, 'hypnosis'); }
       snd.brothersCue?.('hypnosis');
     } else if (id === 'glare') {
       g.addFx(FX.glareFlash(g.scene, p.x, p.y, p.z, cfg.radius));
       for (const gh of g.ghosts) if (gh.active && Math.hypot(gh.pos.x - p.x, gh.pos.z - p.z) <= cfg.radius) {
-        gh.reveal(); gh.stun(cfg.stun);
+        gh.reveal(); gh.stun(cfg.stun, 'glare');
         g.addFx(FX.marker(g.scene, () => gh.pos, cfg.mark));
       }
       snd.brothersCue?.('glare');
@@ -158,6 +166,7 @@ export class AbilitySet {
   botThink(threat, td) {
     const c = this.agent.ctrl;
     const g = this.game, p = c.pos;
+    if (threat && td < A().repel.radius && this.ready('repel')) return this.use('repel');
     if (this.get('fear')) {
       if (threat && td < A().fear.radius && this.ready('fear')) return this.use('fear');
       if (threat && td < A().hypnosis.radius && this.ready('hypnosis')) return this.use('hypnosis');

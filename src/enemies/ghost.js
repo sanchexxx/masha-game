@@ -29,6 +29,26 @@ export class Ghost {
     this.root = this.char.root;
     this.root.visible = false;
     scene.add(this.root);
+    this.controlRing = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.055, 6, 32),
+      new THREE.MeshBasicMaterial({ color: 0xff6655, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }));
+    this.controlRing.rotation.x = Math.PI / 2;
+    this.controlRing.position.y = 2.95;
+    this.controlRing.visible = false;
+    this.root.add(this.controlRing);
+    this.controlHalo = new THREE.Mesh(new THREE.TorusGeometry(0.92, 0.025, 6, 32),
+      new THREE.MeshBasicMaterial({ color: 0xff6655, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide }));
+    this.controlHalo.rotation.x = Math.PI / 2;
+    this.controlHalo.position.y = 1.35;
+    this.controlHalo.visible = false;
+    this.root.add(this.controlHalo);
+    const label = document.createElement('canvas'); label.width = 128; label.height = 64;
+    this.controlCanvas = label;
+    this.controlTexture = new THREE.CanvasTexture(label);
+    this.controlLabel = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.controlTexture, transparent: true, depthWrite: false }));
+    this.controlLabel.position.y = 3.5;
+    this.controlLabel.scale.set(1.2, 0.6, 1);
+    this.controlLabel.visible = false;
+    this.root.add(this.controlLabel);
     this.nav = nav || new NavGrid(world, def.radius + 0.1);
     this.ctrl = new PlayerController(def, world);
     this.pos = this.ctrl.pos;
@@ -55,7 +75,8 @@ export class Ghost {
     this.unseen = 0;
     this.wanderTarget = null;
     this.sees = false;
-    this.stunT = 0; this.slowT = 0; this.confusedT = 0;
+    this.stunT = 0; this.slowT = 0; this.confusedT = 0; this.controlKind = '';
+    this.showControl(0, 0, 0, '', 0);
     this.stuckT = 0; this.stuckFrom = null;
     this.aiFlightT = 0;
     this.disguise = null;          // {hero, char, t}
@@ -74,9 +95,33 @@ export class Ghost {
   get disguised() { return !!this.disguise; }
   get eyeY() { return this.pos.y + EYE; }
 
-  stun(sec) { this.stunT = Math.max(this.stunT, sec); this.ctrl.dashT = 0; this.reveal(); }
+  stun(sec, kind = 'stun') { this.stunT = Math.max(this.stunT, sec); this.controlKind = kind; this.ctrl.dashT = 0; this.reveal(); }
   slow(sec) { this.slowT = Math.max(this.slowT, sec); }
   confuse(sec) { this.confusedT = Math.max(this.confusedT, sec); this.reveal(); }
+  showControl(stun, slow, confused, kind, t) {
+    const remaining = Math.max(stun || 0, slow || 0, confused || 0);
+    const visible = remaining > 0.05;
+    this.controlRing.visible = this.controlHalo.visible = this.controlLabel.visible = visible;
+    if (!visible) return;
+    const color = kind === 'hypnosis' ? 0xa85bff : kind === 'glare' ? 0xffdc77
+      : kind === 'wisps' ? 0x75f2d1 : kind === 'fear' ? 0xff657e : 0xffad65;
+    this.controlRing.material.color.setHex(color);
+    this.controlHalo.material.color.setHex(color);
+    this.controlRing.rotation.z = t * 2.5;
+    this.controlHalo.rotation.z = -t * 1.8;
+    this.controlRing.material.opacity = 0.65 + Math.sin(t * 9) * 0.25;
+    const seconds = Math.ceil(remaining);
+    if (this.lastControlSecond !== seconds || this.lastControlKind !== kind) {
+      this.lastControlSecond = seconds; this.lastControlKind = kind;
+      const x = this.controlCanvas.getContext('2d');
+      x.clearRect(0, 0, 128, 64);
+      x.fillStyle = 'rgba(19, 10, 35, 0.82)'; x.fillRect(27, 7, 74, 50);
+      x.strokeStyle = '#' + color.toString(16).padStart(6, '0'); x.lineWidth = 3; x.stroke();
+      x.fillStyle = '#fff7dc'; x.textAlign = 'center'; x.font = 'bold 35px sans-serif';
+      x.fillText(`${seconds}с`, 64, 44);
+      this.controlTexture.needsUpdate = true;
+    }
+  }
   knock(dx, dz, dist) {
     const next = { x: this.pos.x + dx * dist, y: this.pos.y, z: this.pos.z + dz * dist };
     this.world.resolve(next, this.radius, this.pos.y + 0.3, this.pos.y + 2.2);
@@ -157,6 +202,7 @@ export class Ghost {
     this.stunT = Math.max(0, this.stunT - dt);
     this.slowT = Math.max(0, this.slowT - dt);
     this.confusedT = Math.max(0, this.confusedT - dt);
+    this.showControl(this.stunT, this.slowT, this.confusedT, this.controlKind, t);
     this.disguiseCd = Math.max(0, this.disguiseCd - dt);
     if (this.disguise) { this.disguise.t -= dt; if (this.disguise.t <= 0) this.reveal(); }
 

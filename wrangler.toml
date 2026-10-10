@@ -7,15 +7,23 @@ workers_dev = true            # адрес masha-game.<поддомен>.workers
 [assets]
 directory = "."
 binding = "ASSETS"
-run_worker_first = ["/", "/index.html"]
+run_worker_first = ["/", "/index.html", "/api/rooms", "/room/*"]
 
 [[durable_objects.bindings]]
 name = "ROOMS"
 class_name = "Room"
 
+[[durable_objects.bindings]]
+name = "ROOM_DIRECTORY"
+class_name = "RoomDirectory"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Room"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["RoomDirectory"]
 
 # Ветки проверяются в отдельной среде Cloudflare Preview.
 [previews]

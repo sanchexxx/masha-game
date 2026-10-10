@@ -13,6 +13,10 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '
 
 const server = http.createServer((req, res) => {
   let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  if (p === '/api/rooms') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify({ rooms: [...rooms].map(([code, room]) => ({ code, ...room.summary(), updated: Date.now() })) }));
+  }
   if (p.endsWith('/')) p += 'index.html';
   const file = path.join(ROOT, p);
   if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end('нет'); }

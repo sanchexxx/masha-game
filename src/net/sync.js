@@ -24,8 +24,9 @@ export function makeSnapshot(round) {
   const Gs = round.activeGhosts.map((g, i) => {
     const d = g.disguise;
     return [i, r2(g.pos.x), r2(g.pos.y), r2(g.pos.z), r2(g.yaw), g.state === 'hidden' ? 0 : g.state === 'appear' ? 1 : 2, r2(g.appear),
-      g.state === 'hunt' ? 1 : 0, r2(g.ctrl.speed), g.stunT > 0 ? 1 : 0, d?.hero ? d.hero.id : 0, d?.prop ? d.prop.id : 0,
-      g.isPlayer ? 'host' : g.remote || 0, r2(g.ctrl.stamina), g.ctrl.dashCharges, r2(g.ctrl.flyEnergy), r2(g.disguiseCd)];
+      g.state === 'hunt' ? 1 : 0, r2(g.ctrl.speed), r2(g.stunT), d?.hero ? d.hero.id : 0, d?.prop ? d.prop.id : 0,
+      g.isPlayer ? 'host' : g.remote || 0, r2(g.ctrl.stamina), g.ctrl.dashCharges, r2(g.ctrl.flyEnergy), r2(g.disguiseCd),
+      r2(g.slowT), r2(g.confusedT), g.controlKind || ''];
   });
   return { t: 's', ph: round.phase, left: r2(round.left), sp: round.spawned, a: A, g: Gs };
 }
@@ -101,6 +102,7 @@ export class GuestView {
       if (G.root.position.distanceTo(target) > 6) G.root.position.copy(target); else G.root.position.lerp(target, k);
       G.root.rotation.y += Math.atan2(Math.sin(s[4] - G.root.rotation.y), Math.cos(s[4] - G.root.rotation.y)) * k;
       if (shown && !dzKey) G.char.update(dt, { t, speed: s[8], mode: s[7] ? 'hunt' : 'search', appear: s[5] === 1 ? s[6] : 1, stunned: !!s[9] });
+      G.showControl(s[9], s[17], s[18], s[19], t);
       if (shown && dzKey) {
         const key = dzKey + '#' + i;
         let obj = this.ghostDz.get(key);

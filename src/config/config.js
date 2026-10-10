@@ -70,15 +70,16 @@ export const CONFIG = {
   abilities: {
     shelter: { cd: 22, time: 5, radius: 3.4 },       // 1 — Уютный приют: купол, внутри не ловят
     light:   { cd: 14, radius: 6, boost: 1.2, boostTime: 3 }, // 2 — Тёплый свет: полная выносливость себе и друзьям рядом
-    wisps:   { cd: 24, count: 3, slow: 4, stun: 0.6 },// 3 — Духи-помощники: летят к Безлику, замедляют
+    wisps:   { cd: 24, count: 3, slow: 5, stun: 5 },// 3 — Духи-помощники задерживают Безлика
     path:    { cd: 18, time: 8 },                     // 4 — Путь фонарей: следы к безопасному кусту + метки над Безликами
-    swing:   { cd: 2.5, range: 2.6, stun: 1.6, knock: 3.5 }, // F — удар фонарём: оглушает и отбрасывает
+    swing:   { cd: 8, range: 2.6, stun: 5, knock: 3.5 }, // F — удар фонарём: оглушает и отбрасывает
+    repel:   { cd: 24, radius: 4.4, stun: 5 },           // Вспышка: окно для побега у Маши, котика и НэкоБуса
     wave:    { cd: 1.5 },                             // G — приветствие
     dash:    {},                                      // E — рывок (цифры в heroes.*.dash)
     prop:    { cd: 4, walk: 0.45 },                   // Q — маскировка под предмет (Маша, НэкоБус); walk — скорость «ползущего» предмета
-    fear: { cd: 22, radius: 5.8, stun: 1.15, slow: 2.4 },
-    hypnosis: { cd: 19, radius: 8.5, time: 3.1 },
-    glare: { cd: 15, radius: 12, mark: 4.5, stun: 0.35 },
+    fear: { cd: 22, radius: 5.8, stun: 5, slow: 5 },
+    hypnosis: { cd: 19, radius: 8.5, time: 5 },
+    glare: { cd: 17, radius: 12, mark: 5, stun: 5 },
     split: { cd: 999 },
   },
 

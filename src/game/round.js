@@ -50,6 +50,28 @@ export class Round {
     return a;
   }
 
+  // Новый участник входит в уже идущую партию без перезапуска остальных.
+  addLatePlayer({ id, name, hero, skin }) {
+    if (this.phase === 'over') return false;
+    if (hero.id === 'noface') {
+      const ghost = this.ghosts.find(g => !this.activeGhosts.includes(g));
+      if (!ghost) return false;
+      const place = this.ghostSpawns[this.activeGhosts.length % this.ghostSpawns.length];
+      ghost.reset(new THREE.Vector3(place[0], 0, place[1]));
+      ghost.remote = id;
+      ghost.remoteName = name;
+      ghost.spawn();
+      this.activeGhosts.push(ghost);
+      this.spawned++;
+      return true;
+    }
+    const place = this.botSpawns[this.agents.length % this.botSpawns.length] || [this.playerSpawn.x, this.playerSpawn.z];
+    const a = this.makeAgent(hero, false, new THREE.Vector3(place[0], 0, place[1]), skin, id, name);
+    a.invulnerableT = 4;
+    a.protected = true;
+    return true;
+  }
+
   // Разделение Братьев: один участник раунда, три независимые цели для Безлика.
   activateBrothersSplit(a) {
     if (a.hero.id !== 'brothers' || !a.alive || a.splitActive || a.splitUsed) return false;

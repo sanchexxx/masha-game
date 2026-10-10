@@ -338,6 +338,17 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .sel-info.custom .ability, .sel-info.custom .label, .sel-info.custom #hero-tags { display: none; }
 /* лобби совместной игры */
 .friends-btn { margin-top: 10px; color: #ffe2a8; border-color: rgba(255, 210, 130, .55); background: rgba(255, 190, 90, .08); font-weight: 800; }
+#rooms { background: radial-gradient(ellipse at 50% 30%, rgba(60, 30, 90, .6), rgba(10, 8, 30, .94)); overflow-y: auto; }
+#rooms.show { display: block; }
+.rooms-top { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin: 20px 0 10px; }
+.rooms-top button { width: min(100%, 250px); }
+.rooms-note { text-align: center; color: #e8d6b8; margin: 8px 0 18px; }
+.rooms-list { display: grid; gap: 10px; width: min(100%, 750px); margin: 0 auto 18px; color: #e8d6b8; }
+.room-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border: 2px solid rgba(255, 220, 160, .35); border-radius: 14px; background: rgba(30, 19, 47, .9); }
+.room-row .room-info { flex: 1; min-width: 0; }
+.room-row strong { display: block; color: #fff3da; font-size: 18px; }
+.room-row small { display: block; margin-top: 3px; color: #e8d6b8; }
+.room-row button { flex: none; padding: 9px 14px; }
 #lobby { background: radial-gradient(ellipse at 50% 30%, rgba(60, 30, 90, .6), rgba(10, 8, 30, .94)); overflow-y: auto; }
 #lobby.show { display: block; }
 .lb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; }
@@ -364,6 +375,8 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .map-card .m-votes { display: flex; justify-content: center; gap: 4px; min-height: 22px; margin-top: 6px; font-size: 15px; }
 .gold.small { font-size: 15px; }
 @media (max-width: 760px) {
+  .room-row { flex-wrap: wrap; }
+  .room-row button { width: 100%; }
   .lb-grid { grid-template-columns: 1fr; }
   #lb-qr { width: 104px; height: 104px; }
   .maps-foot { flex-wrap: wrap; }
