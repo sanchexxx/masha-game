@@ -268,9 +268,15 @@ export class Round {
     if (!d || !d.lantern) return;
     const l = d.lantern;
     if (!l.carrier) {
-      for (const a of this.agents) {
+      const collectors = this.agents.slice().sort((a, b) => Number(!!b.isPlayer || !!b.remote) - Number(!!a.isPlayer || !!a.remote));
+      for (const a of collectors) {
         if (!a.alive || d.deliveredBy?.[a.key] || (a.brain && !a.brain.deliverySearchReady)) continue;
-        if (a.ctrl.pos.y > 3 || Math.hypot(a.ctrl.pos.x - l.x, a.ctrl.pos.z - l.z) > 3.2) continue;
+        if (a.ctrl.pos.y > 4.5) continue;
+        const x0 = a.deliveryPrevX ?? a.ctrl.pos.x, z0 = a.deliveryPrevZ ?? a.ctrl.pos.z;
+        const dx = a.ctrl.pos.x - x0, dz = a.ctrl.pos.z - z0;
+        const length2 = dx * dx + dz * dz;
+        const t = length2 ? Math.max(0, Math.min(1, ((l.x - x0) * dx + (l.z - z0) * dz) / length2)) : 0;
+        if (Math.hypot(x0 + dx * t - l.x, z0 + dz * t - l.z) > 5) continue;
         l.carrier = a.key;
         if (a.prop) this.toggleProp(a);
         this.emit('lanternPickup', { agent: a });
@@ -348,6 +354,8 @@ export class Round {
         if (ai.dash) this.toggleProp(a);
         else { ai = { ...ai, run: false, jump: false }; a.ctrl.moveMul *= C.abilities.prop.walk; }
       }
+      a.deliveryPrevX = a.ctrl.pos.x;
+      a.deliveryPrevZ = a.ctrl.pos.z;
       a.ctrl.update(dt, ai, a.isPlayer ? camYaw : a.remote ? ai.camYaw || 0 : 0);
       if (a.prop?.obj) { a.prop.obj.position.copy(a.ctrl.pos); }
       const p = a.ctrl.pos;

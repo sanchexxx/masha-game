@@ -138,6 +138,11 @@ export class Game {
     for (const [id, mode] of [['maps-mode-hide', 'hide'], ['maps-mode-delivery', 'delivery']]) ui.on(id, () => this.setGameMode(mode));
     ui.on('btn-watch', () => this.beginRound('watch'));
     ui.on('btn-again', () => this.beginRound(this.mode));
+    ui.on('btn-room-restart', () => {
+      if (!this.mp.isHost || this.round?.player?.alive || this.roundStarting) return;
+      this.ui.toast('Создатель комнаты начинает новый раунд!');
+      this.beginRound(this.mode);
+    });
     ui.on('btn-change', () => (this.mp.inRoom ? this.mp.showLobby() : this.toSelect()));
     ui.on('btn-resume', () => this.resume());
     ui.on('btn-quit', () => { this.ui.show('paused', false); this.toSelect(); });
@@ -372,7 +377,7 @@ export class Game {
     if (button) button.innerHTML = `Начать ${this.gameMode === 'delivery' ? 'доставку' : 'прятки'} <span>›</span>`;
     const note = document.getElementById('maps-mode-note');
     if (note) note.textContent = this.gameMode === 'delivery'
-      ? 'Подойди к фонарю — он подберётся автоматически. Отнеси его к голубому лучу храма на стороне Безликов. Каждый герой может доставить только один фонарь; цель зависит от состава комнаты.'
+      ? 'Фонари появляются в случайных местах. Подойди к фонарю — он подберётся автоматически, затем отнеси его к случайному храму на стороне Безликов. Каждый герой может доставить один фонарь.'
       : 'Сначала спрячься. Когда Безлики выйдут, избегай их поисков и переживи догонялки.';
   }
 
@@ -380,6 +385,7 @@ export class Game {
   async beginRound(mode) {
     if (this.roundStarting) return;
     this.roundStarting = true;
+    document.getElementById('btn-room-restart')?.classList.add('hidden');
     try {
     this.mode = mode;
     this.sound.unlock();
@@ -632,6 +638,8 @@ export class Game {
     R.events.length = 0;
     this.mp.hostTick(dt);
     if (this.state !== 'play') return;
+    document.getElementById('btn-room-restart')?.classList.toggle('hidden',
+      !(this.mp.isHost && this.mode !== 'watch' && R.player && !R.player.alive && R.phase !== 'over'));
     follow = this.#focusTarget();
     this.mainFirstPersonTarget = firstPersonSpectator ? follow : null;
 

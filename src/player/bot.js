@@ -24,6 +24,7 @@ export class BotBrain {
     this.patience = this.#newPatience();
     this.juke = null;               // {x, z, t} — финт вбок
     this.ladder = null;             // лестница, к которой бежим
+    this.ladderJumpT = 0;
   }
 
   // Сколько высидеть в укрытии. В прятках — дольше: там главное не высовываться.
@@ -116,11 +117,18 @@ export class BotBrain {
       const L = this.ladder;
       const fx = L.x + L.nx * (c.radius + 0.25), fz = L.z + L.nz * (c.radius + 0.25);
       const dx = fx - p.x, dz = fz - p.z, dd = Math.hypot(dx, dz);
-      if (dd > 0.5 && !c.climbing && p.y < 0.5) {
+      if (this.ladderJumpT > 0) this.ladderJumpT = Math.max(0, this.ladderJumpT - dt);
+      const atRoofEdge = p.y >= L.top - 0.72;
+      if (dd > 0.5 && !c.climbing && !atRoofEdge) {
         if (!this.path || !this.path.length) this.#go(fx, fz);
       } else {
         inp.x = -L.nx; inp.y = L.nz;                  // в стену → вверх; наверху → на крышу
-        inp.run = false;
+        inp.run = this.ladderJumpT > 0 && !c.exhausted;
+        // На последних сантиметрах лестницы перепрыгиваем через карниз на крышу.
+        if (this.ladderJumpT <= 0 && atRoofEdge && (c.climbing || p.y < L.top + 0.25)) {
+          inp.jump = true;
+          this.ladderJumpT = 0.48;
+        }
         if (c.elevated && c.grounded) { this.mode = 'roof'; this.ladder = null; this.sat = 0; }
         return inp;
       }

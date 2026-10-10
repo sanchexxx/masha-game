@@ -201,7 +201,8 @@ export class PlayerController {
       this.grounded = false;
     } else if (!this.flying && !this.swimming) {
       // Безлик плывёт: падает мягко
-      this.vel.y = Math.max(-W.maxFall * (ph.fly ? 0.3 : 1), this.vel.y - g * dt * (ph.fly && this.vel.y < 0 ? 0.35 : 1));
+      const fastFall = !!inp.fastFall;
+      this.vel.y = Math.max(-W.maxFall * (ph.fly && !fastFall ? 0.3 : 1), this.vel.y - g * dt * (ph.fly && !fastFall && this.vel.y < 0 ? 0.35 : 1));
     }
     this.#integrate(dt);
 

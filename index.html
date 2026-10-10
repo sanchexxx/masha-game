@@ -91,6 +91,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 /* ---------- HUD ---------- */
 #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
 .hud-top { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); text-align: center; }
+.host-restart { position: absolute; top: max(118px, calc(env(safe-area-inset-top) + 114px)); left: 50%; transform: translateX(-50%); width: auto; min-width: 0; margin: 0; padding: 10px 16px; font-size: 15px; white-space: nowrap; pointer-events: auto; z-index: 8; }
 .timer { display: inline-block; font-family: var(--title); font-size: 40px; line-height: 1; padding: 6px 22px 8px; border-radius: 999px; background: var(--panel); border: 1px solid var(--panel-line); text-shadow: 0 0 12px rgba(255, 210, 140, .5); }
 .timer.warn { color: #ffd07a; }
 .status { margin-top: 8px; font-weight: 800; font-size: 16px; text-shadow: 0 2px 6px rgba(0, 0, 0, .8); transition: color .2s; white-space: nowrap; }
@@ -487,6 +488,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 
 @media (max-width: 760px) {
   #hud .hud-top { top: max(7px, env(safe-area-inset-top)); width: min(62vw, 290px); }
+  #hud .host-restart { top: max(114px, calc(env(safe-area-inset-top) + 108px)); padding: 8px 12px; font-size: 13px; }
   #hud .phase { font-size: 17px; padding: 3px 12px 4px; border-radius: 10px; }
   #hud .status {
     display: -webkit-box;
@@ -713,6 +715,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
     <div class="pumpkins-hud">🎃 <b id="pumpkins">0</b></div>
   </div>
   <div class="toast" id="toast"></div>
+  <button class="gold host-restart hidden" id="btn-room-restart">Начать новый раунд ↻</button>
   <div class="abil-bar" id="abil-bar"></div>
   <div class="watch-bar hidden" id="watch-bar"><button class="gold" id="btn-next">Следующий ›</button></div>
   <div class="ghost-view hidden" id="ghost-view" aria-hidden="true"></div>
@@ -789,7 +792,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   window.__bundleVariant = legacy ? 'legacy' : 'modern';
   window.__bootStage = 'скачиваем файл игры (' + window.__bundleVariant + ')';
   var script = document.createElement('script');
-  script.src = legacy ? '/src/main.legacy.bundle.js?v=2026101017' : '/src/main.bundle.js?v=2026101017';
+  script.src = legacy ? '/src/main.legacy.bundle.js?v=2026101018' : '/src/main.bundle.js?v=2026101018';
   script.onerror = function () { say('не загрузился файл игры (' + window.__bundleVariant + ')'); };
   script.onload = function () {
     if (!window.__bootEntered) say('файл игры скачан, но браузер не смог выполнить его (' + window.__bundleVariant + ')');

@@ -36,7 +36,7 @@ export const CONFIG = {
     brothers: { walk: 4.7, run: 8.0, accel: 28, decel: 32, air: 9, jump: 1.55, gravity: 1.2, turn: 10, stamina: 7.0, regen: 0.23, mass: 3.5, reach: 1.4, climb: 2.5, dash: { mul: 1.3, time: 0.46, cooldown: 6 } },
     // Безлик ездит на той же физике. Скорость — как у героев; бег тоже тратит силы.
     // Рывков ограниченно: 3 заряда, новый копится 12 с. Не прыгает — парит вверх (fly), пока есть силы.
-    noface: { walk: 4.6, run: 8.4,  accel: 14, decel: 12, air: 8,  jump: 0,   gravity: 1.0,  turn: 5,  stamina: 9.0, regen: 0.16, mass: 5.0, reach: 0,    climb: 0,   dash: { mul: 1.55, time: 0.8, cooldown: 1.2, charges: 3, recharge: 12 }, fly: { speed: 2.6, time: 2.6, regen: 0.25 } },
+    noface: { walk: 4.6, run: 8.4,  accel: 14, decel: 12, air: 8,  jump: 0,   gravity: 1.0,  turn: 5,  stamina: 9.0, regen: 0.16, mass: 5.0, reach: 0,    climb: 4.2, dash: { mul: 1.55, time: 0.8, cooldown: 1.2, charges: 3, recharge: 12 }, fly: { speed: 5.2, time: 6.5, regen: 0.2 } },
   },
 
   camera: {
@@ -58,6 +58,7 @@ export const CONFIG = {
     burstRange: 7,         // с какого расстояния делает рывок (бот-Безлик)
     catchRadius: 1.05,     // радиус поимки
     catchHeight: 2.2,      // достаёт по высоте (если ты выше — не поймает, надо подлететь)
+    diveCatchHeight: 5.2,  // при атаке сверху может поймать героя в пикировании
     sightRange: 22,        // дальше не видит
     hearRunRange: 9,       // слышит бег на таком расстоянии даже за стеной
     loseSightTime: 2.2,    // сек без прямой видимости — потерял

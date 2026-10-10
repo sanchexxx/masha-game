@@ -79,6 +79,8 @@ export class Ghost {
     this.showControl(0, 0, 0, '', 0);
     this.stuckT = 0; this.stuckFrom = null;
     this.aiFlightT = 0;
+    this.aiAttackTarget = null;
+    this.aiAttackPhase = null;
     this.disguise = null;          // {hero, char, t}
     this.disguiseCd = 6;
     this.caughtN = 0;
@@ -327,12 +329,21 @@ export class Ghost {
       const tp = this.target.ctrl.pos;
       above = tp.y - this.pos.y > 0.8 && Math.hypot(tp.x - this.pos.x, tp.z - this.pos.z) < 3.2;
     }
-    const aim = above ? this.target.ctrl.pos : this.#aim(goal, this.sees && pick && pick.d < 7, dt);
+    const hunting = this.state === 'hunt' && !!this.target && !sneaking;
+    const elevatedTarget = hunting && this.sees && this.target.ctrl.pos.y > this.pos.y + 2.2;
+    const ladder = elevatedTarget ? this.#ladderFor(this.target.ctrl.pos) : null;
+    const ladderApproach = ladder ? { x: ladder.x + ladder.nx * (this.radius + 0.12), z: ladder.z + ladder.nz * (this.radius + 0.12) } : null;
+    const atLadder = !!(ladder && Math.hypot(ladderApproach.x - this.pos.x, ladderApproach.z - this.pos.z) < 1.25
+      && this.pos.y < ladder.top - 0.35 && this.world.ladderAt(this.pos.x, this.pos.z, this.radius, this.pos.y));
+    const aim = atLadder ? ladderApproach : above ? this.target.ctrl.pos
+      : this.#aim(ladderApproach || goal, this.sees && pick && pick.d < 7, dt);
     let wx = aim.x - this.pos.x, wz = aim.z - this.pos.z;
     const wl = Math.hypot(wx, wz);
     if (wl > 0.05) { inp.x = wx / wl; inp.y = -wz / wl; }
-
-    const hunting = this.state === 'hunt' && !!this.target && !sneaking;
+    if (atLadder) {
+      inp.x = -ladder.nx;
+      inp.y = ladder.nz;
+    }
     // бежит, когда видит цель или она близко; бережёт силы, если выдохся
     inp.run = hunting && (this.sees || d < 10) && !c.exhausted;
     // рывок: цель видна, близко, но не вплотную; у бегущей цели — чаще
@@ -340,14 +351,45 @@ export class Ghost {
       const runner = this.target.ctrl.running || this.target.ctrl.dashT > 0;
       if (runner || pick.d < 4 || c.dashCharges >= (c.phys.dash.charges ?? 1)) inp.dash = true;
     }
-    // Если обычный маршрут упёрся в стену, Безлик набирает высоту и перелетает её.
-    // При этом он расходует тот же запас парения, что и игрок, и не летит бесконечно.
+    if (atLadder) { inp.run = false; inp.dash = false; }
+    // На высокую цель сначала ищет лестницу, а если пути нет — набирает высоту и атакует сверху.
     if (!this.disguise && c.flyEnergy > 0.18 && (this.stuckT > 0.38 || (c.hitWall && this.stuckT > 0.15))) {
-      this.aiFlightT = Math.max(this.aiFlightT, 1.05);
+      this.aiFlightT = Math.max(this.aiFlightT, 2.8);
     }
-    inp.jumpHold = above || this.aiFlightT > 0;
+    let attackRise = false, attackDive = false;
+    if (hunting && this.sees && !ladder && d < 18 && c.flyEnergy > 0.08) {
+      if (this.aiAttackTarget !== this.target) {
+        this.aiAttackTarget = this.target;
+        this.aiAttackPhase = 'rise';
+      }
+      const vertical = this.pos.y - this.target.ctrl.pos.y;
+      if (this.aiAttackPhase === 'rise' && vertical >= 4.2) this.aiAttackPhase = 'dive';
+      else if (this.aiAttackPhase === 'dive' && vertical <= 0.8) this.aiAttackPhase = 'rise';
+      attackRise = this.aiAttackPhase === 'rise';
+      attackDive = this.aiAttackPhase === 'dive';
+    } else {
+      this.aiAttackTarget = null;
+      this.aiAttackPhase = null;
+    }
+    inp.jumpHold = !atLadder && (above || this.aiFlightT > 0 || attackRise);
+    inp.fastFall = attackDive;
     this.aiFlightT = Math.max(0, this.aiFlightT - dt);
     return inp;
+  }
+
+  #ladderFor(target) {
+    let best = null, score = Infinity;
+    for (const ladder of this.world.ladders) {
+      if (ladder.top < target.y - 1.2) continue;
+      const approachX = ladder.x + ladder.nx * (this.radius + 0.12);
+      const approachZ = ladder.z + ladder.nz * (this.radius + 0.12);
+      const toGhost = Math.hypot(approachX - this.pos.x, approachZ - this.pos.z);
+      const toTarget = Math.hypot(target.x - ladder.x, target.z - ladder.z);
+      if (toGhost > 22 || toTarget > 18) continue;
+      const candidate = toGhost + toTarget * 0.8;
+      if (candidate < score) { score = candidate; best = ladder; }
+    }
+    return best;
   }
 
   #aim(target, direct, dt) {
@@ -427,8 +469,9 @@ export class Ghost {
   catches(a) {
     if (!this.active || this.stunT > 0 || !a.alive || a.protected) return false;
     const p = a.ctrl.pos;
+    const diving = this.ctrl.vel.y < -1.2;
     return Math.hypot(p.x - this.pos.x, p.z - this.pos.z) < C.catchRadius + a.ctrl.radius * 0.6
-      && p.y - this.pos.y < C.catchHeight && this.pos.y - p.y < 1.5;
+      && p.y - this.pos.y < C.catchHeight && this.pos.y - p.y < (diving ? C.diveCatchHeight : 1.5);
   }
 }
 
