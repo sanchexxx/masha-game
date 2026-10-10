@@ -178,7 +178,8 @@ export class Multiplayer {
       if (p.id === this.net.id || this.roundPlayers?.has(p.id) || !p.ready) continue;
       const added = this.g.round.addLatePlayer({ id: p.id, name: p.name, hero: heroById(p.hero), skin: p.skin });
       if (added) this.net.send({ t: 'roster', roster: makeRoster(this.g.round) });
-      this.net.send({ t: 'start', to: p.id, roster: makeRoster(this.g.round), mode: this.g.round.mode, gameMode: this.g.round.gameMode, map: this.g.mapId });
+      this.net.send({ t: 'start', to: p.id, roster: makeRoster(this.g.round), mode: this.g.round.mode, gameMode: this.g.round.gameMode, map: this.g.mapId,
+        goal: this.g.round.delivery?.goal, duration: this.g.round.duration });
       this.g.ui.toast(added ? `${p.name} присоединился к игре` : `${p.name} наблюдает за игрой`);
     }
     this.roundPlayers = new Set(m.players.filter(p => p.ready).map(p => p.id));
@@ -216,7 +217,7 @@ export class Multiplayer {
       $(id).classList.toggle('active', net.gameMode === mode);
     }
     $('lb-mode-note').textContent = net.gameMode === 'delivery'
-      ? 'Подойдите к фонарю под золотым лучом, затем к святилищу под голубым лучом. Подбор и доставка автоматические. Нужно 3 доставки за 4 минуты.'
+      ? 'Подойдите к фонарю под золотым лучом, затем несите его через карту к храму под голубым лучом. Подбор и доставка автоматические. Цель: от 5 до 15 фонарей по числу игроков.'
       : 'Сначала прячьтесь от Безлика, затем убегайте в догонялках.';
     $('lb-start').innerHTML = `Начать ${net.gameMode === 'delivery' ? 'доставку' : 'прятки'} <span>›</span>`;
     $('lb-start').classList.toggle('hidden', !amHost);
@@ -287,7 +288,8 @@ export class Multiplayer {
     const R = this.g.round;
     // имя хозяина — на его героя
     if (R.player) R.player.name = this.myName || R.player.name;
-    this.net.send({ t: 'start', roster: makeRoster(R), mode: R.mode, gameMode: R.gameMode, map: this.g.mapId });
+    this.net.send({ t: 'start', roster: makeRoster(R), mode: R.mode, gameMode: R.gameMode, map: this.g.mapId,
+      goal: R.delivery?.goal, duration: R.duration });
     this.roundPlayers = new Set(this.net.players.map(p => p.id));
     this.sendT = 0;
   }
@@ -366,7 +368,7 @@ export class Multiplayer {
     g.cam.yaw = 0; g.cam.pitch = 0.3;
     g.ui.mode('play', g.isTouch, 'play');
     g.ui.phase(g.gameMode === 'delivery' ? 'delivery' : 'hide');
-    g.showModeIntro(g.gameMode);
+    g.showModeIntro(g.gameMode, m.goal, m.duration);
     g.ui.pumpkins(0);
     g.ui.abilityBar([]);
     this.lastBar = null;
@@ -438,7 +440,7 @@ export class Multiplayer {
     // интерфейс
     g.ui.phase(snap.ph === 'delivery' ? 'delivery' : snap.ph === 'chase' ? 'chase' : 'hide');
     const alive = snap.a.filter(a => a[10]).length;
-    g.ui.alive(alive, snap.a.length, snap.ph === 'delivery' ? `🏮 Доставлено ${snap.d?.delivered || 0}/${snap.d?.goal || 3} · героев` : snap.ph === 'hide' ? 'Спрятались' : 'Убегают');
+    g.ui.alive(alive, snap.a.length, snap.ph === 'delivery' ? `🏮 Доставлено ${snap.d?.delivered || 0}/${snap.d?.goal || 5} · героев` : snap.ph === 'hide' ? 'Спрятались' : 'Убегают');
     g.ui.hud({ left: snap.left, stamina: mine ? mine[15] : gmine ? gmine[13] : 1, tired: mine ? !!mine[16] : false, hidden: mine ? !!mine[14] : false });
     let status;
     if (snap.ph === 'delivery') {
@@ -447,11 +449,11 @@ export class Multiplayer {
       const nearLantern = mine && !snap.d?.lantern?.carrier
         && Math.hypot(mine[1] - snap.d.lantern.x, mine[3] - snap.d.lantern.z) < 4;
       const guide = mine && snap.d ? objectiveGuide({ x: mine[1], z: mine[3] }, carrying ? snap.d.shrine : snap.d.lantern, g.cam.yaw) : '';
-      status = gmine ? `Помешай доставке! Фонари: ${snap.d?.delivered || 0}/${snap.d?.goal || 3}`
+      status = gmine ? `Помешай доставке! Фонари: ${snap.d?.delivered || 0}/${snap.d?.goal || 5}`
         : carrying ? `Святилище ${guide} · неси фонарь!`
         : nearLantern ? 'Подойди к фонарю — он подберётся автоматически!'
         : carrier ? `${carrier.name} несёт фонарь — помоги ему добраться до святилища`
-        : `🏮 Фонарь ${guide} · подойди и подбери · ${snap.d?.delivered || 0}/${snap.d?.goal || 3}`;
+        : `🏮 Фонарь ${guide} · подойди и подбери · ${snap.d?.delivered || 0}/${snap.d?.goal || 5}`;
     }
     else if (snap.ph === 'hide' && snap.sp === 0) status = gmine ? 'Закрой глаза и считай… Герои прячутся!' : 'Безлики скоро выйдут — прячься!';
     else if (gmine) status = gmine[10] || gmine[11] ? 'Ты замаскирован — подкрадись!' : snap.ph === 'hide' ? `Найди спрятавшихся! Осталось: ${alive}` : `Догони всех! Осталось: ${alive}`;

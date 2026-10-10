@@ -372,15 +372,15 @@ export class Game {
     if (button) button.innerHTML = `Начать ${this.gameMode === 'delivery' ? 'доставку' : 'прятки'} <span>›</span>`;
     const note = document.getElementById('maps-mode-note');
     if (note) note.textContent = this.gameMode === 'delivery'
-      ? 'Найди фонарь под золотым лучом. Подойди — он подберётся сам. Неси к голубому лучу святилища: доставка тоже автоматическая. Три раза за 4 минуты.'
+      ? 'Найди фонарь под золотым лучом. Подойди — он подберётся сам. Неси к голубому лучу далёкого святилища: доставка автоматическая. Цель — от 5 до 15 фонарей по числу игроков.'
       : 'Спрячься от Безлика, переживи поиски и догонялки.';
   }
 
-  showModeIntro(gameMode = this.gameMode) {
+  showModeIntro(gameMode = this.gameMode, goal = this.round.delivery?.goal, duration = this.round.duration) {
     const intro = document.getElementById('mode-intro');
     if (!intro) return;
     intro.innerHTML = gameMode === 'delivery'
-      ? '<b>🏮 Доставка фонаря</b><span>Найди большой фонарь под золотым лучом. Подойди — герой возьмёт его сам. Неси к голубому лучу святилища: доставка тоже автоматическая. Нужно 3 фонаря за 4 минуты.</span>'
+      ? `<b>🏮 Доставка фонаря</b><span>Найди фонарь под золотым лучом — он подберётся сам. Неси его через карту к голубому лучу храма Безликов: доставка автоматическая. Цель: ${goal || 5} фонарей за ${Math.ceil((duration || 240) / 60)} минут.</span>`
       : '<b>🎭 Прятки с Безликом</b><span>Сначала спрячься. Когда выйдет Безлик, не дай себя поймать. Затем начнутся догонялки.</span>';
     intro.classList.remove('hidden');
     clearTimeout(this.modeIntroTimer);

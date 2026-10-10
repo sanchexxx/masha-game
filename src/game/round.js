@@ -179,7 +179,12 @@ export class Round {
     for (const r of remoteGhosts) { const g = this.activeGhosts[gi++]; g.remote = r.id; g.remoteName = r.name; }
     this.netIn.clear();
     this.setPhase(this.gameMode === 'delivery' ? 'delivery' : 'hide');
-    this.delivery = this.gameMode === 'delivery' ? { delivered: 0, goal: 3, lantern: null, shrine: null } : null;
+    // Цель зависит от числа людей в комнате; боты помогают, но не раздувают норму.
+    const participants = Math.max(1, remotes.length + (opts.mode === 'watch' ? 0 : 1));
+    this.delivery = this.gameMode === 'delivery'
+      ? { delivered: 0, goal: Math.min(15, 3 + participants * 2), lantern: null, shrine: null }
+      : null;
+    if (this.delivery) this.duration = 240 + (this.delivery.goal - 5) * 36;
     if (this.delivery) this.nextDelivery(true);
   }
 
@@ -193,7 +198,7 @@ export class Round {
   get left() { return Math.max(0, this.duration - this.t); }
 
   // В каждой доставке фонарь и святилище появляются в достижимых точках карты.
-  #deliveryPoint({ from = null, min = 0, max = 100, avoid = null } = {}) {
+  #deliveryPoint({ from = null, min = 0, max = 100, avoid = null, accept = null, required = false } = {}) {
     const nav = this.navFor(0.85); // и большой Котобус пройдёт к цели
     for (let tries = 0; tries < 160; tries++) {
       const anchored = from && tries < 100;
@@ -207,17 +212,51 @@ export class Round {
       if (this.world.groundAt(x, z, 0.7, 99) > 1.1) continue;
       if (from && Math.hypot(x - from.x, z - from.z) < min) continue;
       if (avoid && Math.hypot(x - avoid.x, z - avoid.z) < 8) continue;
+      if (accept && !accept(x, z)) continue;
       if (!nav.find(this.playerSpawn.x, this.playerSpawn.z, x, z)) continue;
       if (from && !nav.find(from.x, from.z, x, z)) continue;
       return { x: Math.round(x * 10) / 10, z: Math.round(z * 10) / 10 };
     }
-    return { x: this.playerSpawn.x, z: this.playerSpawn.z };
+    return required ? null : { x: this.playerSpawn.x, z: this.playerSpawn.z };
   }
 
   nextDelivery(first = false) {
     const previous = this.delivery?.shrine;
-    const lantern = this.#deliveryPoint({ from: previous || this.playerSpawn, min: previous ? 9 : 7, max: previous ? 19 : 16 });
-    const shrine = this.#deliveryPoint({ from: lantern, min: 14, max: 26, avoid: previous });
+    const lantern = this.#deliveryPoint({ from: this.playerSpawn, min: 6, max: 19,
+      avoid: this.delivery?.lantern });
+    // Храм каждый раз появляется в проходимой точке на стороне Безликов.
+    // Фонарь остаётся на стороне героев: доставка требует пересечь карту.
+    const spawnDistance = this.world.half * 0.65;
+    const routeDistance = this.world.half * 0.82;
+    const farFromHeroes = (x, z) => Math.hypot(x - this.playerSpawn.x, z - this.playerSpawn.z) >= spawnDistance
+      && this.botSpawns.every(([sx, sz]) => Math.hypot(x - sx, z - sz) >= spawnDistance * 0.7)
+      && Math.hypot(x - lantern.x, z - lantern.z) >= routeDistance;
+    const anchors = this.ghostSpawns.slice().sort(() => Math.random() - 0.5);
+    let shrine = null;
+    for (const [x, z] of anchors) {
+      shrine = this.#deliveryPoint({ from: { x, z }, min: 3, max: 19, avoid: previous,
+        accept: farFromHeroes, required: true });
+      if (shrine) break;
+    }
+    if (!shrine) {
+      for (const [x, z] of anchors) {
+        shrine = this.#deliveryPoint({ from: { x, z }, min: 2, max: 20, avoid: previous,
+          accept: (px, pz) => Math.hypot(px - this.playerSpawn.x, pz - this.playerSpawn.z) >= spawnDistance,
+          required: true });
+        if (shrine) break;
+      }
+    }
+    if (!shrine) shrine = this.#deliveryPoint({
+      accept: (x, z) => Math.hypot(x - this.playerSpawn.x, z - this.playerSpawn.z) >= spawnDistance,
+      required: true,
+    });
+    // Даже при редком сбое выборки не ставим храм у старта героев.
+    if (!shrine) {
+      const nav = this.navFor(0.85);
+      const [i, j] = nav.nearestFree(...nav.toCell(anchors[0][0], anchors[0][1]));
+      const [x, z] = nav.center(i, j);
+      shrine = { x, z };
+    }
     this.delivery.lantern = { ...lantern, carrier: null };
     this.delivery.shrine = shrine;
     this.emit('deliveryNext', { first, lantern, shrine });
