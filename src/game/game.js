@@ -139,6 +139,7 @@ export class Game {
     this.coach = new Coach(this);
     this.#lineupPointer();
     ui.on('btn-tutorial', () => this.coach.start());
+    ui.on('btn-tutorial2', () => this.coach.start());
     ui.on('btn-pause-tut', () => { this.ui.show('paused', false); this.#quitTraining(); this.coach.start(); });
     ui.on('btn-maps-train', () => this.beginRound(this.hero.id === 'noface' ? 'hunter' : 'play', true));
     ui.on('btn-td-real', () => { this.ui.show('train-done', false); this.beginRound(this.hero.id === 'noface' ? 'hunter' : 'play'); });

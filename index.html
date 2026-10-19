@@ -611,17 +611,21 @@ html:root .si-foot .gold { margin-top: 8px; }
 html:root .si-name { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
 html:root .si-name h2 { margin: 0; font-size: clamp(26px, 3vw, 36px); }
 html:root .sel-info #hero-about { display: block; margin: 8px 0 4px; font-size: 13.5px; color: #d8d2e6; }
-html:root .sel-cards { grid-column: 1; grid-row: 3; justify-content: safe center; gap: 8px; }
-html:root .card { width: clamp(76px, 8.4vw, 108px); height: clamp(92px, 13vh, 136px); border-radius: 14px; }
-html:root .card .c-name { font-size: clamp(14px, 1.5vw, 19px); }
-html:root .card .c-tag { display: none; }
+html:root .sel-cards { grid-column: 1; grid-row: 3; }
 
 /* Телефон вертикально: улица сверху, панель снизу листом, карточки не нужны — герои стоят на улице */
 html:root:not(.landscape) #select.show { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; gap: 6px; }
 html:root:not(.landscape) .sel-head { grid-column: 1; justify-content: center; text-align: center; }
 html:root:not(.landscape) .sel-head h1 { font-size: clamp(30px, 9vw, 44px); width: 100%; }
 html:root:not(.landscape) .sel-info { grid-column: 1; grid-row: 3; max-height: 49vh; max-height: 49dvh; border-radius: 22px 22px 18px 18px; }
-html:root:not(.landscape) .sel-cards { display: none; }
+html:root:not(.landscape) #select.show { grid-template-rows: auto minmax(0, 1fr) auto auto; }
+html:root:not(.landscape) .sel-cards { grid-column: 1; grid-row: 4; }
+html:root:not(.landscape) .sel-info { max-height: 40vh; max-height: 40dvh; }
+html:root:not(.landscape) .card { width: 88px; height: 112px; }
+html:root:not(.landscape) .card .c-name { font-size: 16px; }
+html:root:not(.landscape) .sel-head h1, html:root:not(.landscape) .sel-head .tut-btn { display: none; }
+html:root:not(.landscape) .sel-info { max-height: 38vh; max-height: 38dvh; }
+@media (max-height: 520px) { html:root .sel-head { display: none; } }
 html:root:not(.landscape) .sel-head p { display: none; }
 html:root:not(.landscape) .sel-head h1 { font-size: clamp(28px, 8vw, 40px); }
 html:root:not(.landscape) .tut-btn { font-size: 14px; padding: 4px 14px 4px 4px; }
@@ -650,6 +654,7 @@ html:root:not(.landscape) .si-foot .friends-btn, html:root:not(.landscape) .si-f
   background: linear-gradient(180deg, rgba(255, 232, 168, .2), rgba(240, 185, 74, .08)); border: 1.5px solid rgba(255, 214, 130, .75);
   box-shadow: 0 0 18px rgba(255, 200, 100, .35), inset 0 1px 0 rgba(255, 255, 255, .25); animation: tutGlow 2.4s ease-in-out infinite; }
 .tut-btn:active { transform: scale(.97); }
+.si-foot .tut-btn.wide { width: 100%; justify-content: center; margin-top: 8px; padding: 7px 16px 7px 7px; }
 .tut-ic { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 17px; background: linear-gradient(180deg, var(--gold1), var(--gold2)); box-shadow: 0 2px 0 #a8741d; }
 @keyframes tutGlow { 50% { box-shadow: 0 0 30px rgba(255, 200, 100, .6), inset 0 1px 0 rgba(255, 255, 255, .25); } }
 
@@ -684,7 +689,6 @@ html:root .sel-info.custom .powers { display: block; }
   .pw-ic { width: 36px; height: 36px; font-size: 18px; border-radius: 10px; }
   .pw-tx b { font-size: 13px; } .pw-tx span { font-size: 11.5px; } .pw-tx small { display: none; }
   .lu-tag { font-size: 11px; padding: 3px 8px; }
-  html:root .sel-cards { display: none; }
   html:root .si-foot .wallet-row { display: none; }
   html:root .si-foot .gold { margin-top: 6px; padding: 7px 12px; font-size: 16px; }
   html:root .si-foot .friends-btn, html:root .si-foot .sel-row .ghost-btn { margin-top: 4px; padding: 5px 8px; font-size: 12px; }
@@ -820,6 +824,7 @@ html:root:not(.landscape) #train { top: max(232px, calc(env(safe-area-inset-top)
         <button class="ghost-btn" id="btn-watch">👀 Смотреть, как бегают все</button>
         <button class="ghost-btn small" id="btn-tuner2" title="Физика героев">⚙</button>
       </div>
+      <button class="tut-btn wide" id="btn-tutorial2"><span class="tut-ic">🎓</span> Пройти обучение</button>
     </div>
   </section>
   <section class="sel-cards" id="cards"></section>
@@ -1004,8 +1009,27 @@ html:root:not(.landscape) #train { top: max(232px, calc(env(safe-area-inset-top)
     (/Android/.test(ua) && (!chrome || Number(chrome[1]) < 100));
   window.__bundleVariant = legacy ? 'legacy' : 'modern';
   window.__bootStage = 'скачиваем файл игры (' + window.__bundleVariant + ')';
+  // Приложение с иконки на iPhone держит старую страницу в памяти. Сверяем версию с сервером
+  // при каждом возвращении в игру и раз в 3 минуты; обновляемся только вне раунда.
+  window.__gameVersion = '2026101923';
+  var updateReady = false;
+  function checkVersion() {
+    if (!window.fetch) return;
+    fetch('/version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (d && d.v && d.v !== window.__gameVersion) updateReady = true;
+      tryUpdate();
+    }).catch(function () {});
+  }
+  function tryUpdate() {
+    var st = window.__game && window.__game.state;
+    if (updateReady && st !== 'play' && st !== 'guest' && st !== 'paused' && st !== 'lobby') location.reload();
+  }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) checkVersion(); });
+  addEventListener('pageshow', function (e) { if (e.persisted) checkVersion(); });
+  setInterval(checkVersion, 180000);
+  setInterval(tryUpdate, 5000);
   var script = document.createElement('script');
-  script.src = legacy ? '/src/main.legacy.bundle.js?v=2026101920' : '/src/main.bundle.js?v=2026101920';
+  script.src = legacy ? '/src/main.legacy.bundle.js?v=2026101923' : '/src/main.bundle.js?v=2026101923';
   script.onerror = function () { say('не загрузился файл игры (' + window.__bundleVariant + ')'); };
   script.onload = function () {
     if (!window.__bootEntered) say('файл игры скачан, но браузер не смог выполнить его (' + window.__bundleVariant + ')');
