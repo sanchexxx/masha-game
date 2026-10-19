@@ -23,7 +23,7 @@ export class RoomCore {
     this.players.set(conn, { id, name: 'Игрок ' + this.seq, hero: 'kid', skin: 'classic', vote: 'village', ready: false });
     if (!this.hostConn) this.hostConn = conn;
     this.send(conn, { t: 'welcome', id, started: this.started });
-    this.#lobby();
+    this._lobby();
     return true;
   }
 
@@ -39,12 +39,12 @@ export class RoomCore {
       me.hero = String(m.hero || me.hero).slice(0, 16);
       me.skin = String(m.skin || me.skin).slice(0, 400);
       me.ready = true;
-      return this.#lobby();
+      return this._lobby();
     }
-    if (m.t === 'vote') { me.vote = String(m.map || 'village').slice(0, 16); return this.#lobby(); }
+    if (m.t === 'vote') { me.vote = String(m.map || 'village').slice(0, 16); return this._lobby(); }
     if (conn === this.hostConn) {
-      if (m.t === 'bots') { if (this.started) return; this.bots = !!m.enabled; return this.#lobby(); }
-      if (m.t === 'gameMode') { if (this.started) return; this.gameMode = m.mode === 'delivery' ? 'delivery' : 'hide'; return this.#lobby(); }
+      if (m.t === 'bots') { if (this.started) return; this.bots = !!m.enabled; return this._lobby(); }
+      if (m.t === 'gameMode') { if (this.started) return; this.gameMode = m.mode === 'delivery' ? 'delivery' : 'hide'; return this._lobby(); }
       if (m.t === 'start') this.started = true;
       if (m.t === 'lobbyBack') this.started = false;
       if (m.t === 'start' || m.t === 'lobbyBack') this.onChange(this.summary());
@@ -72,17 +72,19 @@ export class RoomCore {
     }
     if (!this.players.size) this.started = false;
     for (const c of this.players.keys()) this.send(c, { t: 'left', id: me.id });
-    this.#lobby();
+    this._lobby();
   }
 
-  #lobby() {
-    const host = this.hostConn ? this.players.get(this.hostConn)?.id : null;
+  _lobby() {
+    const hostPlayer = this.hostConn ? this.players.get(this.hostConn) : null;
+    const host = hostPlayer ? hostPlayer.id : null;
     const players = [...this.players.values()];
     for (const c of this.players.keys()) this.send(c, { t: 'lobby', players, host, started: this.started, bots: this.bots, gameMode: this.gameMode });
     this.onChange(this.summary());
   }
 
   summary() {
-    return { players: this.players.size, host: this.hostConn ? this.players.get(this.hostConn)?.name : '', started: this.started, bots: this.bots, gameMode: this.gameMode };
+    const hostPlayer = this.hostConn ? this.players.get(this.hostConn) : null;
+    return { players: this.players.size, host: hostPlayer ? hostPlayer.name : '', started: this.started, bots: this.bots, gameMode: this.gameMode };
   }
 }

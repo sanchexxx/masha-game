@@ -26,7 +26,6 @@ export class LanternView {
     const halo = new THREE.Mesh(new THREE.SphereGeometry(0.78, 12, 8),
       new THREE.MeshBasicMaterial({ color: 0xffae40, transparent: true, opacity: 0.16, depthWrite: false, blending: THREE.AdditiveBlending }));
     halo.position.y = 0.62; this.lantern.add(halo);
-    this.root.add(this.lantern);
     this.beacon = new THREE.Group();
     const beaconMat = new THREE.MeshBasicMaterial({ color: 0xffc660, transparent: true, opacity: 0.15,
       depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
@@ -35,7 +34,7 @@ export class LanternView {
     const pickupRing = new THREE.Mesh(new THREE.TorusGeometry(1.32, 0.08, 6, 32),
       new THREE.MeshBasicMaterial({ color: 0xffd467, transparent: true, opacity: 0.88 }));
     pickupRing.rotation.x = Math.PI / 2; pickupRing.position.y = 0.1; this.beacon.add(pickupRing);
-    this.root.add(this.beacon);
+    this.lanternViews = new Map();
     this.shrine = new THREE.Group();
     const base = new THREE.Mesh(new THREE.CylinderGeometry(1.22, 1.35, 0.28, 12), dark);
     base.position.y = 0.12; this.shrine.add(base);
@@ -59,16 +58,30 @@ export class LanternView {
   }
 
   update(state, agents, t) {
-    this.root.visible = !!state?.lantern && !!state?.shrine;
+    const lanterns = state?.lanterns || (state?.lantern ? [state.lantern] : []);
+    this.root.visible = lanterns.length > 0 && !!state?.shrine;
     if (!this.root.visible) return;
-    const l = state.lantern, s = state.shrine;
-    const carrier = l.carrier && agents.find(a => a.key === l.carrier);
-    const y = carrier ? carrier.ctrl.pos.y + 2.2 : this.world.groundAt(l.x, l.z, 0.3, 2) + 0.2;
-    this.lantern.position.set(l.x, y + Math.sin(t * 3) * 0.12, l.z);
-    this.lantern.rotation.y = t * 0.7;
-    this.beacon.visible = !l.carrier;
-    this.beacon.position.set(l.x, this.world.groundAt(l.x, l.z, 0.3, 2) + 0.05, l.z);
-    this.beacon.children[1].scale.setScalar(1 + Math.sin(t * 3) * 0.07);
+    const liveIds = new Set(lanterns.filter(l => !l.delivered).map(l => l.id));
+    for (const [id, view] of this.lanternViews) if (!liveIds.has(id)) {
+      this.root.remove(view.lantern); this.root.remove(view.beacon); this.lanternViews.delete(id);
+    }
+    for (const l of lanterns) {
+      if (l.delivered) continue;
+      let view = this.lanternViews.get(l.id);
+      if (!view) {
+        view = { lantern: this.lantern.clone(true), beacon: this.beacon.clone(true) };
+        this.root.add(view.lantern); this.root.add(view.beacon);
+        this.lanternViews.set(l.id, view);
+      }
+      const carrier = l.carrier && agents.find(a => a.key === l.carrier);
+      const y = carrier ? carrier.ctrl.pos.y + 2.2 : this.world.groundAt(l.x, l.z, 0.3, 2) + 0.2;
+      view.lantern.position.set(l.x, y + Math.sin(t * 3 + l.id) * 0.12, l.z);
+      view.lantern.rotation.y = t * 0.7 + l.id;
+      view.beacon.visible = !l.carrier;
+      view.beacon.position.set(l.x, this.world.groundAt(l.x, l.z, 0.3, 2) + 0.05, l.z);
+      view.beacon.children[1].scale.setScalar(1 + Math.sin(t * 3 + l.id) * 0.07);
+    }
+    const s = state.shrine;
     this.shrine.position.set(s.x, this.world.groundAt(s.x, s.z, 0.4, 2), s.z);
     this.shrine.children[0].rotation.y = t * 0.1;
   }

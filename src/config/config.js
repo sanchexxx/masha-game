@@ -61,6 +61,8 @@ export const CONFIG = {
     diveCatchHeight: 5.2,  // при атаке сверху может поймать героя в пикировании
     sightRange: 22,        // дальше не видит
     hearRunRange: 9,       // слышит бег на таком расстоянии даже за стеной
+    spiritFogSightRange: 7.5, // обзор героев-ботов внутри призрачного тумана
+    spiritFogHearMultiplier: 1.5, // бег героев в тумане Безлик слышит дальше
     loseSightTime: 2.2,    // сек без прямой видимости — потерял
     repathEvery: 0.35,
     disguise: { cd: 18, time: 9, noticeRange: 2.6 },  // 1 — маскировка под героя; вблизи боты раскусят
@@ -75,11 +77,14 @@ export const CONFIG = {
     path:    { cd: 18, time: 8 },                     // 4 — Путь фонарей: следы к безопасному кусту + метки над Безликами
     swing:   { cd: 8, range: 2.6, stun: 5, knock: 3.5 }, // F — удар фонарём: оглушает и отбрасывает
     repel:   { cd: 24, radius: 4.4, stun: 5 },           // Вспышка: окно для побега у Маши, котика и НэкоБуса
+    tailhop: { cd: 14, forward: 3.2 },                   // Котик: пружинистый прыжок вперёд
+    petals:  { cd: 18, boost: 1.38, time: 1.8 },         // Маша: короткий ускоренный рывок
+    roar:    { cd: 20, radius: 5.2, stun: 2.2, knock: 4.8 }, // НэкоБус: звуковой толчок
     wave:    { cd: 1.5 },                             // G — приветствие
     dash:    {},                                      // E — рывок (цифры в heroes.*.dash)
     prop:    { cd: 4, walk: 0.45 },                   // Q — маскировка под предмет (Маша, НэкоБус); walk — скорость «ползущего» предмета
-    fear: { cd: 22, radius: 5.8, stun: 5, slow: 5 },
-    hypnosis: { cd: 19, radius: 8.5, time: 5 },
+    fear: { cd: 22, radius: 5.8, stun: 0.45, flee: 5 },
+    hypnosis: { cd: 19, radius: 8.5, stun: 0.8, time: 5 }, // короткий стоп, затем спутанное управление до конца эффекта
     glare: { cd: 17, radius: 12, mark: 5, stun: 5 },
     split: { cd: 999 },
   },

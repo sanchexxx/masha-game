@@ -46,7 +46,7 @@ function groundRing(scene, x, z, r, color) {
 }
 
 // Волна Братьев: два коротких светящихся контура, фиолетовый вариант закручивается.
-export function spiritPulse(scene, x, y, z, radius, color, spiral = false) {
+export function spiritPulse(scene, x, y, z, radius, color, spiral = false, duration = 0.75) {
   const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9,
     side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
   const geo = new THREE.RingGeometry(0.86, 1, 48);
@@ -67,8 +67,53 @@ export function spiritPulse(scene, x, y, z, radius, color, spiral = false) {
         ring.scale.set(size, size, size);
         if (spiral) ring.rotation.z = t * (i ? -7 : 6);
       });
-      material.opacity = Math.max(0, 0.9 - t * 1.25);
-      if (t > 0.75) { rings.forEach(ring => scene.remove(ring)); geo.dispose(); material.dispose(); return false; }
+      material.opacity = Math.max(0, 0.9 * (1 - t / duration));
+      if (t > duration) { rings.forEach(ring => scene.remove(ring)); geo.dispose(); material.dispose(); return false; }
+      return true;
+    },
+  };
+}
+
+// Голубая ударная волна «Вспышки» отделяет защитный рывок от золотого
+// «Грозного взгляда». Используем те же две лёгкие сетки, что и у других пульсов.
+export function repelFlash(scene, x, y, z, radius) {
+  return spiritPulse(scene, x, y, z, radius, 0x8eeaff, false, 1.2);
+}
+
+// Направленный рёв НэкоБуса: две звуковые дуги совпадают с широкой зоной толчка.
+// Всего две сетки, без частиц и шейдера — дешёво для телефонов и одинаково в сети.
+export function roarWave(scene, x, y, z, yaw, radius, color = 0xffb14a) {
+  const group = new THREE.Group();
+  group.position.set(x, y + 0.28, z);
+  group.rotation.y = yaw;
+  scene.add(group);
+  const halfAngle = Math.acos(-0.25);
+  const thetaStart = -Math.PI / 2 - halfAngle;
+  const thetaLength = halfAngle * 2;
+  const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95,
+    side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
+  const rings = [0, 1].map(i => {
+    const geo = new THREE.RingGeometry(0.91, 1, 48, 1, thetaStart, thetaLength);
+    const ring = new THREE.Mesh(geo, material);
+    ring.rotation.x = -Math.PI / 2;
+    group.add(ring);
+    return ring;
+  });
+  let t = 0;
+  return {
+    update(dt) {
+      t += dt;
+      rings.forEach((ring, i) => {
+        const k = Math.max(0, Math.min(1, (t - i * 0.11) / 0.62));
+        ring.scale.setScalar(0.35 + radius * k);
+      });
+      material.opacity = Math.max(0, 0.95 * (1 - t / 0.78));
+      if (t >= 0.78) {
+        scene.remove(group);
+        rings.forEach(ring => ring.geometry.dispose());
+        material.dispose();
+        return false;
+      }
       return true;
     },
   };
@@ -191,6 +236,59 @@ export function fearWave(scene, x, y, z, radius) { return spiritScene(scene, x, 
 export function hypnosisVortex(scene, x, y, z, radius) { return spiritScene(scene, x, y, z, radius, 0xb263ff, 'hypnosis'); }
 export function glareFlash(scene, x, y, z, radius) { return spiritScene(scene, x, y, z, radius, 0xffbb55, 'glare'); }
 export function stubbornGlow(scene, x, y, z) { return spiritScene(scene, x, y, z, 3.4, 0x42f8b7, 'stubborn'); }
+
+// Небольшие общие по стоимости эффекты отличают новые умения на экранах телефонов.
+function combine(...effects) {
+  return { update(dt) { let live = false; for (const fx of effects) if (fx?.update(dt)) live = true; return live; } };
+}
+
+export function tailHop(scene, x, y, z, yaw) {
+  const paws = burst(scene, x, z, 2.1, 0x9ceaff);
+  const arc = spiritPulse(scene, x, y, z, 1.8, 0xb3f2ff);
+  const marker = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.07, 5, 14),
+    new THREE.MeshBasicMaterial({ color: 0xe3fbff, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending }));
+  marker.position.set(x + Math.sin(yaw) * 0.55, y + 0.12, z + Math.cos(yaw) * 0.55);
+  marker.rotation.x = Math.PI / 2; scene.add(marker);
+  let t = 0;
+  const ring = { update(dt) { t += dt; marker.scale.setScalar(0.6 + t * 2.4); marker.material.opacity = Math.max(0, 0.9 - t * 1.8); if (t < 0.5) return true; scene.remove(marker); marker.geometry.dispose(); marker.material.dispose(); return false; } };
+  return combine(paws, arc, ring);
+}
+
+export function petalRush(scene, x, y, z, yaw) {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, -0.32);
+  shape.bezierCurveTo(-0.32, -0.05, -0.2, 0.36, 0, 0.42);
+  shape.bezierCurveTo(0.2, 0.36, 0.32, -0.05, 0, -0.32);
+  const geometry = new THREE.ShapeGeometry(shape, 4);
+  const material = new THREE.MeshBasicMaterial({ color: 0xffbad0, transparent: true, opacity: 0.95,
+    side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
+  const count = 9, leaves = new THREE.InstancedMesh(geometry, material, count);
+  leaves.frustumCulled = false;
+  scene.add(leaves);
+  const dummy = new THREE.Object3D();
+  const sweep = spiritPulse(scene, x, y, z, 2.8, 0x87ffc4);
+  let t = 0;
+  const swirl = { update(dt) {
+    t += dt;
+    const k = Math.min(1, t / 0.78);
+    for (let i = 0; i < count; i++) {
+      const a = i * Math.PI * 2 / count + t * (4.2 + i % 3 * 0.28);
+      const r = 0.52 + k * 1.1;
+      dummy.position.set(x + Math.sin(yaw) * k * 2.8 + Math.cos(a) * r,
+        y + 0.25 + k * 1.35 + Math.sin(t * 8 + i) * 0.18,
+        z + Math.cos(yaw) * k * 2.8 + Math.sin(a) * r);
+      dummy.rotation.set(0.45 + Math.sin(t * 7 + i) * 0.35, a, Math.sin(t * 5 + i) * 0.7);
+      const scale = 0.7 * (1 - k * 0.35);
+      dummy.scale.set(scale, scale, scale);
+      dummy.updateMatrix(); leaves.setMatrixAt(i, dummy.matrix);
+    }
+    leaves.instanceMatrix.needsUpdate = true;
+    material.opacity = Math.max(0, 0.95 * (1 - t / 1.05));
+    if (t < 1.05) return true;
+    scene.remove(leaves); geometry.dispose(); material.dispose(); return false;
+  } };
+  return combine(swirl, sweep);
+}
 
 // Вспышка тёплого света: расходящееся кольцо + поднимающиеся искры
 export function burst(scene, x, z, r, color = 0xff8f9a) {

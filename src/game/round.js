@@ -17,6 +17,10 @@ import { PROP_KINDS } from '../world/props.js?v=2026100901';
 export const BOT_SPAWNS = [[-5, 19], [5.5, 17], [-9, 23], [9, 21], [-3, 14], [3, 25]];
 export const GHOST_SPAWNS = [[0, -21], [-7, -20], [7, -20], [0, -14]];
 
+function underwaterHidden(ctrl, water) {
+  return !!water && ctrl.diving && ctrl.pos.y + ctrl.height * 0.9 < water.level - 0.12 && ctrl.speed < 1;
+}
+
 export class Round {
   // host: { world, scene, navFor, ghosts: [Ghost...], heroes, makeChar(hero, skin) → {root, update} | null,
   //         makeProp(kind) → Object3D | null, addFx(fx), sound, cam }
@@ -57,7 +61,7 @@ export class Round {
   makeAgent(hero, isPlayer, spawn, skin, remote = null, name = null) {
     const ctrl = new PlayerController(hero, this.world);
     ctrl.spawn(spawn, isPlayer || remote ? Math.PI : Math.random() * Math.PI * 2);
-    const a = { hero, name: name || hero.name, ctrl, char: this.makeChar(hero, skin), isPlayer, remote, alive: true, hidden: false, protected: false, prop: null, skin,
+    const a = { hero, name: name || hero.name, ctrl, char: this.makeChar(hero, skin), isPlayer, remote, alive: true, hidden: false, underwaterHidden: false, protected: false, prop: null, skin,
       brothersRevives: hero.id === 'brothers' ? 1 : 0, invulnerableT: 0 };
     a.key = this.keySeq = (this.keySeq || 0) + 1;     // номер для совместной игры
     a.abilities = new AbilitySet(a, this);
@@ -109,7 +113,7 @@ export class Round {
       ctrl.spawn(spawn, yaw + side * 0.65);
       ctrl.vel.set(side * Math.cos(yaw) * 3.2, 4.2, -side * Math.sin(yaw) * 3.2);
       ctrl.grounded = false;
-      const head = { hero: a.hero, name: a.name, ctrl, alive: true, hidden: false,
+      const head = { hero: a.hero, name: a.name, ctrl, alive: true, hidden: false, underwaterHidden: false,
         protected: true, invulnerableT: 1.2, prop: null, headOwner: a, headIndex: index,
         spreadT: index === 0 ? 0 : 1.1, hopT: 0.7 + index * 0.35 };
       head.brain = new BotBrain(head, this.world, this.navFor(headHero.radius));
@@ -183,10 +187,10 @@ export class Round {
     const participants = Math.max(1, remotes.length + (opts.mode === 'watch' ? 0 : 1));
     const scaledGoal = Math.min(15, 3 + participants * 2);
     this.delivery = this.gameMode === 'delivery'
-      ? { delivered: 0, goal: Math.min(scaledGoal, Math.max(1, this.agents.length)), deliveredBy: Object.create(null), lantern: null, shrine: null }
+      ? { delivered: 0, goal: Math.min(scaledGoal, Math.max(1, this.agents.length)), lanterns: [], shrine: null, nextLanternId: 1, claims: new Map() }
       : null;
     if (this.delivery) this.duration = Math.max(240, 240 + (this.delivery.goal - 5) * 36);
-    if (this.delivery) this.nextDelivery(true);
+    if (this.delivery) this.startDelivery();
   }
 
   setPhase(p) {
@@ -198,8 +202,8 @@ export class Round {
 
   get left() { return Math.max(0, this.duration - this.t); }
 
-  // В каждой доставке фонарь и святилище появляются в достижимых точках карты.
-  #deliveryPoint({ from = null, min = 0, max = 100, avoid = null, accept = null, required = false } = {}) {
+  // Фонари и святилище появляются только на достижимых участках карты.
+  #deliveryPoint({ from = null, min = 0, max = 100, avoid = null, avoidPoints = [], avoidDistance = 0, accept = null, required = false } = {}) {
     const nav = this.navFor(0.85); // и большой Котобус пройдёт к цели
     for (let tries = 0; tries < 160; tries++) {
       const anchored = from && tries < 100;
@@ -213,6 +217,7 @@ export class Round {
       if (this.world.groundAt(x, z, 0.7, 99) > 1.1) continue;
       if (from && Math.hypot(x - from.x, z - from.z) < min) continue;
       if (avoid && Math.hypot(x - avoid.x, z - avoid.z) < 8) continue;
+      if (avoidPoints.some(p => Math.hypot(x - p.x, z - p.z) < avoidDistance)) continue;
       if (accept && !accept(x, z)) continue;
       if (!nav.find(this.playerSpawn.x, this.playerSpawn.z, x, z)) continue;
       if (from && !nav.find(from.x, from.z, x, z)) continue;
@@ -221,27 +226,31 @@ export class Round {
     return required ? null : { x: this.playerSpawn.x, z: this.playerSpawn.z };
   }
 
-  nextDelivery(first = false) {
-    const previous = this.delivery?.shrine;
-    const lantern = this.#deliveryPoint({ from: this.playerSpawn, min: 6, max: 19,
-      avoid: this.delivery?.lantern });
-    // Храм каждый раз появляется в проходимой точке на стороне Безликов.
-    // Фонарь остаётся на стороне героев: доставка требует пересечь карту.
+  startDelivery() {
+    const d = this.delivery;
+    const lanterns = [];
+    const maxRadius = Math.max(18, this.navFor(0.85).half - 4);
+    for (let i = 0; i < d.goal; i++) {
+      const point = this.#deliveryPoint({ from: this.playerSpawn, min: 7, max: maxRadius,
+        avoidPoints: lanterns, avoidDistance: 5.5 });
+      lanterns.push({ id: d.nextLanternId++, ...point, carrier: null, delivered: false });
+    }
+    // Один случайный храм стоит на стороне Безликов весь раунд; все герои
+    // несут найденные фонари туда по одному.
     const spawnDistance = this.world.half * 0.65;
-    const routeDistance = this.world.half * 0.82;
     const farFromHeroes = (x, z) => Math.hypot(x - this.playerSpawn.x, z - this.playerSpawn.z) >= spawnDistance
       && this.botSpawns.every(([sx, sz]) => Math.hypot(x - sx, z - sz) >= spawnDistance * 0.7)
-      && Math.hypot(x - lantern.x, z - lantern.z) >= routeDistance;
+      && lanterns.every(l => Math.hypot(x - l.x, z - l.z) >= 8);
     const anchors = this.ghostSpawns.slice().sort(() => Math.random() - 0.5);
     let shrine = null;
     for (const [x, z] of anchors) {
-      shrine = this.#deliveryPoint({ from: { x, z }, min: 3, max: 19, avoid: previous,
+      shrine = this.#deliveryPoint({ from: { x, z }, min: 3, max: 19,
         accept: farFromHeroes, required: true });
       if (shrine) break;
     }
     if (!shrine) {
       for (const [x, z] of anchors) {
-        shrine = this.#deliveryPoint({ from: { x, z }, min: 2, max: 20, avoid: previous,
+        shrine = this.#deliveryPoint({ from: { x, z }, min: 2, max: 20,
           accept: (px, pz) => Math.hypot(px - this.playerSpawn.x, pz - this.playerSpawn.z) >= spawnDistance,
           required: true });
         if (shrine) break;
@@ -258,43 +267,51 @@ export class Round {
       const [x, z] = nav.center(i, j);
       shrine = { x, z };
     }
-    this.delivery.lantern = { ...lantern, carrier: null };
-    this.delivery.shrine = shrine;
-    this.emit('deliveryNext', { first, lantern, shrine });
+    d.lanterns = lanterns;
+    d.shrine = shrine;
+    this.emit('deliveryNext', { first: true, lanterns, shrine });
   }
 
   #stepDelivery() {
     const d = this.delivery;
-    if (!d || !d.lantern) return;
-    const l = d.lantern;
-    if (!l.carrier) {
-      const collectors = this.agents.slice().sort((a, b) => Number(!!b.isPlayer || !!b.remote) - Number(!!a.isPlayer || !!a.remote));
-      for (const a of collectors) {
-        if (!a.alive || d.deliveredBy?.[a.key] || (a.brain && !a.brain.deliverySearchReady)) continue;
-        if (a.ctrl.pos.y > 4.5) continue;
-        const x0 = a.deliveryPrevX ?? a.ctrl.pos.x, z0 = a.deliveryPrevZ ?? a.ctrl.pos.z;
-        const dx = a.ctrl.pos.x - x0, dz = a.ctrl.pos.z - z0;
-        const length2 = dx * dx + dz * dz;
+    if (!d || !d.lanterns?.length) return;
+    const collectors = this.agents.slice().sort((a, b) => Number(!!b.isPlayer || !!b.remote) - Number(!!a.isPlayer || !!a.remote));
+    for (const a of collectors) {
+      if (!a.alive || a.carriedLantern || a.ctrl.pos.y > 4.5) continue;
+      const x0 = a.deliveryPrevX ?? a.ctrl.pos.x, z0 = a.deliveryPrevZ ?? a.ctrl.pos.z;
+      const dx = a.ctrl.pos.x - x0, dz = a.ctrl.pos.z - z0;
+      const length2 = dx * dx + dz * dz;
+      for (const l of d.lanterns) {
+        if (l.delivered || l.carrier) continue;
+        // Игрок подбирает фонарь касанием. Бот сначала обязан обследовать
+        // окрестность фонаря; иначе он знает точную цель и мгновенно закрывает раунд.
+        if (!a.isPlayer && !a.remote && a.brain && !a.brain.canPickupLantern(l.id)) continue;
         const t = length2 ? Math.max(0, Math.min(1, ((l.x - x0) * dx + (l.z - z0) * dz) / length2)) : 0;
-        if (Math.hypot(x0 + dx * t - l.x, z0 + dz * t - l.z) > 5) continue;
+        if (Math.hypot(x0 + dx * t - l.x, z0 + dz * t - l.z) > 1.25) continue;
         l.carrier = a.key;
+        a.carriedLantern = l.id;
         if (a.prop) this.toggleProp(a);
-        this.emit('lanternPickup', { agent: a });
+        this.emit('lanternPickup', { agent: a, lanternId: l.id });
         break;
       }
     }
-    const carrier = this.agents.find(a => a.key === l.carrier && a.alive);
-    if (!carrier) return;
-    l.x = carrier.ctrl.pos.x; l.z = carrier.ctrl.pos.z;
-    if (carrier.ctrl.pos.y > 1.8 || Math.hypot(l.x - d.shrine.x, l.z - d.shrine.z) > 2.2) return;
-    d.delivered++;
-    d.deliveredBy ||= Object.create(null);
-    d.deliveredBy[carrier.key] = true;
-    this.emit('lanternDelivered', { agent: carrier, count: d.delivered, goal: d.goal });
-    if (d.delivered >= d.goal) {
-      this.phase = 'over';
-      this.emit('end', { result: this.result() });
-    } else this.nextDelivery();
+    for (const l of d.lanterns) {
+      if (l.delivered || !l.carrier) continue;
+      const carrier = this.agents.find(a => a.key === l.carrier && a.alive);
+      if (!carrier) { l.carrier = null; continue; }
+      l.x = carrier.ctrl.pos.x; l.z = carrier.ctrl.pos.z;
+      if (carrier.ctrl.pos.y > 1.8 || Math.hypot(l.x - d.shrine.x, l.z - d.shrine.z) > 2.2) continue;
+      l.delivered = true;
+      l.carrier = null;
+      carrier.carriedLantern = null;
+      d.delivered++;
+      this.emit('lanternDelivered', { agent: carrier, count: d.delivered, goal: d.goal });
+      if (d.delivered >= d.goal) {
+        this.phase = 'over';
+        this.emit('end', { result: this.result() });
+        return;
+      }
+    }
   }
 
   // ---------- Маскировка под предмет ----------
@@ -320,9 +337,13 @@ export class Round {
   step(dt, time, inp = null, camYaw = 0) {
     this.t += dt;
     const C = CONFIG;
+    // Защитные купола живут по времени симуляции. Пауза и скрытая вкладка
+    // не должны снимать защиту раньше визуального окончания способности.
+    for (const dome of this.domes) dome.life -= dt;
+    this.domes = this.domes.filter(dome => dome.life > 0);
 
     // Безлики выходят: в прятках — после форы по очереди, в догонялках — сразу
-    const delay = this.phase === 'hide' || this.phase === 'delivery' ? C.round.headStart : 0.3;
+    const delay = this.phase === 'hide' ? C.round.headStart : 0.3;
     this.activeGhosts.forEach((g, i) => {
       if (g.state === 'hidden' && this.t >= delay + i * (this.phase === 'hide' || this.phase === 'delivery' ? C.ghost.spawnGap : 0.4)) {
         g.spawn();
@@ -333,6 +354,14 @@ export class Round {
 
     // Герои: игрок — от клавиатуры, боты — от «мозга»
     const live = this.activeGhosts.filter(g => g.active);
+    if (this.delivery) {
+      this.delivery.claims ||= new Map();
+      for (const [lanternId, agentKey] of this.delivery.claims) {
+        const lantern = this.delivery.lanterns.find(l => l.id === lanternId && !l.delivered && !l.carrier);
+        const agent = this.agents.find(a => a.key === agentKey && a.alive && !a.carriedLantern);
+        if (!lantern || !agent) this.delivery.claims.delete(lanternId);
+      }
+    }
     for (const a of this.agents) {
       if (!a.alive) continue;
       a.invulnerableT = Math.max(0, a.invulnerableT - dt);
@@ -360,8 +389,9 @@ export class Round {
       if (a.prop?.obj) { a.prop.obj.position.copy(a.ctrl.pos); }
       const p = a.ctrl.pos;
       const water = this.world.waterAt?.(p.x, p.z);
+      a.underwaterHidden = underwaterHidden(a.ctrl, water);
       a.hidden = (this.world.inBush(p.x, p.z, p.y) && !a.ctrl.running)
-        || (!!water && a.ctrl.diving && p.y < water.level - 0.55 && a.ctrl.speed < 1.0)
+        || a.underwaterHidden
         || (!!a.prop && a.ctrl.speed < 0.6);
       a.protected = a.invulnerableT > 0 || this.domes.some(d => Math.hypot(p.x - d.x, p.z - d.z) < d.r);
       if (a.protected) a.ctrl.stamina = Math.min(1, a.ctrl.stamina + dt * 0.25);   // в приюте отдыхается быстрее
@@ -374,7 +404,7 @@ export class Round {
     for (const g of this.activeGhosts) {
       g.speedMul = this.phase === 'chase' && !g.isPlayer && !g.remote ? C.round.chaseBotSpeed : 1;
       const gin = g.isPlayer ? inp || {} : g.remote ? this.#takeNet(g.remote) : null;
-      g.update(dt, time, targets, k, { domes: this.domes }, gin, g.isPlayer ? camYaw : gin?.camYaw || 0);
+      g.update(dt, time, targets, k, { domes: this.domes, delivery: this.phase === 'delivery' }, gin, g.isPlayer ? camYaw : gin?.camYaw || 0);
       if (g.poof) { g.poof = false; this.emit('poof', { x: g.pos.x, y: g.pos.y, z: g.pos.z, ghost: g }); }
     }
 
@@ -409,7 +439,7 @@ export class Round {
       if (!active && h.spreadT > 0) {
         h.spreadT -= dt;
         const side = h.headIndex === 1 ? -1 : 1;
-        ai = { x: side * Math.cos(a.bodyCtrl.yaw), y: side * Math.sin(a.bodyCtrl.y),
+        ai = { x: side * Math.cos(a.bodyCtrl.yaw), y: side * Math.sin(a.bodyCtrl.yaw),
           run: true, jump: h.ctrl.grounded && h.hopT <= 0 };
       } else if (!active && h.ctrl.grounded && h.hopT <= 0) ai = { ...ai, jump: true };
       h.ctrl.update(dt, ai, active && a.isPlayer ? camYaw : active && a.remote ? ai.camYaw || 0 : 0);
@@ -418,8 +448,9 @@ export class Round {
         this.emit('headHop', { agent: a, index: h.headIndex });
       }
       const p = h.ctrl.pos, water = this.world.waterAt?.(p.x, p.z);
+      h.underwaterHidden = underwaterHidden(h.ctrl, water);
       h.hidden = (this.world.inBush(p.x, p.z, p.y) && !h.ctrl.running)
-        || (!!water && h.ctrl.diving && p.y < water.level - 0.55 && h.ctrl.speed < 1);
+        || h.underwaterHidden;
       h.protected = h.invulnerableT > 0 || this.domes.some(d => Math.hypot(p.x - d.x, p.z - d.z) < d.r);
     }
     const current = a.splitHeads[a.activeHead];
@@ -431,17 +462,21 @@ export class Round {
   }
 
   #caught(a, g) {
-    if (this.gameMode === 'delivery' && this.delivery?.lantern?.carrier === (a.headOwner || a).key) {
-      const l = this.delivery.lantern;
-      l.carrier = null;
-      l.x = a.ctrl.pos.x; l.z = a.ctrl.pos.z;
-      this.emit('lanternDropped', { agent: a.headOwner || a });
+    if (this.gameMode === 'delivery' && this.delivery) {
+      const owner = a.headOwner || a;
+      const carried = this.delivery.lanterns.find(l => l.carrier === owner.key);
+      if (carried) {
+        carried.carrier = null;
+        carried.x = a.ctrl.pos.x; carried.z = a.ctrl.pos.z;
+        owner.carriedLantern = null;
+        this.emit('lanternDropped', { agent: owner, lanternId: carried.id });
+      }
     }
     if (a.headOwner) {
       const owner = a.headOwner;
       a.alive = false;
       g.reveal();
-      g.stun(CONFIG.ghost.grab);
+      g.stun(CONFIG.ghost.grab, 'grab', true);
       const remaining = owner.splitHeads.filter(h => h.alive);
       this.emit('headCaught', { agent: owner, index: a.headIndex, remaining: remaining.length,
         pos: a.ctrl.pos.clone(), ghost: g });
@@ -476,7 +511,7 @@ export class Round {
     if (a.prop) this.toggleProp(a);
     if (a.char) a.char.root.visible = false;
     g.reveal();
-    g.stun(CONFIG.ghost.grab);         // Безлик «забирает» героя и на миг замирает
+    g.stun(CONFIG.ghost.grab, 'grab', true); // Безлик «забирает» героя и на миг замирает
     this.caughtOrder.push({ agent: a, phase: this.phase, t: this.t });
     if (this.phase === 'hide') { this.stats.found++; if (a.isPlayer) this.stats.playerFoundAt = this.t; }
     else { this.stats.chaseCatches++; if (a.isPlayer) this.stats.playerCaughtInChase = true; }

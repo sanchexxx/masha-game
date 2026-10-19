@@ -18,16 +18,19 @@ export const HERO_ABILITIES = {
   ],
   kid: [
     { id: 'repel', key: '1', name: 'Вспышка', icon: '✨', tag: 'Побег', anim: 'cast', dur: 0.7, lock: 0.3 },
+    { id: 'tailhop', key: '2', name: 'Прыжок хвостика', icon: '🐾', tag: 'Манёвр', anim: 'jump', dur: 0.42, lock: 0 },
     { id: 'prop', key: 'Q', name: 'Маскировка', icon: '🎭', tag: 'Прятки', anim: 'poof', dur: 0.25, lock: 0 },
     { id: 'wave', key: 'G', name: 'Привет!', icon: '👋', tag: 'Эмоция', anim: 'wave', dur: 1.4, lock: 0 },
   ],
   masha: [
     { id: 'repel', key: '1', name: 'Вспышка', icon: '✨', tag: 'Побег', anim: 'cast', dur: 0.7, lock: 0.3 },
+    { id: 'petals', key: '2', name: 'Порыв листьев', icon: '🍃', tag: 'Ускорение', anim: 'cast', dur: 0.55, lock: 0 },
     { id: 'prop', key: 'Q', name: 'Маскировка', icon: '🎭', tag: 'Прятки', anim: 'poof', dur: 0.25, lock: 0 },
     { id: 'wave', key: 'G', name: 'Привет!', icon: '👋', tag: 'Эмоция', anim: 'wave', dur: 1.4, lock: 0 },
   ],
   catbus: [
     { id: 'repel', key: '1', name: 'Вспышка', icon: '✨', tag: 'Побег', anim: 'cast', dur: 0.7, lock: 0.3 },
+    { id: 'roar', key: '2', name: 'Рёв НэкоБуса', icon: '🔊', tag: 'Отталкивание', anim: 'cast', dur: 0.6, lock: 0.1 },
     { id: 'prop', key: 'Q', name: 'Маскировка', icon: '🎭', tag: 'Прятки', anim: 'poof', dur: 0.25, lock: 0 },
   ],
   brothers: [
@@ -53,11 +56,11 @@ export class AbilitySet {
   use(id) {
     const a = this.get(id);
     if (!a || a.cdLeft > 0 || !this.agent.alive) return false;
+    if (id === 'tailhop' && (!this.agent.ctrl.grounded || this.agent.ctrl.swimming || this.agent.ctrl.flying || this.agent.ctrl.climbing)) return false;
     if (id === 'split' && (this.agent.splitUsed || this.agent.splitActive)) return false;
     if (this.agent.action && this.agent.action.lock > 0) return false;
     a.cdLeft = this.cooldown(a);
     this.agent.action = { name: a.anim, t: 0, dur: a.dur, lock: a.lock, id: a.id, fired: false };
-    this.game.emit?.('ability', { agent: this.agent, id });
     return true;
   }
 
@@ -85,15 +88,47 @@ export class AbilitySet {
     const g = this.game, me = this.agent, c = me.ctrl, cfg = A()[id];
     const p = c.pos;
     const snd = g.sound;
+    // Сеть должна показывать VFX вместе с фактическим игровым эффектом,
+    // а не раньше — в момент нажатия кнопки/начала анимации.
+    g.emit?.('ability', { agent: me, id });
     if (id === 'prop') {
       g.toggleProp?.(me);
+    } else if (id === 'tailhop') {
+      const ph = CONFIG.heroes.kid;
+      c.vel.y = Math.max(c.vel.y, Math.sqrt(2 * CONFIG.world.gravity * ph.jump) * 0.86);
+      c.vel.x += Math.sin(c.yaw) * cfg.forward;
+      c.vel.z += Math.cos(c.yaw) * cfg.forward;
+      c.grounded = false; c.coyote = 0; c.jumpBuf = 0;
+      g.addFx(FX.tailHop(g.scene, p.x, p.y, p.z, c.yaw));
+      snd.chime?.([784, 1046, 1318]);
+    } else if (id === 'petals') {
+      c.boostT = cfg.time;
+      c.boostMul = cfg.boost;
+      g.addFx(FX.petalRush(g.scene, p.x, p.y, p.z, c.yaw));
+      snd.chime?.([659, 880, 1175]);
+    } else if (id === 'roar') {
+      const nearest = g.ghosts.filter(gh => gh.active).sort((a, b) => a.pos.distanceToSquared(p) - b.pos.distanceToSquared(p))[0];
+      // Бот перед рёвом действительно разворачивается к преследователю.
+      if (nearest && !me.isPlayer && !me.remote) c.yaw = Math.atan2(nearest.pos.x - p.x, nearest.pos.z - p.z);
+      g.addFx(FX.roarWave(g.scene, p.x, p.y, p.z, c.yaw, cfg.radius));
+      const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
+      for (const gh of g.ghosts) {
+        if (!gh.active) continue;
+        const dx = gh.pos.x - p.x, dz = gh.pos.z - p.z, d = Math.hypot(dx, dz);
+        if (d > cfg.radius + gh.radius || (dx * fx + dz * fz) / (d || 1) < -0.25) continue;
+        // Отбрасывание — часть контроля: если Безлик сейчас невосприимчив,
+        // не даём повторным рёвам сдвигать его сквозь защиту от контроля.
+        if (gh.stun(cfg.stun, 'roar')) gh.knock(dx / (d || 1), dz / (d || 1), cfg.knock);
+      }
+      g.cam.shake = Math.max(g.cam.shake, 0.22);
+      snd.land?.(9);
     } else if (id === 'split') {
       g.activateBrothersSplit?.(me);
     } else if (id === 'shelter') {
       const d = FX.dome(g.scene, p.x, p.z, cfg.radius, cfg.time);
+      d.life = cfg.time;
       g.addFx(d);
       g.domes.push(d);
-      setTimeout(() => { g.domes = g.domes.filter(x => x !== d); }, cfg.time * 1000);
       snd.chime?.([523, 784, 1046]);
     } else if (id === 'light') {
       g.addFx(FX.burst(g.scene, p.x, p.z, cfg.radius));
@@ -107,12 +142,20 @@ export class AbilitySet {
       snd.chime?.([659, 880, 1318]);
     } else if (id === 'wisps') {
       const from = new THREE.Vector3(p.x, p.y + 2, p.z);
+      const reserved = new Set();
       for (let i = 0; i < cfg.count; i++) {
-        let target = null;
+        // Сначала назначаем каждому огоньку отдельного Безлика; иначе все три
+        // снаряда слетаются на одну цель и два упираются в её иммунитет к контролю.
+        let target = nearestGhost(g.ghosts, p, 30, reserved);
+        if (target) reserved.add(target);
+        else target = nearestGhost(g.ghosts, p, 30, null, true); // дублируем цель только для визуального огонька
         g.addFx(FX.wisp(g.scene, from, () => {
-          if (!target || !target.active) target = nearestGhost(g.ghosts, p, 30);
-          return target ? target.pos : null;
-        }, () => { if (target) { target.slow(cfg.slow); target.stun(cfg.stun, 'wisps'); g.sound.land?.(6); } }, 7));
+          return target?.active ? target.pos : null;
+        }, () => {
+          if (target && target.active && target.controlImmuneT <= 0 && target.slow(cfg.slow)) {
+            target.stun(cfg.stun, 'wisps'); g.sound.land?.(6);
+          }
+        }, 7));
       }
       snd.chime?.([440, 660, 880]);
     } else if (id === 'path') {
@@ -131,26 +174,27 @@ export class AbilitySet {
         const dx = gh.pos.x - p.x, dz = gh.pos.z - p.z, d = Math.hypot(dx, dz);
         if (d > cfg.range + gh.radius) continue;
         if ((dx * fx + dz * fz) / (d || 1) < -0.2) continue;       // сзади не достаёт
-        gh.stun(cfg.stun, 'swing');
-        gh.knock(dx / (d || 1), dz / (d || 1), cfg.knock);
-        g.cam.shake = Math.max(g.cam.shake, 0.4);
+        if (gh.stun(cfg.stun, 'swing')) {
+          gh.knock(dx / (d || 1), dz / (d || 1), cfg.knock);
+          g.cam.shake = Math.max(g.cam.shake, 0.4);
+        }
       }
       snd.land?.(12);
     } else if (id === 'repel') {
-      g.addFx(FX.glareFlash(g.scene, p.x, p.y, p.z, cfg.radius));
+      g.addFx(FX.repelFlash(g.scene, p.x, p.y, p.z, cfg.radius));
       for (const gh of g.ghosts) if (gh.active && Math.hypot(gh.pos.x - p.x, gh.pos.z - p.z) <= cfg.radius)
         gh.stun(cfg.stun, 'repel');
       snd.chime?.([784, 1046, 1568]);
     } else if (id === 'fear') {
       g.addFx(FX.fearWave(g.scene, p.x, p.y, p.z, cfg.radius));
       for (const gh of g.ghosts) if (gh.active && Math.hypot(gh.pos.x - p.x, gh.pos.z - p.z) <= cfg.radius) {
-        gh.stun(cfg.stun, 'fear'); gh.slow(cfg.slow);
+        gh.fear(cfg.flee, p, cfg.stun);
       }
       snd.brothersCue?.('fear');
     } else if (id === 'hypnosis') {
       g.addFx(FX.hypnosisVortex(g.scene, p.x, p.y, p.z, cfg.radius));
       for (const gh of g.ghosts) if (gh.active && Math.hypot(gh.pos.x - p.x, gh.pos.z - p.z) <= cfg.radius)
-        { gh.confuse(cfg.time); gh.stun(cfg.time, 'hypnosis'); }
+        gh.confuse(cfg.time, 'hypnosis', cfg.stun);
       snd.brothersCue?.('hypnosis');
     } else if (id === 'glare') {
       g.addFx(FX.glareFlash(g.scene, p.x, p.y, p.z, cfg.radius));
@@ -166,6 +210,9 @@ export class AbilitySet {
   botThink(threat, td) {
     const c = this.agent.ctrl;
     const g = this.game, p = c.pos;
+    if (threat && this.get('roar') && td < A().roar.radius && this.ready('roar')) return this.use('roar');
+    if (threat && c.grounded && this.get('tailhop') && td < 8 && this.ready('tailhop')) return this.use('tailhop');
+    if (threat && this.get('petals') && td < 13 && this.ready('petals')) return this.use('petals');
     if (threat && td < A().repel.radius && this.ready('repel')) return this.use('repel');
     if (this.get('fear')) {
       if (threat && td < A().fear.radius && this.ready('fear')) return this.use('fear');
@@ -199,10 +246,10 @@ export class AbilitySet {
   }
 }
 
-function nearestGhost(ghosts, p, max) {
+function nearestGhost(ghosts, p, max, exclude = null, allowImmune = false) {
   let best = null, bd = max;
   for (const g of ghosts) {
-    if (!g.active) continue;
+    if (!g.active || exclude?.has(g) || (!allowImmune && g.controlImmuneT > 0)) continue;
     const d = g.pos.distanceTo(p);
     if (d < bd) { bd = d; best = g; }
   }

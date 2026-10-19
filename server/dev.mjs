@@ -9,6 +9,7 @@ import { RoomCore } from './room.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = +(process.argv[2] || 8787);
+const HOST = process.env.HOST || '127.0.0.1';
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.webp': 'image/webp', '.png': 'image/png', '.json': 'application/json' };
 
 const server = http.createServer((req, res) => {
@@ -38,4 +39,4 @@ server.on('upgrade', (req, sock, head) => {
     ws.on('close', () => { core.leave(ws); if (!core.players.size) rooms.delete(code); });
   });
 });
-server.listen(PORT, () => console.log(`Игра: http://localhost:${PORT}/  (комната: ?room=КОД)`));
+server.listen(PORT, HOST, () => console.log(`Игра: http://${HOST}:${PORT}/  (комната: ?room=КОД)`));

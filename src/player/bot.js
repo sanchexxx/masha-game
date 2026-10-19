@@ -25,6 +25,9 @@ export class BotBrain {
     this.juke = null;               // {x, z, t} — финт вбок
     this.ladder = null;             // лестница, к которой бежим
     this.ladderJumpT = 0;
+    this.upperJumpT = 0;
+    this.upperRoute = null;
+    this.upperDirection = null;
   }
 
   // Сколько высидеть в укрытии. В прятках — дольше: там главное не высовываться.
@@ -38,17 +41,31 @@ export class BotBrain {
   #threatens(g, p, d) {
     const c = this.agent.ctrl;
     if (!g.active) return false;
+    if (this.agent.underwaterHidden) {
+      const water = this.world.waterAt?.(g.pos.x, g.pos.z);
+      const submerged = !!water && g.pos.y < water.level - 0.15;
+      if (!submerged || d > 2.6) return false;
+    }
     if (g.disguised) {
       // маскировку раскусываем вблизи или когда «друг» вдруг несётся к нам
       const fast = g.ctrl.speed > 6.5 || g.ctrl.dashT > 0;
       if (!(d < CONFIG.ghost.disguise.noticeRange || (fast && d < 8))) return false;
     }
     if (g.target === this.agent && g.sees) return true;
-    return d < CONFIG.bots.fleeRange && this.world.lineOfSight(p.x, p.z, g.pos.x, g.pos.z, true, p.y + c.height * 0.8, g.eyeY);
+    const inFog = this.world.inSpiritFog?.(p.x, p.z) || false;
+    const sightRange = inFog ? CONFIG.ghost.spiritFogSightRange : CONFIG.bots.fleeRange;
+    const visible = d < sightRange
+      && this.world.lineOfSight(p.x, p.z, g.pos.x, g.pos.z, true, p.y + c.height * 0.8, g.eyeY);
+    // Туман режет дальность зрения так же для ботов, как для Безлика.
+    // Но бегущий бот оставляет слышимый след, поэтому туман не даёт бесплатную невидимость.
+    const hearRange = CONFIG.ghost.hearRunRange * (inFog ? CONFIG.ghost.spiritFogHearMultiplier : 1);
+    const audible = c.running && d < hearRange && !this.agent.hidden && !this.agent.prop;
+    return visible || audible || d < 2.2;
   }
 
   // ghosts — активные Безлики; вернёт ввод на этот кадр
   update(dt, ghosts) {
+    this.upperJumpT = Math.max(0, this.upperJumpT - dt);
     this.ghosts = ghosts;
     const B = CONFIG.bots;
     const me = this.agent, c = me.ctrl;
@@ -61,6 +78,32 @@ export class BotBrain {
     this.threat = threat;
     this.td = td;
 
+    // Завершаем маршрут только на настоящей площадке или у подножия лестницы.
+    // На середине ступеней elevated уже true, хотя крыша ещё не достигнута.
+    if (this.mode === 'upper' && !this.path?.length) {
+      const route = this.upperRoute;
+      const down = this.upperDirection === 'down';
+      const end = down ? route?.entry : route?.exit;
+      const reached = end && Math.hypot(end[0] - p.x, end[1] - p.z) < 1.25;
+      if (down && reached && p.y < 0.9) {
+        this.mode = 'wander'; this.upperRoute = null; this.upperDirection = null;
+      } else if (!down && reached && c.grounded && p.y >= (route?.top ?? 3.93) - 0.55) {
+        this.mode = 'roof'; this.roofDir = null; this.sat = 0;
+      } else if (route) {
+        // После прерванного пути вернёмся к ближайшей точке ступеней.
+        const points = down ? [route.exit, ...route.steps.slice().reverse(), route.entry]
+          : [route.entry, ...route.steps, route.exit];
+        let nearest = 0, distance = Infinity;
+        for (let i = 0; i < points.length; i++) {
+          const d = Math.hypot(points[i][0] - p.x, points[i][1] - p.z);
+          if (d < distance) { distance = d; nearest = i; }
+        }
+        this.path = points.slice(Math.min(nearest + (distance < 0.9 ? 1 : 0), points.length - 1));
+      } else {
+        this.mode = 'wander'; this.upperDirection = null;
+      }
+    }
+
     this.think -= dt;
     if (this.think <= 0) {
       this.think = B.think * (0.7 + Math.random() * 0.6);
@@ -70,9 +113,15 @@ export class BotBrain {
     const inp = { x: 0, y: 0, run: false, jump: false, dash: false };
     // замаскирован под предмет — стоим как вкопанные (сбросить маскировку решает botThink)
     if (me.prop) return inp;
+    // Бот замирает под водой; если Безлик нырнул следом, ниже он снова увидит угрозу и уплывёт.
+    if (this.mode === 'water' && c.swimming && !threat && this.waterTarget
+      && Math.hypot(this.waterTarget.x - p.x, this.waterTarget.z - p.z) < 1.2) {
+      inp.crouch = true;
+      return inp;
+    }
 
     // Финт: Безлик вот-вот схватит — резко вбок с рывком
-    if (threat && td < B.jukeRange && !c.elevated && threat.pos.y < p.y + 1) {
+    if (threat && td < B.jukeRange && this.mode !== 'upper' && !c.elevated && threat.pos.y < p.y + 1) {
       if (!this.juke || this.juke.t <= 0) {
         const ax = p.x - threat.pos.x, az = p.z - threat.pos.z, al = Math.hypot(ax, az) || 1;
         const side = Math.random() < 0.5 ? 1 : -1;
@@ -93,7 +142,7 @@ export class BotBrain {
     }
 
     // На крыше: убегаем по крыше от Безлика, а если он подлетает — прыгаем вниз с другой стороны
-    if (c.elevated && c.grounded && this.mode !== 'ladder') {
+    if (c.elevated && c.grounded && this.mode !== 'ladder' && this.mode !== 'upper') {
       this.mode = 'roof';
       if (threat) {
         const ax = p.x - threat.pos.x, az = p.z - threat.pos.z, al = Math.hypot(ax, az) || 1;
@@ -104,13 +153,23 @@ export class BotBrain {
       }
       this.sat += dt;
       if (this.sat > this.patience) {
-        // насиделись — слезаем (просто идём к краю)
-        const a = this.roofDir ??= Math.random() * Math.PI * 2;
-        inp.x = Math.cos(a); inp.y = Math.sin(a);
+        // Насиделись наверху — возвращаемся по ступеням, а не прыгаем с края.
+        const route = this.#routeFromRoof();
+        if (route) {
+          this.mode = 'upper'; this.path = [route.exit, ...route.steps.slice().reverse(), route.entry];
+          this.upperRoute = route; this.upperDirection = 'down';
+          this.sat = 0; this.roofDir = null;
+        } else {
+          const a = this.roofDir ??= Math.random() * Math.PI * 2;
+          inp.x = Math.cos(a); inp.y = Math.sin(a);
+        }
       }
       return inp;
     }
-    if (this.mode === 'roof' && !c.elevated) { this.mode = 'wander'; this.roofDir = null; this.sat = 0; this.path = null; }
+    if (this.mode === 'roof' && !c.elevated) {
+      this.mode = 'wander'; this.roofDir = null; this.sat = 0; this.path = null;
+      this.upperRoute = null; this.upperDirection = null;
+    }
 
     // Лезем по лестнице: дошли до подножия — упираемся в неё, наверху — подтягиваемся
     if (this.mode === 'ladder' && this.ladder) {
@@ -150,77 +209,126 @@ export class BotBrain {
     if (!this.path || !this.path.length) return inp;
     const [tx, tz] = this.path[0];
     let dx = tx - p.x, dz = tz - p.z;
-    const d = Math.hypot(dx, dz);
-    if (d < 0.6) { this.path.shift(); if (!this.path.length && this.mode === 'wander') this.idle = Math.random() * 2; return inp; }
+    let d = Math.hypot(dx, dz);
+    const finalUpperStep = this.mode === 'upper' && this.upperDirection === 'up'
+      && this.path.length === 1 && p.y < (this.upperRoute?.top ?? 3.93) - 0.55;
+    if (finalUpperStep && d < 0.6) {
+      const steps = this.upperRoute?.steps;
+      const previous = (steps && steps[steps.length - 1]) || this.upperRoute?.entry || [tx - 1, tz];
+      dx = tx - previous[0]; dz = tz - previous[1]; d = Math.hypot(dx, dz) || 1;
+    }
+    // Не съедаем последнюю точку у самого края: оставляем боту место, чтобы
+    // разбежаться и перепрыгнуть через карниз на площадку.
+    if (d < 0.6 && !finalUpperStep) { this.path.shift(); if (!this.path.length && this.mode === 'wander') this.idle = Math.random() * 2; return inp; }
     dx /= d; dz /= d;
     // камера для бота «смотрит на север» (camYaw = 0): вперёд = −Z, вправо = +X
     inp.x = dx; inp.y = -dz;
-    const fleeing = this.mode === 'flee' || this.mode === 'help' || this.mode === 'ladder' || (this.mode === 'hide' && threat);
+    const fleeing = this.mode === 'flee' || this.mode === 'help' || this.mode === 'ladder' || this.mode === 'upper' || (this.mode === 'hide' && threat);
     // Силы бережём: вовсю — когда он близко или нас видит; иначе трусцой, если сил много
     const hot = threat && (td < 8 || (threat.target === me && threat.sees));
     inp.run = fleeing && !c.exhausted && (hot || (c.stamina > B.calmRun && threat && td < 12) || this.mode === 'help');
     inp.dash = fleeing && threat && td < 4.5 && c.dashReady;
 
-    // застрял — прыгаем и перестраиваем путь
+    if (finalUpperStep && d < 1.45 && this.upperJumpT <= 0) {
+      inp.jump = true;
+      inp.run = !c.exhausted;
+      this.upperJumpT = 0.55;
+    }
+
+    // На ступенях сохраняем заданный маршрут: прыжок помогает пройти край ступени.
     if (c.speed < 0.6 && !c.mantle) this.stuck += dt; else this.stuck = 0;
-    if (this.stuck > 0.5) { inp.jump = true; this.stuck = 0; this.path = null; this.think = 0; }
+    if (this.stuck > 0.5) {
+      inp.jump = true; this.stuck = 0;
+      if (this.mode !== 'upper') { this.path = null; this.think = 0; }
+    }
     return inp;
   }
 
   // В доставке бот несёт фонарь к святилищу, при близком Безлике спасается.
+  canPickupLantern(id) {
+    return this.deliverySearchId === id && !!this.deliveryPickupReady;
+  }
+
   updateDelivery(dt, ghosts, delivery) {
     const p = this.agent.ctrl.pos;
     const threat = ghosts.find(g => g.active && Math.hypot(g.pos.x - p.x, g.pos.z - p.z) < 7);
     if (threat) return this.update(dt, ghosts);
-    this.threat = null;
-    const lantern = delivery?.lantern;
-    if (!lantern) return { x: 0, y: 0 };
-    if (delivery.deliveredBy?.[this.agent.key]) return { x: 0, y: 0, run: false };
-    if (lantern.carrier && lantern.carrier !== this.agent.key) return { x: 0, y: 0 };
-    const carrying = lantern.carrier === this.agent.key;
-    const target = carrying ? delivery.shrine : lantern;
-    if (!target) return { x: 0, y: 0 };
-    if (!carrying) {
-      const key = `${Math.round(lantern.x)},${Math.round(lantern.z)}`;
-      if (this.deliverySearchKey !== key) {
-        this.deliverySearchKey = key;
-        this.deliverySearchElapsed = 0;
-        this.deliverySearchDuration = 6 + Math.random() * 4;
-        this.deliverySearchWaypoint = null;
-        this.deliverySearchReady = false;
+    // Фонарей на верхних площадках нет. Спускаемся по своей лестнице до того,
+    // как строить наземный маршрут к предмету или святилищу.
+    if (this.mode === 'upper' && this.upperDirection === 'down')
+      return this.update(dt, ghosts);
+    if (this.agent.ctrl.elevated && this.agent.ctrl.grounded) {
+      const route = this.#routeFromRoof();
+      if (route) {
+        this.mode = 'upper'; this.upperRoute = route; this.upperDirection = 'down';
+        this.path = [route.exit, ...route.steps.slice().reverse(), route.entry];
+        return this.update(dt, ghosts);
       }
-      this.deliverySearchElapsed += dt;
-      if (this.deliverySearchElapsed < this.deliverySearchDuration) {
-        // Ищет фонарь кругами вокруг ориентира, осматривает местность и не несётся прямо к нему.
-        const nearWaypoint = this.deliverySearchWaypoint
-          && Math.hypot(p.x - this.deliverySearchWaypoint.x, p.z - this.deliverySearchWaypoint.z) < 1.1;
-        if (!this.deliverySearchWaypoint || nearWaypoint || !this.path?.length) {
-          let waypoint = null;
-          for (let i = 0; i < 12 && !waypoint; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const radius = 3.7 + Math.random() * 2.1;
-            const x = lantern.x + Math.cos(angle) * radius;
-            const z = lantern.z + Math.sin(angle) * radius;
-            const [ci, cj] = this.nav.toCell(x, z);
-            const [fi, fj] = this.nav.nearestFree(ci, cj);
-            const [wx, wz] = this.nav.center(fi, fj);
-            if (Math.hypot(wx - lantern.x, wz - lantern.z) > 2.8
-              && this.nav.find(p.x, p.z, wx, wz)) waypoint = { x: wx, z: wz };
-          }
-          this.deliverySearchWaypoint = waypoint || { x: lantern.x, z: lantern.z };
-          this.path = this.nav.find(p.x, p.z, this.deliverySearchWaypoint.x, this.deliverySearchWaypoint.z)
-            || [[this.deliverySearchWaypoint.x, this.deliverySearchWaypoint.z]];
-        }
-        while (this.path?.length && Math.hypot(this.path[0][0] - p.x, this.path[0][1] - p.z) < 0.9) this.path.shift();
-        const [wx, wz] = this.path?.[0] || [this.deliverySearchWaypoint.x, this.deliverySearchWaypoint.z];
-        const d = Math.hypot(wx - p.x, wz - p.z) || 1;
-        return { x: (wx - p.x) / d, y: -(wz - p.z) / d, run: false };
-      }
-      this.deliverySearchReady = true;
-    } else {
-      this.deliverySearchKey = null;
-      this.deliverySearchReady = true;
     }
+    this.threat = null;
+    if (!delivery?.lanterns?.length) return { x: 0, y: 0 };
+    const carrying = delivery.lanterns.find(l => l.carrier === this.agent.key);
+    const claims = delivery.claims || (delivery.claims = new Map());
+    let lantern = carrying;
+    if (!lantern) {
+      const available = delivery.lanterns.filter(l => !l.delivered && !l.carrier
+        && (!claims.has(l.id) || claims.get(l.id) === this.agent.key));
+      available.sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z));
+      lantern = available[0];
+      if (lantern) claims.set(lantern.id, this.agent.key);
+    }
+    if (!lantern) return { x: 0, y: 0 };
+    if (carrying) {
+      this.deliverySearchId = null;
+      this.deliverySearchPoints = null;
+      this.deliverySearchIndex = 0;
+      this.deliverySearchPause = 0;
+    } else if (this.deliverySearchId !== lantern.id) {
+      // Боты не телепатически бегут точно в центр предмета: сначала обследуют
+      // несколько точек вокруг него шагом, затем подходят вплотную.
+      const angle = Math.random() * Math.PI * 2;
+      const points = [];
+      for (const [radius, turn] of [[3.2, 0], [2.4, 2.1], [1.45, 4.2]]) {
+        const x = Math.max(-this.nav.half + 1.5, Math.min(this.nav.half - 1.5,
+          lantern.x + Math.cos(angle + turn) * radius));
+        const z = Math.max(-this.nav.half + 1.5, Math.min(this.nav.half - 1.5,
+          lantern.z + Math.sin(angle + turn) * radius));
+        const [i, j] = this.nav.nearestFree(...this.nav.toCell(x, z));
+        const point = this.nav.center(i, j);
+        if (!points.some(p => Math.hypot(point[0] - p[0], point[1] - p[1]) < 1.1)) points.push(point);
+      }
+      points.push([lantern.x, lantern.z]);
+      this.deliverySearchId = lantern.id;
+      this.deliverySearchPoints = points;
+      this.deliverySearchIndex = 0;
+      this.deliverySearchPause = 0;
+      this.deliverySearchWait = 5.5 + Math.random() * 2.5;
+      this.deliveryPickupReady = false;
+      this.path = null;
+    }
+    if (!carrying) this.deliverySearchWait = Math.max(0, (this.deliverySearchWait || 0) - dt);
+    const searchTarget = !carrying ? this.deliverySearchPoints?.[this.deliverySearchIndex] : null;
+    const target = carrying ? delivery.shrine : (searchTarget
+      ? { x: searchTarget[0], z: searchTarget[1] } : lantern);
+    if (!target) return { x: 0, y: 0 };
+    if (!carrying && searchTarget) {
+      const distance = Math.hypot(searchTarget[0] - p.x, searchTarget[1] - p.z);
+      if (distance < 0.85) {
+        this.deliverySearchIndex++;
+        this.deliverySearchPause = 0.45;
+        this.path = null;
+        if (this.deliverySearchIndex >= this.deliverySearchPoints.length) {
+          this.deliverySearchPoints = null;
+        }
+      }
+      if (this.deliverySearchPause > 0) {
+        this.deliverySearchPause = Math.max(0, this.deliverySearchPause - dt);
+        if (this.deliverySearchPause > 0) return { x: 0, y: 0 };
+      }
+    }
+    this.deliveryPickupReady = !carrying && !this.deliverySearchPoints && this.deliverySearchWait <= 0;
+    const fogged = this.world.inSpiritFog?.(p.x, p.z) || false;
+    const dangerClose = carrying && ghosts.some(g => g.active && Math.hypot(g.pos.x - p.x, g.pos.z - p.z) < 12);
     const goal = `${Math.round(target.x * 2)},${Math.round(target.z * 2)}`;
     this.deliveryThink = (this.deliveryThink || 0) - dt;
     if (goal !== this.deliveryGoal || this.deliveryThink <= 0 || !this.path?.length) {
@@ -231,13 +339,17 @@ export class BotBrain {
     while (this.path?.length && Math.hypot(this.path[0][0] - p.x, this.path[0][1] - p.z) < 0.9) this.path.shift();
     const [x, z] = this.path?.[0] || [target.x, target.z];
     const d = Math.hypot(x - p.x, z - p.z) || 1;
-    return { x: (x - p.x) / d, y: -(z - p.z) / d, run: !this.agent.ctrl.exhausted,
+    // При поиске бот методично осматривает район фонаря. С грузом идёт быстрее
+    // только если рядом есть Безлик, чтобы доставка не выигрывалась мгновенно ботами.
+    return { x: (x - p.x) / d, y: -(z - p.z) / d, run: carrying && dangerClose,
       jump: this.agent.ctrl.speed < 0.3 && this.deliveryThink < 0.4 };
   }
 
   #decide(threat, td) {
     const me = this.agent, c = me.ctrl, p = c.pos;
     if (me.prop || this.mode === 'roof' || (this.mode === 'ladder' && (c.climbing || c.elevated))) return;
+    if (this.mode === 'upper' && this.path?.length) return;
+    if (this.mode === 'water' && c.swimming && !threat) return;
     // Герой-помощник (Моти): если за другом гонятся и рядом — бежим выручать
     if (!threat && me.hero.helper && this.allies) {
       const hunted = this.#huntedAlly();
@@ -248,8 +360,15 @@ export class BotBrain {
       // уже сидим в укрытии и нас не ищут — не выдаём себя
       if (this.mode === 'hide' && this.world.inBush(p.x, p.z, p.y) && threat.target !== me) return;
       if (this.mode === 'ladder' && this.ladder) return;
+      // Если до Безлика есть запас, ныряем в ближайший достижимый пруд и замираем на глубине.
+      if (td > 4 && Math.random() < 0.3) {
+        const spot = this.#safeWater(threat);
+        if (spot) { this.mode = 'water'; this.waterTarget = spot; this.#go(spot.x, spot.z); return; }
+      }
       // лестница рядом, а Безлик ещё не вплотную — наверх!
       if (td > 5 && Math.random() < CONFIG.bots.roofChance) {
+        const route = this.#upperRouteNear(threat);
+        if (route) { this.mode = 'upper'; this.#goViaUpper(route); return; }
         const L = this.#ladderNear(threat);
         if (L) { this.mode = 'ladder'; this.ladder = L; this.path = null; return; }
       }
@@ -264,7 +383,10 @@ export class BotBrain {
     if (this.mode === 'hide' && this.world.inBush(p.x, p.z, p.y)) return;
     if (!this.path || !this.path.length) {
       const r = Math.random();
-      if (r < 0.1) { const L = this.#ladderNear(null); if (L) { this.mode = 'ladder'; this.ladder = L; return; } }
+      if (r < 0.12 && this.world.upperRoutes?.length) {
+        this.mode = 'upper'; this.#goViaUpper(this.world.upperRoutes[(Math.random() * this.world.upperRoutes.length) | 0]); return;
+      }
+      if (r < 0.2) { const L = this.#ladderNear(null); if (L) { this.mode = 'ladder'; this.ladder = L; return; } }
       const hidePhase = this.agent.abilities?.game?.phase === 'hide';
       this.mode = r < (hidePhase ? 0.75 : 0.4) ? 'hide' : 'wander';
       if (this.mode === 'hide') { const b = this.#safeBush(null); if (b) return this.#go(b.x, b.z); }
@@ -286,9 +408,69 @@ export class BotBrain {
     return best;
   }
 
+  #safeWater(threat) {
+    const p = this.agent.ctrl.pos;
+    const candidates = [];
+    for (const zone of this.world.waterZones || []) {
+      const d = Math.hypot(zone.x - p.x, zone.z - p.z);
+      if (d > 13 || d < 2.5) continue;
+      const ghostDistance = threat ? Math.hypot(zone.x - threat.pos.x, zone.z - threat.pos.z) : 0;
+      if (threat && ghostDistance < 5.5) continue;
+      const [i, j] = this.nav.toCell(zone.x, zone.z);
+      if (!this.nav.free(i, j)) continue;
+      candidates.push({ x: zone.x, z: zone.z, score: ghostDistance - d * 0.45 + Math.random() * 1.5 });
+    }
+    candidates.sort((a, b) => b.score - a.score);
+    return candidates.find(point => this.nav.find(p.x, p.z, point.x, point.z)) || null;
+  }
+
   #go(x, z) {
     const p = this.agent.ctrl.pos;
     this.path = this.nav.find(p.x, p.z, x, z) || [[x, z]];
+  }
+
+  #goViaUpper(route) {
+    const p = this.agent.ctrl.pos;
+    this.upperRoute = route;
+    this.upperDirection = 'up';
+    const approach = this.nav.find(p.x, p.z, route.entry[0], route.entry[1]) || [route.entry];
+    this.path = [...approach, ...route.steps, route.exit];
+  }
+
+  #upperRouteNear(g) {
+    const p = this.agent.ctrl.pos;
+    let best = null, score = 12;
+    for (const route of this.world.upperRoutes || []) {
+      const d = Math.hypot(route.entry[0] - p.x, route.entry[1] - p.z);
+      if (d > score) continue;
+      if (g && Math.hypot(route.entry[0] - g.pos.x, route.entry[1] - g.pos.z) < d + 2) continue;
+      score = d; best = route;
+    }
+    return best;
+  }
+
+  #routeFromRoof() {
+    const p = this.agent.ctrl.pos;
+    let best = null, score = Infinity;
+    for (const route of this.world.upperRoutes || []) {
+      const [x, z] = route.exit;
+      const distance = Math.hypot(x - p.x, z - p.z);
+      if (distance > 18 || Math.abs(p.y - route.top) > 2.6) continue;
+      // Верхний переход должен оставаться над землёй: не выбираем лестницу
+      // соседнего здания через пустой промежуток между площадками.
+      const low = Math.min(p.y, route.top) - 1.2;
+      let supported = true;
+      for (let k = 1, n = Math.max(1, Math.ceil(distance / 1.4)); k <= n; k++) {
+        const t = k / n, sx = p.x + (x - p.x) * t, sz = p.z + (z - p.z) * t;
+        if (this.world.groundAt(sx, sz, this.agent.ctrl.radius, Math.max(p.y, route.top) + 1) < low) {
+          supported = false; break;
+        }
+      }
+      if (!supported) continue;
+      const candidate = distance + Math.abs(p.y - route.top) * 1.5;
+      if (candidate < score) { score = candidate; best = route; }
+    }
+    return best;
   }
 
   // Лестница поблизости (и не за спиной у Безлика)

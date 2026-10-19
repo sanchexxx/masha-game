@@ -75,7 +75,8 @@ export class Ghost {
     this.unseen = 0;
     this.wanderTarget = null;
     this.sees = false;
-    this.stunT = 0; this.slowT = 0; this.confusedT = 0; this.controlKind = '';
+    this.stunT = 0; this.slowT = 0; this.confusedT = 0; this.fearT = 0; this.fearSource = null; this.fearGoal = null;
+    this.controlImmuneT = 0; this.controlKind = '';
     this.showControl(0, 0, 0, '', 0);
     this.stuckT = 0; this.stuckFrom = null;
     this.aiFlightT = 0;
@@ -97,16 +98,52 @@ export class Ghost {
   get disguised() { return !!this.disguise; }
   get eyeY() { return this.pos.y + EYE; }
 
-  stun(sec, kind = 'stun') { this.stunT = Math.max(this.stunT, sec); this.controlKind = kind; this.ctrl.dashT = 0; this.reveal(); }
-  slow(sec) { this.slowT = Math.max(this.slowT, sec); }
-  confuse(sec) { this.confusedT = Math.max(this.confusedT, sec); this.reveal(); }
-  showControl(stun, slow, confused, kind, t) {
-    const remaining = Math.max(stun || 0, slow || 0, confused || 0);
+  stun(sec, kind = 'stun', force = false) {
+    if (!force && this.controlImmuneT > 0) return false;
+    this.stunT = Math.max(this.stunT, sec);
+    if (['fear', 'hypnosis', 'glare', 'wisps', 'swing', 'repel', 'roar'].includes(kind))
+      this.controlImmuneT = Math.max(this.controlImmuneT, sec + 3);
+    this.controlKind = kind; this.ctrl.dashT = 0; this.reveal();
+    return true;
+  }
+  fear(sec, source, flinch = 0.45) {
+    if (this.controlImmuneT > 0) return false;
+    this.fearT = Math.max(this.fearT, sec);
+    this.fearSource = new THREE.Vector3(source.x, 0, source.z);
+    this.fearGoal = null;
+    this.stunT = Math.max(this.stunT, flinch);
+    this.controlImmuneT = Math.max(this.controlImmuneT, sec + 3);
+    this.controlKind = 'fear';
+    this.ctrl.dashT = 0;
+    this.reveal();
+    return true;
+  }
+  slow(sec) {
+    if (this.controlImmuneT > 0) return false;
+    this.slowT = Math.max(this.slowT, sec);
+    this.controlKind = 'wisps';
+    this.reveal();
+    return true;
+  }
+  confuse(sec, kind = 'hypnosis', stun = 0) {
+    if (this.controlImmuneT > 0) return false;
+    this.confusedT = Math.max(this.confusedT, sec);
+    this.stunT = Math.max(this.stunT, stun);
+    this.controlImmuneT = Math.max(this.controlImmuneT, sec + 3);
+    this.controlKind = kind;
+    this.ctrl.dashT = 0;
+    this.reveal();
+    return true;
+  }
+  showControl(stun, slow, confused, kind, t, fear = 0) {
+    const remaining = Math.max(stun || 0, slow || 0, confused || 0, fear || 0, this.fearT || 0);
     const visible = remaining > 0.05;
     this.controlRing.visible = this.controlHalo.visible = this.controlLabel.visible = visible;
     if (!visible) return;
     const color = kind === 'hypnosis' ? 0xa85bff : kind === 'glare' ? 0xffdc77
-      : kind === 'wisps' ? 0x75f2d1 : kind === 'fear' ? 0xff657e : 0xffad65;
+      : kind === 'roar' ? 0xffa74a
+        : kind === 'wisps' ? 0x75f2d1 : kind === 'fear' ? 0xff657e
+          : kind === 'repel' ? 0x8eeaff : 0xffad65;
     this.controlRing.material.color.setHex(color);
     this.controlHalo.material.color.setHex(color);
     this.controlRing.rotation.z = t * 2.5;
@@ -193,7 +230,7 @@ export class Ghost {
     if (this.state === 'hidden') return st;
 
     if (this.state === 'appear') {
-      this.appear = Math.min(1, this.appear + dt / 2.2);
+      this.appear = Math.min(1, this.appear + dt / (env.delivery ? 0.55 : 2.2));
       st.appear = this.appear;
       st.mode = 'hunt';
       if (this.appear >= 1) this.state = this.human ? 'hunt' : 'search';
@@ -202,9 +239,12 @@ export class Ghost {
     }
 
     this.stunT = Math.max(0, this.stunT - dt);
+    this.controlImmuneT = Math.max(0, this.controlImmuneT - dt);
     this.slowT = Math.max(0, this.slowT - dt);
     this.confusedT = Math.max(0, this.confusedT - dt);
-    this.showControl(this.stunT, this.slowT, this.confusedT, this.controlKind, t);
+    this.fearT = Math.max(0, this.fearT - dt);
+    if (this.fearT <= 0) { this.fearSource = null; this.fearGoal = null; }
+    this.showControl(this.stunT, this.slowT, this.confusedT, this.controlKind, t, this.fearT);
     this.disguiseCd = Math.max(0, this.disguiseCd - dt);
     if (this.disguise) { this.disguise.t -= dt; if (this.disguise.t <= 0) this.reveal(); }
 
@@ -214,6 +254,8 @@ export class Ghost {
     if (this.human) move = inp;
     else move = this.#think(dt, pick, targets);
     if (this.confusedT > 0 && move) move = { ...move, x: -(move.y || 0), y: move.x || 0, run: false, dash: false };
+    // Страх управляет и ботом, и Безликом под управлением игрока.
+    if (this.fearT > 0 && this.fearSource && this.stunT <= 0) move = this.#fearInput(dt, this.human ? camYaw : 0);
 
     const c = this.ctrl;
     c.moveMul = this.stunT > 0 ? 0 : 1;
@@ -253,14 +295,23 @@ export class Ghost {
       const p = a.ctrl.pos;
       const dx = p.x - this.pos.x, dz = p.z - this.pos.z;
       const d = Math.hypot(dx, dz);
+      const spiritFog = this.world.inSpiritFog?.(p.x, p.z) || false;
+      const water = a.underwaterHidden && this.world.waterAt?.(this.pos.x, this.pos.z);
+      const submerged = !!water && this.pos.y < water.level - 0.15;
       let sees = d < C.sightRange && this.world.lineOfSight(this.pos.x, this.pos.z, p.x, p.z, false, this.eyeY, p.y + a.ctrl.height * 0.75);
+      // Призрачный туман ограничивает обзор героев, но не Безлика: охотник
+      // видит сквозь него. Бегущий герой всё равно выдаёт себя усиленным шумом.
+      // Нырнувшего героя не видно с берега и из воздуха: Безлик должен сам войти в воду.
+      if (a.underwaterHidden && !submerged) sees = false;
       if (a.hidden && d > 2.6) sees = false;
       // предмет видно, только если он шевелится (или Безлик уткнулся в него вплотную)
       if (a.prop && !(a.ctrl.speed > 0.8 && d < 14)) sees = false;
       // за спиной видит хуже: дальше 8 м — только впереди
       if (sees && d > 8 && (dx * fx + dz * fz) / (d || 1) < -0.35) sees = false;
-      const hears = a.ctrl.running && d < C.hearRunRange && !a.hidden && !a.prop;
-      if (!(sees || hears || d < 2.2)) continue;
+      // В тумане бег оставляет слышимый шлейф; шаг и приседание остаются тихими.
+      const hearRange = spiritFog ? C.hearRunRange * C.spiritFogHearMultiplier : C.hearRunRange;
+      const hears = a.ctrl.running && d < hearRange && !a.hidden && !a.prop;
+      if (!(sees || hears || (d < 2.2 && (!a.underwaterHidden || submerged)))) continue;
       const score = d * (sees ? 1 : 1.6);
       if (a === this.target) keep = { a, d, sees };
       if (score < bestD) { bestD = score; best = { a, d, sees }; }
@@ -377,6 +428,24 @@ export class Ghost {
     return inp;
   }
 
+  #fearInput(dt, camYaw) {
+    const c = this.ctrl;
+    if (!this.fearGoal || this.pos.distanceTo(this.fearGoal) < 1.7 || this.stuckT > 0.45) {
+      const dx = this.pos.x - this.fearSource.x, dz = this.pos.z - this.fearSource.z;
+      const len = Math.hypot(dx, dz) || 1;
+      const [i, j] = this.nav.toCell(this.pos.x + dx / len * 8, this.pos.z + dz / len * 8);
+      const [fi, fj] = this.nav.nearestFree(i, j);
+      const [x, z] = this.nav.center(fi, fj);
+      this.fearGoal = new THREE.Vector3(x, 0, z);
+      this.path = null;
+    }
+    const aim = this.#aim(this.fearGoal, false, dt);
+    const dx = aim.x - this.pos.x, dz = aim.z - this.pos.z, len = Math.hypot(dx, dz);
+    const wx = len > 0.05 ? dx / len : 0, wz = len > 0.05 ? dz / len : 0;
+    return { x: wx * Math.cos(camYaw) - wz * Math.sin(camYaw),
+      y: -wx * Math.sin(camYaw) - wz * Math.cos(camYaw), run: !c.exhausted, dash: false };
+  }
+
   #ladderFor(target) {
     let best = null, score = Infinity;
     for (const ladder of this.world.ladders) {
@@ -470,6 +539,9 @@ export class Ghost {
     if (!this.active || this.stunT > 0 || !a.alive || a.protected) return false;
     const p = a.ctrl.pos;
     const diving = this.ctrl.vel.y < -1.2;
+    const water = a.underwaterHidden && this.world.waterAt?.(p.x, p.z);
+    // Нырнувшего можно поймать только пикированием, уже войдя в воду.
+    if (a.underwaterHidden && (!diving || !water || this.pos.y >= water.level - 0.15)) return false;
     return Math.hypot(p.x - this.pos.x, p.z - this.pos.z) < C.catchRadius + a.ctrl.radius * 0.6
       && p.y - this.pos.y < C.catchHeight && this.pos.y - p.y < (diving ? C.diveCatchHeight : 1.5);
   }

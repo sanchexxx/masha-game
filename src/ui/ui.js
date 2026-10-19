@@ -140,6 +140,11 @@ export class UI {
       for (const p of world.waterZones || []) {
         b.beginPath(); b.ellipse(P(p.x), P(p.z), p.rx * k, p.rz * k, 0, 0, Math.PI * 2); b.fill();
       }
+      // Туман отмечен на мини-карте: Безлик видит сквозь него и дальше слышит бег.
+      b.fillStyle = 'rgba(175,151,255,.22)'; b.strokeStyle = 'rgba(205,190,255,.62)'; b.lineWidth = 1.4;
+      for (const f of world.fogZones || []) {
+        b.beginPath(); b.ellipse(P(f.x), P(f.z), f.rx * k, f.rz * k, 0, 0, Math.PI * 2); b.fill(); b.stroke();
+      }
       b.strokeStyle = '#aa8960'; b.lineWidth = 2.8 * k; b.lineCap = 'round'; b.lineJoin = 'round';
       for (const line of world.paths || []) {
         b.beginPath(); line.forEach(([px, pz], i) => i ? b.lineTo(P(px), P(pz)) : b.moveTo(P(px), P(pz))); b.stroke();
@@ -225,6 +230,20 @@ export class UI {
     const s = $('status');
     s.textContent = text;
     s.className = 'status ' + (cls || '');
+  }
+
+  fogHint(active, running = false) {
+    const el = $('fog-badge');
+    if (!el) return;
+    const state = !active ? 'off' : running ? 'loud' : 'quiet';
+    if (el.dataset.state === state) return;
+    el.dataset.state = state;
+    el.classList.toggle('on', state !== 'off');
+    el.classList.toggle('loud', state === 'loud');
+    if (state !== 'off') el.textContent = state === 'loud'
+      ? '🌫 Бег слышно дальше · Безлик видит сквозь туман'
+      : '🌫 Обзор короче · Безлик видит сквозь туман';
+    el.setAttribute('aria-hidden', active ? 'false' : 'true');
   }
 
   hud({ left, stamina, tired, hidden }) {

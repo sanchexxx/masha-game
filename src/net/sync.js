@@ -20,17 +20,20 @@ export function makeSnapshot(round) {
       a.hidden ? 1 : 0, r2(c.stamina), c.exhausted ? 1 : 0, r2(c.dashCd / c.phys.dash.cooldown),
       a.splitActive ? a.splitHeads.map(h => [r2(h.ctrl.pos.x), r2(h.ctrl.pos.y), r2(h.ctrl.pos.z),
         r2(h.ctrl.yaw), r2(h.ctrl.speed), h.alive ? 1 : 0]) : 0, a.splitUsed ? 1 : 0,
-      round.delivery?.deliveredBy?.[a.key] ? 1 : 0];
+      a.abilities?.list?.map(ability => {
+        const duration = a.abilities.cooldown(ability);
+        return duration > 0 ? r2(ability.cdLeft / duration) : 0;
+      }) || [], c.swimming ? 1 : 0, c.diving ? 1 : 0]; // перезарядки и вода — в конце снимка для совместимости старых гостей
   });
   const Gs = round.activeGhosts.map((g, i) => {
     const d = g.disguise;
     return [i, r2(g.pos.x), r2(g.pos.y), r2(g.pos.z), r2(g.yaw), g.state === 'hidden' ? 0 : g.state === 'appear' ? 1 : 2, r2(g.appear),
       g.state === 'hunt' ? 1 : 0, r2(g.ctrl.speed), r2(g.stunT), d?.hero ? d.hero.id : 0, d?.prop ? d.prop.id : 0,
       g.isPlayer ? 'host' : g.remote || 0, r2(g.ctrl.stamina), g.ctrl.dashCharges, r2(g.ctrl.flyEnergy), r2(g.disguiseCd),
-      r2(g.slowT), r2(g.confusedT), g.controlKind || ''];
+      r2(g.slowT), r2(g.confusedT), g.controlKind || '', r2(g.fearT)];
   });
   const d = round.delivery && { delivered: round.delivery.delivered, goal: round.delivery.goal,
-    lantern: { x: r2(round.delivery.lantern.x), z: r2(round.delivery.lantern.z), carrier: round.delivery.lantern.carrier },
+    lanterns: round.delivery.lanterns.map(l => ({ id: l.id, x: r2(l.x), z: r2(l.z), carrier: l.carrier, delivered: l.delivered })),
     shrine: round.delivery.shrine };
   return { t: 's', ph: round.phase, left: r2(round.left), sp: round.spawned, a: A, g: Gs, d };
 }
@@ -90,6 +93,7 @@ export class GuestView {
       root.rotation.y = v.yaw;
       root.scale.y += ((s[9] ? 0.62 : 1) - root.scale.y) * Math.min(1, dt * 14);
       v.char.update(dt, { t, speed: s[5], grounded: !!s[6], vy: s[7], running: !!s[8], landed: false, landSpeed: 0, crouch: !!s[9],
+        swimming: !!s[21], diving: !!s[22],
         action: s[12] ? { name: s[12], k: s[13] } : null,
         split: s[18] ? { heads: s[18].map(h => ({ x: h[0], y: h[1], z: h[2], yaw: h[3], speed: h[4], alive: !!h[5] })) } : null });
     }
@@ -106,7 +110,7 @@ export class GuestView {
       if (G.root.position.distanceTo(target) > 6) G.root.position.copy(target); else G.root.position.lerp(target, k);
       G.root.rotation.y += Math.atan2(Math.sin(s[4] - G.root.rotation.y), Math.cos(s[4] - G.root.rotation.y)) * k;
       if (shown && !dzKey) G.char.update(dt, { t, speed: s[8], mode: s[7] ? 'hunt' : 'search', appear: s[5] === 1 ? s[6] : 1, stunned: !!s[9] });
-      G.showControl(s[9], s[17], s[18], s[19], t);
+      G.showControl(s[9], s[17], s[18], s[19], t, s[20] || 0);
       if (shown && dzKey) {
         const key = dzKey + '#' + i;
         let obj = this.ghostDz.get(key);

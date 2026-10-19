@@ -12,8 +12,10 @@ import { HALF } from './map.js?v=2026100901';
 export function buildForest(scene, { isMobile }) {
   const world = new CollisionWorld(HALF);
   world.theme = 'forest';
+  world.upperRoutes = [];
   world.paths = [
     [[-31, 34], [-29, 17], [-28, 1], [-16, 8], [8, 8], [13, -7], [-7, -29]],
+    [[-8, -28], [-18, -32], [-20, -32]],
     [[-31, 34], [-12, 29], [2, 23], [9, 9], [17, -6], [25, -20]],
     [[2, 23], [24, 26], [31, 9], [25, -20]],
   ];
@@ -25,6 +27,23 @@ export function buildForest(scene, { isMobile }) {
   ];
   world.waterAt = (x, z) => world.waterZones.find(p => ((x - p.x) / p.rx) ** 2 + ((z - p.z) / p.rz) ** 2 < 1) || null;
   world.inWater = (x, z) => !!world.waterAt(x, z);
+  // Полосы призрачного тумана отмечены на мини-карте. Безлик видит сквозь них,
+  // а бег героев слышен дальше; тихий шаг не выдаёт игрока усиленным шумом.
+  world.fogZones = [
+    { x: -7, z: 18, rx: 7, rz: 4.3 }, { x: 6, z: 20, rx: 7.2, rz: 4.5 },
+    { x: 14, z: 22, rx: 6.2, rz: 4.2 }, { x: 30, z: 33, rx: 6, rz: 4.5 },
+    { x: -13, z: 9, rx: 6.2, rz: 4.1 },
+  ];
+  world.inSpiritFog = (x, z) => world.fogZones.some(f => ((x - f.x) / f.rx) ** 2 + ((z - f.z) / f.rz) ** 2 < 1);
+  // Soft edge prevents the visibility effect from snapping when a player crosses a zone border.
+  world.spiritFogStrength = (x, z) => {
+    let strength = 0;
+    for (const f of world.fogZones) {
+      const edge = Math.hypot((x - f.x) / f.rx, (z - f.z) / f.rz);
+      strength = Math.max(strength, THREE.MathUtils.clamp((1.08 - edge) / .28, 0, 1));
+    }
+    return strength;
+  };
   const groundAt = world.groundAt.bind(world);
   world.groundAt = (x, z, r, maxTop) => {
     const ground = groundAt(x, z, r, maxTop);
@@ -33,7 +52,9 @@ export function buildForest(scene, { isMobile }) {
     return water && ground <= 0.25 ? water.bottom : ground;
   };
   const cameraBlockers = [];
-  const blockerMat = new THREE.MeshBasicMaterial();
+  // Raycaster должен видеть обе стороны невидимых объёмов: при старте камеры
+  // внутри кроны/стены односторонние поверхности пропускали её наружу.
+  const blockerMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
   const blocker = (x, y, z, w, h, d) => {
     const o = new THREE.Mesh(G.box(w, h, d), blockerMat);
     o.position.set(x, y, z); o.updateMatrixWorld(true); cameraBlockers.push(o);
@@ -62,12 +83,29 @@ export function buildForest(scene, { isMobile }) {
   const glowTex = radialTexture('rgba(255,191,104,0.95)', 'rgba(255,131,38,0)', 64);
   const mistTex = radialTexture('rgba(175,181,237,0.25)', 'rgba(135,142,213,0)', 64);
   const lanternSpots = [];
+  const fogSprites = [];
+  const ambientFogDensity = .018;
+  let ghostFogVision = false;
+  let heroFogStrength = 0;
+  let requestedHeroFogStrength = 0;
+  world.setVisionFog = ({ ghost = false, strength = 0 } = {}) => {
+    ghostFogVision = !!ghost;
+    if (!ghost) requestedHeroFogStrength = THREE.MathUtils.clamp(strength, 0, 1);
+    heroFogStrength = ghost ? 0 : requestedHeroFogStrength;
+    scene.fog.density = ambientFogDensity + heroFogStrength * .045;
+    const opacityScale = ghostFogVision ? .16 : 1 + heroFogStrength * .3;
+    for (const f of fogSprites) {
+      const base = f.userData.baseFogOpacity ?? .46;
+      f.material.opacity = Math.min(.68, base * opacityScale);
+    }
+  };
+  world.setGhostFogVision = active => world.setVisionFog({ ghost: active, strength: requestedHeroFogStrength });
   const leafGeo = fluffySphere(1, 1, 0.2, 7);
   const boulderGeo = fluffySphere(1, 1, 0.26, 18);
 
   // Ночная палитра, яркая луна и глубина между деревьями.
   scene.background = new THREE.Color(0x090f2d);
-  scene.fog = new THREE.FogExp2(0x17274b, 0.018);
+  scene.fog = new THREE.FogExp2(0x17274b, ambientFogDensity);
   scene.add(new THREE.HemisphereLight(0x899ada, 0x14251e, 1.28));
   const moonLight = new THREE.DirectionalLight(0xcbd3ff, 1.48);
   moonLight.position.set(-22, 32, -14);
@@ -242,9 +280,14 @@ export function buildForest(scene, { isMobile }) {
       add(G.cyl(.23 * scale, .3 * scale, 4.5 * scale, 9), vermilion, { x: x + s * 2.0 * scale, y: 2.25 * scale, z });
       add(G.cyl(.32 * scale, .32 * scale, .13 * scale, 9), trim, { x: x + s * 2.0 * scale, y: 3.55 * scale, z });
       world.addCircle(x + s * 2 * scale, z, .27 * scale, 4.5 * scale);
+      blocker(x + s * 2.0 * scale, 2.25 * scale, z, .42 * scale, 4.5 * scale, .42 * scale);
     }
     add(G.box(5.8 * scale, .32 * scale, .62 * scale), redEdge, { x, y: 4.48 * scale, z });
     add(G.box(5.15 * scale, .24 * scale, .3 * scale), vermilion, { x, y: 3.83 * scale, z });
+    // Keep the spectator/player camera on the same side of the gate lintel
+    // instead of letting the beam cut across the center of the view.
+    blocker(x, 4.48 * scale, z, 5.8 * scale, .38 * scale, .68 * scale);
+    blocker(x, 3.83 * scale, z, 5.15 * scale, .3 * scale, .34 * scale);
     for (const s of [-1, 1]) {
       add(G.box(.85 * scale, .12 * scale, .72 * scale), vermilion, { x: x + s * 2.78 * scale, y: 4.63 * scale, z, rz: s * .18 });
       beam([x + s * 1.2 * scale, 3.7 * scale, z], [x + s * 1.75 * scale, 4.28 * scale, z], .07 * scale, trim);
@@ -290,7 +333,7 @@ export function buildForest(scene, { isMobile }) {
   segment(-1, 23, 13, 19, 2.1, bridgeWood, .12);
   segment(13, 19, 24, 26, 2.1, bridgeWood, .12);
 
-  function tree(x, z, scale = 1, blossom = false, obstacle = true) {
+  function tree(x, z, scale = 1, blossom = false, obstacle = true, cameraBlock = obstacle) {
     const h = 4.8 * scale;
     add(G.cyl(.31 * scale, .58 * scale, h, 9), trunk, { x, y: h / 2, z });
     for (let i = 0; i < 5; i++) {
@@ -311,15 +354,27 @@ export function buildForest(scene, { isMobile }) {
           { x: px, y: yy + .15 * scale, z: pz, ry: j * Math.PI / (isMobile ? 2 : 3) + a, shadow: false });
       }
     }
+    // The oversized crown cards can obscure the spectator camera even though
+    // the trunk is clear. A coarse camera-only canopy volume keeps the view
+    // outside the leaves while leaving player collision and hiding unchanged.
+    if (cameraBlock) blocker(x, 5.0 * scale, z, 5.2 * scale, 2.7 * scale, 5.2 * scale);
     if (obstacle) world.addCircle(x, z, .52 * scale, h, { sight: true });
+    // Камера должна объезжать ствол, иначе крупные деревья закрывают героя и обзор.
+    // Держим этот объём уже физического радиуса ствола: камера героя не должна
+    // начинать луч изнутри блокера, иначе Raycaster не находит переднюю грань.
+    if (cameraBlock) blocker(x, h / 2, z, .44 * scale, h, .44 * scale);
   }
   // Дерево убежище: полый проход снизу и густая крона скрывают игроков.
   const tx = -29, tz = 0;
+  const hollowTrunkOffset = 2.0;
   for (const s of [-1, 1]) {
-    add(G.cyl(1.0, 1.42, 7.2, 10), bark, { x: tx + s * 1.15, y: 3.6, z: tz });
-    world.addCircle(tx + s * 1.15, tz, 1.0, 7.2, { sight: true });
-    blocker(tx + s * 1.15, 3.5, tz, 2, 7, 2);
-    for (const q of [-1, 1]) beam([tx + s * 1.2, 1.0, tz + q * .5], [tx + s * 3.5, .1, tz + q * 2.8], .29, bark, 9);
+    const x = tx + s * hollowTrunkOffset;
+    // Между стволами остаётся около 1.7 м: герой проходит внутрь, а Безлик
+    // не видит его сквозь боковые стенки укрытия.
+    add(G.cyl(.85, 1.15, 7.2, 10), bark, { x, y: 3.6, z: tz });
+    world.addCircle(x, tz, .95, 7.2, { sight: true });
+    blocker(x, 3.6, tz, 1.9, 7.2, 1.9);
+    for (const q of [-1, 1]) beam([tx + s * 1.85, 1.0, tz + q * .5], [tx + s * 3.5, .1, tz + q * 2.8], .29, bark, 9);
   }
   add(G.box(4.1, 1.8, 3.0), bark, { x: tx, y: 7.7, z: tz });
   for (let i = 0; i < 7; i++) {
@@ -339,7 +394,12 @@ export function buildForest(scene, { isMobile }) {
   // Каменные стены рисуют силуэт горы; между ними остаются широкие обходы.
   function boulder(x, z, r = 1.3, solid = true) {
     add(boulderGeo, rand() > .45 ? rock : rockLight, { x, y: r * .56, z, sx: r, sy: r * .72, sz: r * (.7 + rand() * .4) });
-    if (solid) world.addCircle(x, z, r * .68, r * 1.3, { sight: true });
+    if (solid) {
+      world.addCircle(x, z, r * .68, r * 1.3, { sight: true });
+      // Валун должен отодвигать только камеру: физика героя остаётся прежней.
+      // Объём охватывает видимый камень, чтобы наблюдатель не смотрел сквозь него.
+      blocker(x, r * .56, z, r * 1.8, r * 1.45, r * 1.8);
+    }
   }
   for (const [x, z, r] of [[-21,-19,1.7],[-16,-16,1.5],[-10,-12,1.6],[2,-18,1.6],[7,-17,1.5],[12,-21,1.7],[33,-6,1.8],[36,18,1.8],[-35,-18,1.8]]) boulder(x,z,r);
   // Скальные уступы по краям маршрутов придают сцене высоту без новых тупиков.
@@ -441,9 +501,43 @@ export function buildForest(scene, { isMobile }) {
     }
     add(G.box(12.9, .3, 10.8), redEdge, { x, y: 5.05, z });
     roofLayer(x, z, 14.2, 12.0, 5.15, 2.25);
+    // Крыша храма — настоящая опора, а не только красивая геометрия.
+    // Профиль совпадает с видимым скатом и даёт Безлику/героям ходить наверху.
+    world.addRoof(x, z, 14.2, 12.0, 5.55, 7.4, 'x');
     roofLayer(x, z - .3, 8.6, 6.4, 6.95, 1.52);
+    world.addRoof(x, z - .3, 8.6, 6.4, 7.35, 8.47, 'x');
     // Выступающая крыша входа оставляет проход под собой.
     roofLayer(x, z + 5.45, 8.2, 3.4, 3.82, 1.18);
+    world.addRoof(x, z + 5.45, 8.2, 3.4, 4.22, 5.0, 'x');
+    // Длинная наружная лестница связывает землю с низким краем крыши.
+    // Шаг ниже 0.4 м позволяет подняться и крупному Моти; точки маршрута
+    // используются тем же AI, что и лестница наблюдательной башни.
+    const stairX = x + 6.75, stairStartZ = z + 7.0, stairEndZ = z - 5.2;
+    const stairCount = 17, stairRun = (stairStartZ - stairEndZ) / stairCount;
+    const roofEdge = 5.55 + (7.4 - 5.55) * (1 - Math.abs(stairEndZ - z) / 6);
+    for (let i = 0; i < stairCount; i++) {
+      const top = roofEdge * (i + 1) / stairCount;
+      const bottom = roofEdge * i / stairCount;
+      const stepZ = stairStartZ - stairRun * (i + .5);
+      add(G.box(2.9, .13, stairRun + .08), bridgeWood,
+        { x: stairX, y: top - .065, z: stepZ, shadow: false });
+      world.addBox(stairX, stepZ, 2.9, stairRun + .08, top,
+        { bottom, nav: false, sight: false });
+      for (const side of [-1, 1]) {
+        add(G.box(.12, .55, .12), railWood,
+          { x: stairX + side * 1.37, y: top + .2, z: stepZ, shadow: false });
+      }
+    }
+    for (const side of [-1, 1]) {
+      beam([stairX + side * 1.38, .45, stairStartZ],
+        [stairX + side * 1.38, roofEdge + .62, stairEndZ], .065, railWood, 6);
+    }
+    world.upperRoutes.push({ entry: [stairX, stairStartZ + .35],
+      steps: Array.from({ length: stairCount }, (_, i) => [stairX, stairStartZ - stairRun * (i + 1)]),
+      exit: [x + 5.8, stairEndZ], top: roofEdge });
+    world.paths.push([[stairX, stairStartZ + .35], [stairX, stairEndZ], [x + 5.8, stairEndZ]]);
+    lantern(stairX, stairStartZ - .3, 1.8, true);
+    lantern(x + 5.8, stairEndZ, roofEdge + .55, true);
     for (const sx of [-1, 1]) {
       const px = x + sx * 3.3;
       add(G.cyl(.18, .23, 3.35, 8), vermilion, { x: px, y: 1.95, z: z + 6.0 });
@@ -516,12 +610,42 @@ export function buildForest(scene, { isMobile }) {
     lantern(x + 2.1, z + 2.2, 4.7);
   }
   tower(-7, -32);
+  // Деревянная лестница связывает тропу у подножия с площадкой башни.
+  // Невысокие ступени остаются проходимыми для обычного контроллера и ботов.
+  function towerStairs(x0, x1, z, width = 2.8, count = 15) {
+    const run = (x1 - x0) / count, rise = 3.65 / count;
+    for (let i = 0; i < count; i++) {
+      const x = x0 + run * (i + .5), top = (i + 1) * rise, bottom = i * rise;
+      add(G.box(run + .08, .12, width), bridgeWood, { x, y: top - .06, z, shadow: false });
+      world.addBox(x, z, run + .08, width, top, { bottom, nav: false, sight: false });
+      for (const side of [-1, 1]) {
+        add(G.box(.12, .52, .12), railWood, { x, y: top + .2, z: z + side * (width / 2 - .1), shadow: false });
+      }
+    }
+    // Сохраняем точки подъёма для AI: двумерная навигационная сетка сама высоту ступеней не видит.
+    world.upperRoutes.push({ entry: [x0 - .9, z], steps: Array.from({ length: count }, (_, i) => [x0 + run * (i + 1), z]),
+      exit: [x1 + 3.2, z], top: 3.93 });
+    for (const side of [-1, 1]) {
+      beam([x0 - .35, .55, z + side * (width / 2 - .1)], [x1 + .35, 4.1, z + side * (width / 2 - .1)], .065, railWood, 6);
+    }
+    world.paths.push([[x0 - 1, z], [x1 + .2, z]]);
+    lantern(x0 + .8, z - width / 2 - .6, 1.65, true);
+    lantern(x1 - .4, z + width / 2 + .6, 4.4, true);
+  }
+  towerStairs(-20.2, -10.4, -32);
 
   // Дальний лес держит границы карты, внутри — просветы для обзора и погони.
+  const playerSpawn = [-29, 17];
+  const botSpawns = [[-36, 23], [-24, 27], [-35, 12], [-22, 18], [-38, 15], [-18, 27]];
+  const startPoints = [playerSpawn, ...botSpawns];
   for (let i = -40; i <= 40; i += 5.1) {
     for (const [x, z] of [[i, -41], [i, 41], [-41, i], [41, i]]) {
       if (Math.abs(i + 31) < 5 && z > 0) continue;
-      tree(x + (rand() - .5) * 1.4, z + (rand() - .5) * 1.4, 1.1 + rand() * .45, rand() > .88);
+      const tx = x + (rand() - .5) * 1.4, tz = z + (rand() - .5) * 1.4;
+      // Прокси кроны нужны только рядом со стартовыми точками: дальняя граница
+      // остаётся чистой декорацией и не раздувает работу Raycaster на телефонах.
+      const nearSpawn = startPoints.some(([sx, sz]) => Math.hypot(tx - sx, tz - sz) < 9);
+      tree(tx, tz, 1.1 + rand() * .45, rand() > .88, true, nearSpawn);
     }
   }
   for (const [x, z, s, flower] of [[-35,-27,1.3,false],[-26,-31,1.2,false],[-34,13,1.1,true],[-19,23,1.0,false],[-11,16,1.1,true],[-17,-1,1.0,false],[2,-3,1.3,true],[8,-27,1.0,false],[16,29,1.0,true],[22,36,1.1,false],[35,-13,1.2,true],[13,-35,1.0,false],[-28,-13,1.1,false]]) tree(x,z,s,flower);
@@ -575,9 +699,9 @@ export function buildForest(scene, { isMobile }) {
     add(G.cyl(.045, .07, .9 + rand() * .8, 5), reed, { x, y: .7, z });
     if (i % 4 === 0) world.addBush(x, z, .75, 'reeds');
   }
-  for (const [x,z] of [[-7,18],[6,20],[14,22],[30,33],[-13,9]]) {
+  for (const [x,z] of world.fogZones.map(f => [f.x, f.z])) {
     const fog = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, transparent: true, depthWrite: false, fog: false, opacity: .55 }));
-    fog.position.set(x, .9, z); fog.scale.set(10, 3.8, 1); scene.add(fog);
+    fog.position.set(x, .9, z); fog.scale.set(10, 3.8, 1); scene.add(fog); fogSprites.push(fog);
   }
   const wisps = [];
   for (const [x,z] of [[-10,19],[4,27],[17,24],[-19,10],[20,-9]]) {
@@ -628,6 +752,15 @@ export function buildForest(scene, { isMobile }) {
       waterMat.bumpMap.offset.copy(waterMat.map.offset);
     }
     for (let i = 0; i < wisps.length; i++) wisps[i].position.y = .7 + Math.sin(t * 1.4 + i * 2.1) * .28;
+    for (let i = 0; i < fogSprites.length; i++) {
+      const f = fogSprites[i], base = world.fogZones[i];
+      f.position.x = base.x + Math.sin(t * .12 + i * 1.7) * .65;
+      f.position.z = base.z + Math.cos(t * .1 + i * 1.3) * .45;
+      const density = .46 + Math.sin(t * .42 + i) * .08;
+      // Безлик видит сквозь призрачные завесы; для героев туман остаётся плотным.
+      f.userData.baseFogOpacity = density;
+      f.material.opacity = Math.min(.68, density * (ghostFogVision ? .16 : 1 + heroFogStrength * .3));
+    }
     for (let i = 0; i < petalCount; i++) {
       const [x, y, z, phase] = petalBases[i];
       petalPositions[i * 3] = x + Math.sin(t * .48 + phase) * .6;
@@ -639,9 +772,11 @@ export function buildForest(scene, { isMobile }) {
   const stats = mergeStatic(scene);
   return {
     stats, world, cameraBlockers, bushMeshes: [], updateLights, updateVisuals,
-    playerSpawn: new THREE.Vector3(-31, 0, 34),
-    botSpawns: [[-34, 33], [-27, 36], [-31, 27], [-23, 32], [-36, 26], [-20, 27]],
-    ghostSpawn: new THREE.Vector3(26, 0, -20),
-    ghostSpawns: [[26, -20], [20, -26], [31, -20], [24, -33]],
+    playerSpawn: new THREE.Vector3(playerSpawn[0], 0, playerSpawn[1]),
+    botSpawns,
+    // Точки охотников находятся на свободной поляне: старые попадали между
+    // навесом храма и крупными кронами, закрывая камеру Безлика.
+    ghostSpawn: new THREE.Vector3(18, 0, -9),
+    ghostSpawns: [[18, -9], [10, -14], [22, -5], [14, -2]],
   };
 }

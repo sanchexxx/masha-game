@@ -216,9 +216,10 @@ export class Multiplayer {
       $(id).disabled = !amHost;
       $(id).classList.toggle('active', net.gameMode === mode);
     }
-    $('lb-mode-note').textContent = net.gameMode === 'delivery'
+    $('lb-mode-note').textContent = (net.gameMode === 'delivery'
       ? 'Фонари появляются в случайных местах. Подойдите к фонарю — он подберётся автоматически, затем отнесите его к случайно выбранному храму на стороне Безликов. Каждый герой может доставить один фонарь; нужное число зависит от состава комнаты.'
-      : 'Сначала спрячьтесь от Безлика, затем убегайте в догонялках.';
+      : 'Сначала спрячьтесь от Безлика, затем убегайте в догонялках.')
+      + (mine === 'forest' ? ' В зонах тумана Безлик видит сквозь туман и дальше слышит бег — идите шагом, чтобы пройти тише.' : '');
     $('lb-start').innerHTML = `Начать ${net.gameMode === 'delivery' ? 'доставку' : 'прятки'} <span>›</span>`;
     $('lb-start').classList.toggle('hidden', !amHost);
     $('lb-wait').classList.toggle('hidden', amHost);
@@ -309,7 +310,8 @@ export class Multiplayer {
     if (e.type === 'caught') this.net.send({ t: 'ev', k: 'caught', name: e.agent.name, pid: pidOf(e.agent), phase: e.phase,
       eliminated: !!e.agent.eliminatedByHeads, by: e.ghost.isPlayer ? 'host' : e.ghost.remote || null });
     else if (e.type === 'resisted') this.net.send({ t: 'ev', k: 'resisted', name: e.agent.name, pid: pidOf(e.agent) });
-    else if (e.type === 'ability') this.net.send({ t: 'ev', k: 'ability', id: e.id, pid: pidOf(e.agent) });
+    else if (e.type === 'ability') this.net.send({ t: 'ev', k: 'ability', id: e.id, pid: pidOf(e.agent), key: e.agent?.key,
+      x: e.agent?.ctrl.pos.x, y: e.agent?.ctrl.pos.y, z: e.agent?.ctrl.pos.z, yaw: e.agent?.ctrl.yaw });
     else if (e.type === 'split') this.net.send({ t: 'ev', k: 'split', pid: pidOf(e.agent) });
     else if (e.type === 'headHop') this.net.send({ t: 'ev', k: 'headHop', pid: pidOf(e.agent), index: e.index });
     else if (e.type === 'headCaught') this.net.send({ t: 'ev', k: 'headCaught', pid: pidOf(e.agent), name: e.agent.name, remaining: e.remaining });
@@ -363,6 +365,7 @@ export class Multiplayer {
     g.showcase = null;
     g.input.reset();
     g.state = 'guest';
+    g.birthdaySky.start();
     g.input.enabled = true;
     g.input.lookOnly = false;
     g.cam.yaw = 0; g.cam.pitch = 0.3;
@@ -370,6 +373,7 @@ export class Multiplayer {
     g.ui.phase(g.gameMode === 'delivery' ? 'delivery' : 'hide');
     g.ui.pumpkins(0);
     g.ui.abilityBar([]);
+    g.ui.onAbility(id => this.guestAbility(id));
     this.lastBar = null;
     g.showLight.intensity = 0;
     document.getElementById('btn-again').classList.add('hidden');
@@ -380,6 +384,7 @@ export class Multiplayer {
     this.guest.clear();
     this.g.releaseAll();
     this.guest = null;
+    this.g.ui.onAbility(id => this.g.useAbility(id));
     document.getElementById('btn-again').classList.remove('hidden');
   }
 
@@ -408,6 +413,7 @@ export class Multiplayer {
     const watched = spectating ? (ghostViews.length ? ghostViews[this.guestFocus % ghostViews.length] : living[this.guestFocus % living.length]) : null;
     const focus = me?.pos || watched?.ctrl?.pos || watched?.pos || (gv.agents.values().next().value?.pos) || new THREE.Vector3(0, 0, 22);
     const mine = me?.kind === 'agent' ? me.v.s : null, gmine = me?.kind === 'ghost' ? me.g : null;
+    g.ui.fogHint(!!mine && g.world.theme === 'forest' && !!g.world.inSpiritFog?.(mine[1], mine[3]), !!mine?.[8]);
     g.mainFirstPersonTarget = spectating ? watched : null;
     const cameraKind = spectating && ghostViews.length ? 'ghost' : me?.kind === 'agent' && me.v.s?.[18] ? 'head' : me?.kind;
     if (cameraKind !== this.lastKind) {
@@ -443,14 +449,19 @@ export class Multiplayer {
     g.ui.hud({ left: snap.left, stamina: mine ? mine[15] : gmine ? gmine[13] : 1, tired: mine ? !!mine[16] : false, hidden: mine ? !!mine[14] : false });
     let status;
     if (snap.ph === 'delivery') {
-      const carrying = snap.d?.lantern?.carrier === me?.v?.s?.[0];
-      const carrier = snap.d?.lantern?.carrier && [...gv.agents.values()].find(v => v.s?.[0] === snap.d.lantern.carrier);
-      const nearLantern = mine && !snap.d?.lantern?.carrier
-        && Math.hypot(mine[1] - snap.d.lantern.x, mine[3] - snap.d.lantern.z) < 4;
-      const guide = mine && snap.d ? objectiveGuide({ x: mine[1], z: mine[3] }, carrying ? snap.d.shrine : snap.d.lantern, g.cam.yaw) : '';
+      const lanterns = snap.d?.lanterns || [];
+      const myKey = me?.v?.s?.[0];
+      const carried = lanterns.find(l => l.carrier === myKey);
+      const carrierLantern = lanterns.find(l => l.carrier && l.carrier !== myKey);
+      const carrier = carrierLantern && [...gv.agents.values()].find(v => v.s?.[0] === carrierLantern.carrier);
+      const targetLantern = mine && lanterns.filter(l => !l.delivered && !l.carrier)
+        .sort((a, b) => Math.hypot(mine[1] - a.x, mine[3] - a.z) - Math.hypot(mine[1] - b.x, mine[3] - b.z))[0];
+      const nearLantern = !!(targetLantern && mine
+        && Math.hypot(mine[1] - targetLantern.x, mine[3] - targetLantern.z) < 4);
+      const guideTarget = carried ? snap.d?.shrine : targetLantern;
+      const guide = mine && guideTarget ? objectiveGuide({ x: mine[1], z: mine[3] }, guideTarget, g.cam.yaw) : '';
       status = gmine ? `Помешай доставке! Фонари: ${snap.d?.delivered || 0}/${snap.d?.goal || 5}`
-        : carrying ? `Святилище ${guide} · неси фонарь!`
-        : mine?.[20] ? 'Ты уже доставил свой фонарь — помогай команде!'
+        : carried ? `Святилище ${guide} · неси фонарь!`
         : nearLantern ? 'Подойди к фонарю — он подберётся автоматически!'
         : carrier ? `${carrier.name} несёт фонарь — помоги ему добраться до святилища`
         : `🏮 Фонарь ${guide} · подойди и подбери · ${snap.d?.delivered || 0}/${snap.d?.goal || 5}`;
@@ -459,7 +470,10 @@ export class Multiplayer {
     else if (gmine) status = gmine[10] || gmine[11] ? 'Ты замаскирован — подкрадись!' : snap.ph === 'hide' ? `Найди спрятавшихся! Осталось: ${alive}` : `Догони всех! Осталось: ${alive}`;
     else if (!me) status = ghostViews.length ? 'Взгляд Безлика: смотри, как он ищет героев' : 'Тебя нашли! Смотри, как прячутся другие…';
     else if (mine[11]) status = 'Ты — предмет. Не шевелись! (Q — снова стать собой)';
-    else status = mine[18] ? `Три головы: ${mine[18].filter(h => h[5]).length}/3 · убегай от Безлика!` : mine[14] ? 'Тихо… тебя ищут' : snap.ph === 'chase' ? 'Догонялки! Не попадись!' : 'Безлики ищут. Спрячься или замаскируйся!';
+    else status = mine[18] ? `Три головы: ${mine[18].filter(h => h[5]).length}/3 · убегай от Безлика!`
+      : mine[14] ? 'Тихо… тебя ищут'
+        : g.world.inSpiritFog?.(mine[1], mine[3]) ? 'Безлик видит сквозь туман — шагай тихо'
+          : snap.ph === 'chase' ? 'Догонялки! Не попадись!' : 'Безлики ищут. Спрячься или замаскируйся!';
     g.ui.status(status, 'calm');
     g.ui.mmLabel(snap.ph === 'delivery' ? '🏮 Найди фонарь<br>и святилище' : snap.ph === 'hide' && snap.sp === 0 && !gmine ? 'Найди место<br>и спрячься!' : '');
     // панель умений: герой или Безлик
@@ -469,12 +483,20 @@ export class Multiplayer {
       g.ui.abilityBar(gmine ? g.ghostAbilities : mine ? g.heroAbilities(me.v.def.id) : []);
     }
     if (gmine) g.ui.cooldowns(id => id === 'dash' ? { k: gmine[14] > 0 ? 0 : 1, n: gmine[14] } : id === 'fly' ? { k: 1 - gmine[15] } : { k: gmine[10] || gmine[11] ? 0 : gmine[16] / CONFIG.ghost.disguise.cd });
-    else if (mine) g.ui.cooldowns(id => id === 'dash' ? { k: mine[17] }
-      : id === 'split' ? { k: mine[19] ? 1 : 0, n: mine[18] ? mine[18].filter(h => h[5]).length : '' } : { k: 0 });
+    else if (mine) {
+      const abilities = g.heroAbilities(me.v.def.id);
+      g.ui.cooldowns(id => {
+        if (id === 'dash') return { k: mine[17] };
+        if (id === 'split') return { k: mine[19] ? 1 : 0, n: mine[18] ? mine[18].filter(h => h[5]).length : '' };
+        const index = abilities.findIndex(a => a.id === id);
+        return { k: index >= 0 ? mine[20]?.[index] ?? 0 : 0 };
+      });
+    }
     // мини-карта
     const dots = [];
     if (snap.d) {
-      dots.push({ x: snap.d.lantern.x, z: snap.d.lantern.z, kind: 'lantern' });
+      for (const lantern of snap.d.lanterns || []) if (!lantern.delivered && !lantern.carrier)
+        dots.push({ x: lantern.x, z: lantern.z, kind: 'lantern' });
       dots.push({ x: snap.d.shrine.x, z: snap.d.shrine.z, kind: 'shrine' });
     }
     for (const v of gv.agents.values()) if (v.s && v.s[10] && v !== me?.v && !gmine) dots.push({ x: v.s[1], z: v.s[3], kind: 'ally' });
@@ -538,14 +560,51 @@ export class Multiplayer {
         const v = [...this.guest.agents.values()].find(a => a.pid === me);
         if (v) v.pos = null;
       }
-    } else if (m.k === 'ability' && ['fear', 'hypnosis', 'glare', 'repel'].includes(m.id)) {
-      if (m.id !== 'repel') g.sound.brothersCue?.(m.id);
-      const caster = [...this.guest.agents.values()].find(v => v.pid === m.pid);
-      const p = caster?.pos;
+    } else if (m.k === 'ability' && ['fear', 'hypnosis', 'glare', 'repel', 'tailhop', 'petals', 'roar',
+      'shelter', 'light', 'wisps', 'path', 'swing'].includes(m.id)) {
+      if (['fear', 'hypnosis', 'glare'].includes(m.id)) g.sound.brothersCue?.(m.id);
+      const caster = [...this.guest.agents.values()].find(v => (m.key && v.s?.[0] === m.key) || (m.pid && v.pid === m.pid));
+      const p = Number.isFinite(m.x) ? { x: m.x, y: m.y || 0, z: m.z } : caster?.pos;
       if (p) {
         const cfg = CONFIG.abilities[m.id];
-        const make = m.id === 'fear' ? AbilityFx.fearWave : m.id === 'hypnosis' ? AbilityFx.hypnosisVortex : AbilityFx.glareFlash;
-        g.addFx(make(g.scene, p.x, p.y, p.z, cfg.radius));
+        const yaw = Number.isFinite(m.yaw) ? m.yaw : caster?.yaw || 0;
+        if (m.id === 'tailhop') { g.addFx(AbilityFx.tailHop(g.scene, p.x, p.y, p.z, yaw)); g.sound.chime?.([784, 1046, 1318]); }
+        else if (m.id === 'petals') { g.addFx(AbilityFx.petalRush(g.scene, p.x, p.y, p.z, yaw)); g.sound.chime?.([659, 880, 1175]); }
+        else if (m.id === 'roar') { g.addFx(AbilityFx.roarWave(g.scene, p.x, p.y, p.z, yaw, cfg.radius)); g.sound.land?.(9); }
+        else if (m.id === 'shelter') { g.addFx(AbilityFx.dome(g.scene, p.x, p.z, cfg.radius, cfg.time)); g.sound.chime?.([523, 784, 1046]); }
+        else if (m.id === 'light') { g.addFx(AbilityFx.burst(g.scene, p.x, p.z, cfg.radius, 0xffd88c)); g.sound.chime?.([659, 880, 1318]); }
+        else if (m.id === 'wisps') {
+          const origin = new THREE.Vector3(p.x, p.y, p.z);
+          const targets = g.ghosts.filter(gh => gh.root.visible).sort((a, b) => a.pos.distanceToSquared(origin) - b.pos.distanceToSquared(origin));
+          const from = new THREE.Vector3(p.x, p.y + 2, p.z);
+          for (let i = 0; i < cfg.count; i++) {
+            const target = targets.length ? targets[i % targets.length] : null;
+            g.addFx(AbilityFx.wisp(g.scene, from, () => target?.root.visible ? target.pos : null, () => {}, 7));
+          }
+          g.sound.chime?.([440, 660, 880]);
+        } else if (m.id === 'path') {
+          const bushes = g.world.bushes || [];
+          const ghosts = g.ghosts.filter(gh => gh.root.visible);
+          let best = null, bestScore = -Infinity;
+          for (const bush of bushes) {
+            const distance = Math.hypot(bush.x - p.x, bush.z - p.z);
+            let ghostDistance = 40;
+            for (const ghost of ghosts) ghostDistance = Math.min(ghostDistance, Math.hypot(bush.x - ghost.pos.x, bush.z - ghost.pos.z));
+            const score = ghostDistance * 1.2 - distance;
+            if (score > bestScore) { bestScore = score; best = bush; }
+          }
+          if (best) {
+            const route = g.navFor(0.42).find(p.x, p.z, best.x, best.z);
+            if (route) g.addFx(AbilityFx.pawPath(g.scene, [[p.x, p.z], ...route], cfg.time));
+          }
+          for (const ghost of ghosts) g.addFx(AbilityFx.marker(g.scene, () => ghost.pos, cfg.time));
+          g.sound.chime?.([392, 523, 659, 784]);
+        } else if (m.id === 'swing') { g.addFx(AbilityFx.swingArc(g.scene, p.x, p.y, p.z, yaw)); g.sound.land?.(12); }
+        else if (m.id === 'repel') { g.addFx(AbilityFx.repelFlash(g.scene, p.x, p.y, p.z, cfg.radius)); g.sound.chime?.([784, 1046, 1568]); }
+        else {
+          const make = m.id === 'fear' ? AbilityFx.fearWave : m.id === 'hypnosis' ? AbilityFx.hypnosisVortex : AbilityFx.glareFlash;
+          g.addFx(make(g.scene, p.x, p.y, p.z, cfg.radius));
+        }
       }
     } else if (m.k === 'spawn') {
       g.sound.ghostAppear();
@@ -570,6 +629,7 @@ export class Multiplayer {
     g.state = 'result';
     g.input.enabled = false;
     g.input.releasePointer();
+    g.ui.onAbility(id => g.useAbility(id));
     const earn = this.pk;
     if (earn) g.ui.wallet(wallet.add(earn));
     g.ui.result({ mode: 'watch', ...r, earn });

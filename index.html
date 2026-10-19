@@ -105,6 +105,9 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .shield, .hidden-badge { font-size: 13px; font-weight: 800; padding: 4px 10px; border-radius: 999px; background: var(--panel); border: 1px solid var(--panel-line); }
 .hidden-badge { opacity: 0; transition: opacity .25s; color: #bfe9c8; }
 .hidden-badge.on { opacity: 1; }
+.fog-badge { display: none; max-width: 210px; padding: 5px 9px; border-radius: 999px; color: #d9d0ff; background: rgba(35, 27, 69, .86); border: 1px solid rgba(193, 175, 255, .58); font-size: 12px; font-weight: 800; line-height: 1.2; text-shadow: 0 1px 4px #09091c; }
+.fog-badge.on { display: block; }
+.fog-badge.loud { color: #ffe0a1; border-color: rgba(255, 196, 105, .8); background: rgba(67, 42, 28, .9); }
 .shield.used { opacity: .35; text-decoration: line-through; }
 .icon-btn { position: absolute; top: max(14px, env(safe-area-inset-top)); width: 44px; height: 44px; border-radius: 50%; background: var(--panel); border: 1px solid var(--panel-line); font-size: 18px; pointer-events: auto; }
 .mute { right: max(70px, calc(env(safe-area-inset-right) + 66px)); }
@@ -528,6 +531,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
     font-size: 10px;
     line-height: 1.15;
   }
+  #hud .fog-badge { flex: 0 0 auto; max-width: 132px; padding: 3px 6px; font-size: 9px; }
   #hud .pumpkins-hud { font-size: 11px; }
   #hud .abil-bar {
     top: auto;
@@ -711,6 +715,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
     <div class="stamina"><i id="stamina"></i></div>
     <div class="shield hidden" id="shield">🏠 Приют</div>
     <div class="hidden-badge" id="hidden-badge">🌿 Ты спрятан</div>
+    <div class="fog-badge" id="fog-badge" aria-live="polite"></div>
     <div class="alive" id="alive">Героев: 3/3</div>
     <div class="pumpkins-hud">🎃 <b id="pumpkins">0</b></div>
   </div>
@@ -792,7 +797,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   window.__bundleVariant = legacy ? 'legacy' : 'modern';
   window.__bootStage = 'скачиваем файл игры (' + window.__bundleVariant + ')';
   var script = document.createElement('script');
-  script.src = legacy ? '/src/main.legacy.bundle.js?v=2026101018' : '/src/main.bundle.js?v=2026101018';
+  script.src = legacy ? '/src/main.legacy.bundle.js?v=2026101123' : '/src/main.bundle.js?v=2026101123';
   script.onerror = function () { say('не загрузился файл игры (' + window.__bundleVariant + ')'); };
   script.onload = function () {
     if (!window.__bootEntered) say('файл игры скачан, но браузер не смог выполнить его (' + window.__bundleVariant + ')');

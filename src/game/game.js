@@ -9,6 +9,7 @@ import { buildMap } from '../world/map.js?v=2026100901';
 import { buildForest } from '../world/forest.js?v=2026100901';
 import { loadForestAssets } from '../world/forest-assets.js?v=2026101003';
 import { buildFireflies, buildSoot } from '../world/effects.js?v=2026100901';
+import { createBirthdaySky } from '../world/birthday.js';
 import { buildProp, poof, Pumpkins, wallet } from '../world/props.js?v=2026100901';
 import { LanternView, objectiveGuide } from '../world/lanterns.js';
 import { Input } from '../player/input.js?v=2026100901';
@@ -81,6 +82,7 @@ export class Game {
     r.shadowMap.type = THREE.PCFShadowMap;
 
     this.scene = new THREE.Scene();
+    this.birthdaySky = createBirthdaySky(this.scene);
     this.camera = new THREE.PerspectiveCamera(CONFIG.camera.fov, innerWidth / innerHeight, 0.1, 400);
     this.insetCamera = new THREE.PerspectiveCamera(72, 16 / 9, 0.08, 180);
     this.map = buildMap(this.scene, { isMobile });
@@ -178,7 +180,7 @@ export class Game {
         if (ab) this.round.player.abilities.use(ab.id);
       }
     });
-    ui.onAbility(id => this.#useAbility(id));
+    ui.onAbility(id => this.useAbility(id));
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.state === 'play') this.pause(); });
     addEventListener('resize', () => this.#resize());
     addEventListener('orientationchange', () => {
@@ -239,6 +241,7 @@ export class Game {
       oldScene.remove(this.showGhost.root);
       for (const g of this.ghostPool) oldScene.remove(g.root);
       this.scene = nextScene;
+      this.birthdaySky.setScene(nextScene);
       this.map = nextMap;
       this.world = nextMap.world;
       this.navs.clear();
@@ -293,7 +296,7 @@ export class Game {
     this.ui.buildMaps(this.maps, id => {
       const m = this.maps.find(x => x.id === id);
       if (!m.ready) { this.ui.toast(`«${m.name}» скоро откроется!`); return; }
-      this.mapId = id; this.ui.pickMap(id);
+      this.mapId = id; this.ui.pickMap(id); this.setGameMode(this.gameMode);
     });
     this.ui.pickMap(this.mapId);
   }
@@ -376,9 +379,10 @@ export class Game {
     const button = document.getElementById('btn-maps-go');
     if (button) button.innerHTML = `Начать ${this.gameMode === 'delivery' ? 'доставку' : 'прятки'} <span>›</span>`;
     const note = document.getElementById('maps-mode-note');
+    const forestTip = this.mapId === 'forest' ? ' В тумане Безлик видит сквозь завесу, а бег слышит дальше. Иди шагом или присядь, чтобы не шуметь.' : '';
     if (note) note.textContent = this.gameMode === 'delivery'
-      ? 'Фонари появляются в случайных местах. Подойди к фонарю — он подберётся автоматически, затем отнеси его к случайному храму на стороне Безликов. Каждый герой может доставить один фонарь.'
-      : 'Сначала спрячься. Когда Безлики выйдут, избегай их поисков и переживи догонялки.';
+      ? 'Фонари появляются в случайных местах. Подойди к фонарю — он подберётся автоматически, затем отнеси его к случайному храму на стороне Безликов. Каждый герой может доставить один фонарь.' + forestTip
+      : 'Сначала спрячься. Когда Безлики выйдут, избегай их поисков и переживи догонялки.' + forestTip;
   }
 
   // ---------- Раунд ----------
@@ -406,6 +410,7 @@ export class Game {
     this.#configureCam(follow);
     this.cam.snap(this.#posOf(follow));
     this.state = 'play';
+    this.birthdaySky.start();
     this.input.enabled = true;
     this.input.lookOnly = mode === 'watch';
     this.ui.mode('play', isTouch, mode);
@@ -444,6 +449,10 @@ export class Game {
     if (R.player?.alive) R.player.abilities.use(id);
   }
 
+  // Публичная точка входа нужна гостевому сетевому режиму, чтобы восстановить
+  // локальный обработчик кнопок после выхода из комнаты.
+  useAbility(id) { this.#useAbility(id); }
+
   #aliveHud() {
     const R = this.round;
     const n = R.agents.filter(a => a.alive).length;
@@ -462,6 +471,12 @@ export class Game {
   }
   #configureCam(f) {
     if (f?.splitActive) this.cam.configure({ distance: 4.5, height: 1.18, side: 0.35 });
+    else if (f?.hero && f.prop) {
+      // Когда камера следует за замаскированным героем, обычная точка взгляда
+      // оказывается внутри ящика/куста. Поднимаем её над самым высоким предметом.
+      const propTop = { crate: 1.05, lantern: 1.9, pumpkin: 1.0, barrel: 1.1, bush: 1.35 }[f.prop.kind?.id] || 1.5;
+      this.cam.configure({ ...f.hero.cam, height: Math.max(f.hero.cam.height || 1.5, propTop + 0.55) });
+    }
     else if (f?.hero) this.cam.configure(f.hero.cam);
     else this.cam.configure(GHOST.cam);
   }
@@ -489,6 +504,23 @@ export class Game {
     return target?.prop?.obj || target?.propObj || target?.disguiseRoot || target?.disguise?.char?.root || target?.root || target?.char?.root || null;
   }
 
+  #fogVisionForView() {
+    if (this.world.theme !== 'forest') return { ghost: false, strength: 0 };
+    let ghost = false, pos = null;
+    if (this.state === 'play') {
+      const focus = this.#focusTarget();
+      pos = focus?.ctrl?.pos;
+      ghost = !!this.round?.playerGhost;
+    } else if (this.state === 'guest') {
+      const mp = this.mp, gv = mp?.guest;
+      const me = gv?.me?.(mp?.net?.id);
+      const ghosts = (gv?.snap?.g || []).some(row => row[5] > 0);
+      ghost = me?.kind === 'ghost' || (!me && ghosts);
+      pos = mp?.focusPos;
+    }
+    return { ghost, strength: !ghost && pos ? this.world.spiritFogStrength?.(pos.x, pos.z) || 0 : 0 };
+  }
+
   #renderGhostInset() {
     const panel = document.getElementById('ghost-view');
     const ghost = this.ghostViewTarget;
@@ -508,10 +540,16 @@ export class Game {
     const model = this.#firstPersonModel(ghost);
     const wasVisible = model?.visible;
     if (model) model.visible = false;
-    this.renderer.render(this.scene, this.insetCamera);
-    if (model) model.visible = wasVisible;
-    this.renderer.setScissorTest(false);
-    this.renderer.setViewport(0, 0, w, h);
+    const mainFogVision = this.#fogVisionForView();
+    this.world.setVisionFog?.({ ghost: this.world.theme === 'forest' });
+    try {
+      this.renderer.render(this.scene, this.insetCamera);
+    } finally {
+      this.world.setVisionFog?.(mainFogVision);
+      if (model) model.visible = wasVisible;
+      this.renderer.setScissorTest(false);
+      this.renderer.setViewport(0, 0, w, h);
+    }
   }
 
   pause() {
@@ -552,6 +590,7 @@ export class Game {
     this.last = now;
     this.t += dt;
     const t = this.t;
+    this.birthdaySky.update(dt, this.camera, this.state === 'play' || this.state === 'guest');
 
     if (this.state === 'play') this.#play(dt, t);
     else if (this.state === 'guest') this.mp.guestTick(dt, t);
@@ -560,7 +599,7 @@ export class Game {
       for (const a of this.agents) if (a.alive && a.char) a.char.update(dt, { ...a.ctrl.animState(t), speed: 0, grounded: true, landed: false, action: a.abilities.pose() });
       for (const g of this.ghosts) if (g.state !== 'hidden' && !g.disguised) g.char.update(dt, { t, speed: 0, mode: 'hunt', appear: 1 });
     }
-    this.fx = this.fx.filter(f => f.update(dt) !== false);
+    if (this.state !== 'paused') this.fx = this.fx.filter(f => f.update(dt) !== false);
 
     const center = this.state === 'play' ? this.#posOf(this.#focusTarget()) : this.state === 'guest' ? this.mp.focusPos || this.map.playerSpawn : this.map.playerSpawn;
     this.map.updateLights(center);
@@ -577,8 +616,14 @@ export class Game {
     if (firstPersonModel) {
       firstPersonModel.visible = false;
     }
-    this.renderer.render(this.scene, this.camera);
-    if (firstPersonModel) firstPersonModel.visible = firstPersonVisible;
+    const fogVision = this.#fogVisionForView();
+    this.world.setVisionFog?.(fogVision);
+    try {
+      this.renderer.render(this.scene, this.camera);
+    } finally {
+      this.world.setVisionFog?.(fogVision);
+      if (firstPersonModel) firstPersonModel.visible = firstPersonVisible;
+    }
     this.#renderGhostInset();
   }
 
@@ -645,6 +690,8 @@ export class Game {
 
     // В укрытии герой может подсматривать за ближайшим Безликом от его лица.
     const player = R.player;
+    this.ui.fogHint(this.world.theme === 'forest' && !!player?.alive && !R.playerGhost
+      && !!this.world.inSpiritFog?.(player.ctrl.pos.x, player.ctrl.pos.z), !!player?.ctrl.running);
     const crouchButton = document.querySelector('#touch .btn-crouch');
     if (crouchButton) crouchButton.title = player?.ctrl.swimming
       ? (player.ctrl.diving ? 'Всплыть (C)' : 'Нырнуть и скрыться (C)')
@@ -704,17 +751,22 @@ export class Game {
     const headLeft = Math.ceil(C.round.headStart - R.t);
     if (R.phase === 'delivery') {
       const d = R.delivery;
-      const carrying = d.lantern.carrier === R.player?.key;
-      const lanternCarrier = d.lantern.carrier && R.agents.find(a => a.key === d.lantern.carrier);
-      const nearLantern = R.player && !R.playerGhost && !d.lantern.carrier
-        && Math.hypot(R.player.ctrl.pos.x - d.lantern.x, R.player.ctrl.pos.z - d.lantern.z) < 4;
-      const guide = R.player?.alive ? objectiveGuide(R.player.ctrl.pos, carrying ? d.shrine : d.lantern, this.cam.yaw) : '';
+      const carried = d.lanterns.find(l => l.carrier === R.player?.key);
+      const carrying = !!carried;
+      const lanternCarrier = d.lanterns.find(l => l.carrier && l.carrier !== R.player?.key);
+      const carrierAgent = lanternCarrier && R.agents.find(a => a.key === lanternCarrier.carrier);
+      const available = d.lanterns.filter(l => !l.carrier && !l.delivered);
+      const targetLantern = available.sort((a, b) => Math.hypot(a.x - (R.player?.ctrl.pos.x || 0), a.z - (R.player?.ctrl.pos.z || 0))
+        - Math.hypot(b.x - (R.player?.ctrl.pos.x || 0), b.z - (R.player?.ctrl.pos.z || 0)))[0];
+      const nearLantern = R.player && !R.playerGhost && targetLantern
+        && Math.hypot(R.player.ctrl.pos.x - targetLantern.x, R.player.ctrl.pos.z - targetLantern.z) < 3;
+      const guide = R.player?.alive ? objectiveGuide(R.player.ctrl.pos, carrying ? d.shrine : targetLantern || d.shrine, this.cam.yaw) : '';
       this.ui.status(R.playerGhost ? `Помешай доставке! Фонари: ${d.delivered}/${d.goal}`
         : carrying ? `Святилище ${guide} · неси фонарь! ${d.delivered}/${d.goal}`
-        : R.player && d.deliveredBy?.[R.player.key] ? 'Ты уже доставил свой фонарь — помогай команде искать или защищать курьера'
         : nearLantern ? 'Подойди к фонарю — он подберётся автоматически!'
-        : lanternCarrier ? `${lanternCarrier.name} несёт фонарь — помоги ему добраться до святилища`
-        : `🏮 Фонарь ${guide} · подойди и подбери · ${d.delivered}/${d.goal}`, 'calm');
+        : carrierAgent ? `${carrierAgent.name} несёт фонарь — ищи следующий или помоги ему`
+        : targetLantern ? `🏮 Фонарь ${guide} · подойди и подбери · ${d.delivered}/${d.goal}`
+        : `🏮 Доставлено ${d.delivered}/${d.goal} · помоги команде`, 'calm');
     } else if (R.phase === 'hide' && R.spawned === 0) {
       if (R.playerGhost) this.ui.status(`Закрой глаза и считай: ${headLeft}… Герои прячутся!`, 'calm');
       else this.ui.status(`Безлики выйдут через ${headLeft} — прячься!`, 'calm');
@@ -729,6 +781,7 @@ export class Game {
     else if (R.player.protected) this.ui.status('Ты под куполом — здесь не поймают', 'calm');
     else if (R.player.prop) this.ui.status(`Ты — ${R.player.prop.kind.name}. Не шевелись! (Q — снова стать собой)`, 'calm');
     else if (near && near.g.state === 'hunt' && near.g.target === R.player && !near.g.disguised) this.ui.status('Безлик идёт по следу…', '');
+    else if (this.world.inSpiritFog?.(R.player.ctrl.pos.x, R.player.ctrl.pos.z)) this.ui.status('Безлик видит сквозь туман — шагай тихо', 'calm');
     else this.ui.status(R.player.hidden ? 'Тихо… он тебя ищет' : R.phase === 'chase' ? 'Догонялки! Не попадись!' : 'Безлики ищут. Спрячься или замаскируйся!', 'calm');
     const k = R.spawned && heroView ? THREE.MathUtils.clamp(1 - dist / 16, 0, 1) : 0;
     this.sound.setTension(this.mode === 'watch' ? k * 0.5 : k);
@@ -799,6 +852,10 @@ export class Game {
       this.ui.toast(a.isPlayer ? 'Три Брата вырвались! Упрямство потрачено до следующей фазы.' : `${a.name} вырвались из поимки!`);
     } else if (e.type === 'poof') {
       this.addFx(poof(this.scene, e.x, e.y, e.z, e.ghost ? 0xc9a8ff : 0xfff1d6));
+      if (e.agent && e.agent === this.#focusTarget()) {
+        this.#configureCam(e.agent);
+        this.cam.snap(this.#posOf(e.agent));
+      }
       if (e.agent?.isPlayer && e.kind) this.ui.toast(`Ты превратился: ${e.kind}!`);
     } else if (e.type === 'phase') {
       this.ui.phase('chase');
@@ -823,7 +880,8 @@ export class Game {
     const dots = [];
     for (const p of this.pumpkins.list) dots.push({ x: p.x, z: p.z, kind: 'pumpkin' });
     if (R.delivery) {
-      dots.push({ x: R.delivery.lantern.x, z: R.delivery.lantern.z, kind: 'lantern' });
+      for (const lantern of R.delivery.lanterns) if (!lantern.delivered && !lantern.carrier)
+        dots.push({ x: lantern.x, z: lantern.z, kind: 'lantern' });
       dots.push({ x: R.delivery.shrine.x, z: R.delivery.shrine.z, kind: 'shrine' });
     }
     const hunter = !!R.playerGhost;
