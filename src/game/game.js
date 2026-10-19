@@ -26,6 +26,8 @@ import { LOOK_OPTIONS, loadLook, saveLook } from '../characters/kid.js?v=2026100
 import { HERO_ABILITIES } from '../abilities/abilities.js?v=2026100901';
 import { Multiplayer } from '../net/multiplayer.js?v=2026100901';
 import { Lineup } from './lineup.js';
+import { setGhostly } from '../characters/totoro.js';
+import { natureVisual } from '../world/nature.js';
 import { Coach, Training, tutorialSeen } from '../ui/tutorial.js';
 
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
@@ -50,7 +52,7 @@ export class Game {
     this.navs = new Map();
     this.pool = new Map();
     this.acquired = [];
-    this.skin = 'classic';
+    this.skins = {};               // скин каждого героя: {moti: 'winter', totoro: 'rain'}
     this.withBots = true;
     this.ghostCount = CONFIG.ghost.count;
     this.mapId = 'village';
@@ -125,7 +127,7 @@ export class Game {
 
     this.round = new Round({
       world: this.world, scene: this.scene, navFor: r => this.navFor(r), ghosts: this.ghostPool, heroes: HEROES,
-      makeChar: (h, s) => this.#acquire(h, s), makeProp: k => buildProp(k), sound: this.sound, cam: this.cam,
+      makeChar: (h, s) => this.#acquire(h, s), makeProp: k => buildProp(k), sound: this.sound, cam: this.cam, navs: () => this.navs.values(),
       playerSpawn: this.map.playerSpawn, botSpawns: this.map.botSpawns, ghostSpawns: this.map.ghostSpawns,
     });
     this.round.addFx = f => this.fx.push(f);
@@ -140,6 +142,8 @@ export class Game {
     this.#lineupPointer();
     ui.on('btn-tutorial', () => this.coach.start());
     ui.on('btn-tutorial2', () => this.coach.start());
+    ui.on('hc-send', () => this.#useAbility('nekohelp'));
+    ui.on('hc-skip', () => { this.helpSkip = this.helpAlly; this.helpSkipUntil = performance.now() + 8000; document.getElementById('help-card').classList.add('hidden'); });
     ui.on('btn-pause-tut', () => { this.ui.show('paused', false); this.#quitTraining(); this.coach.start(); });
     ui.on('btn-maps-train', () => this.beginRound(this.hero.id === 'noface' ? 'hunter' : 'play', true));
     ui.on('btn-td-real', () => { this.ui.show('train-done', false); this.beginRound(this.hero.id === 'noface' ? 'hunter' : 'play'); });
@@ -168,7 +172,7 @@ export class Game {
     ui.onOptions({
       ghosts: n => { this.ghostCount = n; },
       bots: on => { this.withBots = on; },
-      skin: s => { this.skin = s; this.selectHero('moti', true); },
+      skin: s => { this.skins[this.hero.id] = s; this.selectHero(this.hero.id, true); },
     }, { ghosts: this.ghostCount, bots: this.withBots });
     this.tuner = new Tuner(HEROES, () => this.hero?.id || 'masha');
     ui.minimapInit(this.world, this.world.half);
@@ -269,7 +273,7 @@ export class Game {
       this.scene.add(this.showLight, this.showGhost.root);
       this.round = new Round({
         world: this.world, scene: this.scene, navFor: r => this.navFor(r), ghosts: this.ghostPool, heroes: HEROES,
-        makeChar: (h, s) => this.#acquire(h, s), makeProp: k => buildProp(k), sound: this.sound, cam: this.cam,
+        makeChar: (h, s) => this.#acquire(h, s), makeProp: k => buildProp(k), sound: this.sound, cam: this.cam, navs: () => this.navs.values(),
         playerSpawn: nextMap.playerSpawn, botSpawns: nextMap.botSpawns, ghostSpawns: nextMap.ghostSpawns,
       });
       this.round.addFx = f => this.fx.push(f);
@@ -343,6 +347,10 @@ export class Game {
     for (const f of this.fx) while (f.update(99) !== false);   // досрочно гасим эффекты
     this.fx = [];
     this.pumpkins.clear();
+    this.round.nature?.clear();
+    this.round.nekoChar = null;
+    for (const r of this.guestNature || []) r.removeFromParent();
+    this.guestNature = [];
   }
 
   // ---------- Выбор героя ----------
@@ -351,7 +359,7 @@ export class Game {
     this.hero = id === GHOST.id ? GHOST : HEROES.find(h => h.id === id);
     if (rebuild || !this.lineupReady) this.#buildLineup();
     this.lineup.select(id);
-    this.ui.showHero(this.hero, this.skin, this.#powersOf(this.hero), isTouch);
+    this.ui.showHero(this.hero, this.#skinFor(this.hero), this.#powersOf(this.hero), isTouch);
     if (this.hero.custom) this.ui.buildCreator(this.look, LOOK_OPTIONS, (k, v) => this.#setLook(k, v));
     this.cam.configure(this.hero.cam);
   }
@@ -364,6 +372,7 @@ export class Game {
       this.sound.unlock();
       this.sound.chime([523, 784]);
       if (id === 'brothers') this.sound.brothersCue?.('select');
+      if (id === 'totoro') this.sound.totoroCue?.('select');
     }
     this.coach?.signal('pick');
   }
@@ -409,7 +418,7 @@ export class Game {
     c.addEventListener('pointerleave', () => { if (this.lineup) this.lineup.hover = null; c.style.cursor = ''; });
   }
 
-  #skinFor(h) { return h.custom ? JSON.stringify(this.look) : this.skin; }
+  #skinFor(h) { return h.custom ? JSON.stringify(this.look) : h.skins ? this.skins[h.id] || 'classic' : 'classic'; }
 
   // Редактор «Моего котика»: поменяли что-то — пересобираем героя
   #setLook(k, v) {
@@ -427,6 +436,7 @@ export class Game {
     this.input.lookOnly = false;
     this.input.releasePointer();
     this.#quitTraining();
+    document.getElementById('help-card')?.classList.add('hidden');
     this.ui.show('train-done', false);
     this.ui.mode('select', isTouch);
     this.selectHero(this.hero.id, true);
@@ -476,7 +486,7 @@ export class Game {
     const hero = this.hero.id === GHOST.id ? HEROES[0] : this.hero;
     const withBots = training ? mode === 'hunter' : this.mp.isHost ? this.mp.net.bots : this.withBots;
     if (this.mp.isHost) this.gameMode = this.mp.net.gameMode;
-    this.round.start({ mode, gameMode: training ? 'hide' : this.gameMode, hero, skin: this.#skinFor(hero), mSkin: this.skin, ghosts: training ? 1 : this.ghostCount, withBots, remotes: training ? [] : this.mp.remotes() });
+    this.round.start({ mode, gameMode: training ? 'hide' : this.gameMode, hero, skin: this.#skinFor(hero), skins: this.skins, ghosts: training ? 1 : this.ghostCount, withBots, remotes: training ? [] : this.mp.remotes() });
     this.mp.hostStarted();
     this.pumpkins.spawn(CONFIG.round.pumpkins);
     this.focus = 0;
@@ -506,6 +516,62 @@ export class Game {
       this.ui.hideLoading();
       this.ui.toast('Не удалось открыть карту. Попробуй выбрать её ещё раз.');
     } finally { this.roundStarting = false; }
+  }
+
+  // Невидимость — полупрозрачный Тоторо; полёт — НэкоБус под ним
+  #totoroLook(a, dt, t) {
+    const ghostly = a.vanishT > 0;
+    if (a.ghostly !== ghostly) { a.ghostly = ghostly; setGhostly(a.char.root, ghostly ? 0.28 : 1); }
+    const riding = a.ctrl.rideT > 0;
+    if (riding && !a.rideChar) a.rideChar = this.#acquire(HEROES.find(h => h.id === 'catbus'), 'classic');
+    if (a.rideChar) {
+      a.rideChar.root.visible = riding;
+      if (riding) {
+        const r = a.rideChar.root;
+        r.position.set(a.ctrl.pos.x, a.ctrl.pos.y - 1.55, a.ctrl.pos.z);
+        r.rotation.y = a.ctrl.yaw;
+        a.rideChar.update(dt, { t, speed: a.ctrl.speed * 1.2, grounded: true, landed: false, action: null });
+      }
+    }
+  }
+
+  // Тоторо чувствует, когда друга ловят: окошко с видом на друга и выбор — помочь или нет
+  #helpCard() {
+    const R = this.round, me = R.player;
+    const card = document.getElementById('help-card');
+    const can = me?.alive && me.hero.id === 'totoro' && !this.training && me.abilities.ready('nekohelp');
+    const need = can ? R.helpNeeded(me) : null;
+    if (need && this.helpSkip === need.ally && performance.now() < this.helpSkipUntil) { card.classList.add('hidden'); this.helpAlly = null; return; }
+    this.helpAlly = need?.ally || null;
+    this.helpGhost = need?.ghost || null;
+    card.classList.toggle('hidden', !need);
+    if (need) {
+      const name = document.getElementById('hc-name');
+      if (name.textContent !== need.ally.name) { name.textContent = need.ally.name; this.sound.totoroCue?.('alert'); }
+    }
+  }
+
+  #renderHelpInset() {
+    const ally = this.helpAlly;
+    const box = document.querySelector('#help-card .hc-view');
+    if (!ally || !box || document.getElementById('help-card').classList.contains('hidden')) return;
+    const rect = box.getBoundingClientRect();
+    if (!rect.width) return;
+    const cam = this.insetCamera;
+    cam.aspect = rect.width / rect.height;
+    cam.updateProjectionMatrix();
+    const p = ally.ctrl.pos, g = this.helpGhost?.pos || p;
+    const mx = (p.x + g.x) / 2, mz = (p.z + g.z) / 2;
+    const dx = p.x - g.x, dz = p.z - g.z, len = Math.hypot(dx, dz) || 1;
+    cam.position.set(mx - dz / len * 7, Math.max(p.y, g.y) + 6.5, mz + dx / len * 7);
+    cam.lookAt(mx, p.y + 1, mz);
+    const w = this.renderer.domElement.clientWidth || innerWidth, h = this.renderer.domElement.clientHeight || innerHeight;
+    const y = h - rect.bottom;
+    this.renderer.setScissorTest(true);
+    this.renderer.setViewport(rect.left, y, rect.width, rect.height);
+    this.renderer.setScissor(rect.left, y, rect.width, rect.height);
+    try { this.renderer.render(this.scene, cam); }
+    finally { this.renderer.setScissorTest(false); this.renderer.setViewport(0, 0, w, h); }
   }
 
   trainingFinished(ok) {
@@ -711,6 +777,7 @@ export class Game {
     this.map.updateLights(center);
     this.map.updateVisuals?.(t);
     if (this.state === 'play') this.lanternView?.update(this.round.delivery, this.round.agents, t);
+    if (this.state === 'play') this.round.nature?.cameraFade(this.camera.position);
     else if (this.state === 'guest') {
       const snap = this.mp.guest?.snap;
       this.lanternView?.update(snap?.d, (snap?.a || []).map(a => ({ key: a[0], ctrl: { pos: { x: a[1], y: a[2], z: a[3] } } })), t);
@@ -732,6 +799,7 @@ export class Game {
       if (firstPersonModel) firstPersonModel.visible = firstPersonVisible;
     }
     this.#renderGhostInset();
+    if (this.state === 'play') this.#renderHelpInset();
   }
 
   #showcase(dt, t) {
@@ -767,6 +835,7 @@ export class Game {
     for (const e of R.events) if (!training?.onEvent(e)) this.#onEvent(e);
     R.events.length = 0;
     if (this.training) this.training.update(dt);
+    this.#helpCard();
     this.mp.hostTick(dt);
     if (this.state !== 'play') return;
     document.getElementById('btn-room-restart')?.classList.toggle('hidden',
@@ -803,7 +872,8 @@ export class Game {
       root.position.copy(a.ctrl.pos);
       root.rotation.y = a.ctrl.yaw;
       root.scale.y += ((a.ctrl.crouching ? 0.62 : 1) - root.scale.y) * Math.min(1, dt * 14);   // присел — сжался
-      a.char.update(dt, { ...a.ctrl.animState(t), action: a.abilities.pose(),
+      if (a.hero.id === 'totoro') this.#totoroLook(a, dt, t);
+      a.char.update(dt, { ...a.ctrl.animState(t), action: a.abilities.pose(), riding: a.ctrl.rideT > 0,
         split: a.splitActive ? { heads: a.splitHeads.map(h => ({ x: h.ctrl.pos.x, y: h.ctrl.pos.y,
           z: h.ctrl.pos.z, yaw: h.ctrl.yaw, speed: h.ctrl.speed, alive: h.alive })) } : null });
     }
@@ -957,6 +1027,22 @@ export class Game {
       const f = this.#focusTarget();
       this.#configureCam(f);
       this.cam.snap(this.#posOf(f));
+    } else if (e.type === 'nature') {
+      const names = { oak: 'Вырос Великий дуб! Залезай по стволу наверх', hut: 'Готов лесной домик — внутри тебя не видно', lamp: 'Фонарь горит: Безлик в его свете виден и медленнее' };
+      if (e.agent.isPlayer) this.ui.toast(names[e.kind]);
+    } else if (e.type === 'natureFull') {
+      if (e.agent.isPlayer) this.ui.toast(e.id === 'lamp' ? 'Фонарей уже 3 — больше нельзя' : e.id === 'oak' ? 'Дубов уже 2 — больше нельзя' : 'Домиков уже 2 — больше нельзя');
+    } else if (e.type === 'natureNoRoom') {
+      if (e.agent.isPlayer) this.ui.toast('Тут тесно — выйди на открытое место');
+    } else if (e.type === 'noHelpNeeded') {
+      if (e.agent.isPlayer) this.ui.toast('Сейчас никого не ловят — НэкоБус отдыхает');
+    } else if (e.type === 'nekoHelp') {
+      this.helpAlly = null;
+      if (e.agent.isPlayer) this.ui.toast(`НэкоБус помчался выручать: ${e.ally?.name || 'друг'}!`);
+      else if (e.ally?.isPlayer) this.ui.toast('Тоторо прислал НэкоБуса тебе на помощь! Беги!');
+      this.addFx(burst(this.scene, e.x, e.z, 2.2, 0xffc860));
+    } else if (e.type === 'minis') {
+      if (e.agent.isPlayer) this.ui.toast('Тю и Тиби уводят Безликов за собой!');
     } else if (e.type === 'end') {
       this.#end(e.result);
     }

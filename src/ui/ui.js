@@ -33,6 +33,7 @@ export class UI {
     this.show('result', m === 'result');
     this.show('paused', false);
     $('ghost-view').classList.add('hidden');
+    $('help-card')?.classList.add('hidden');
     $('hud').classList.toggle('hidden', m !== 'play');
     // экранные кнопки — и на телефоне, и на ПК (там жмутся мышкой); в «Смотреть» не нужны
     $('touch').classList.toggle('hidden', !(m === 'play' && gameMode !== 'watch'));

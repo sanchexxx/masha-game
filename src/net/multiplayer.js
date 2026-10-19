@@ -9,6 +9,7 @@ import { Net } from './net.js?v=2026100901';
 import { makeRoster, makeSnapshot, GuestView } from './sync.js?v=2026100901';
 import { wallet } from '../world/props.js?v=2026100901';
 import * as AbilityFx from '../abilities/fx.js?v=2026101006';
+import { natureVisual } from '../world/nature.js';
 import { objectiveGuide } from '../world/lanterns.js';
 
 const $ = id => document.getElementById(id);
@@ -35,7 +36,7 @@ export class Multiplayer {
 
   hello() {
     const h = this.g.hero;
-    return { name: this.myName || 'Игрок', hero: h.id, skin: h.custom ? JSON.stringify(this.g.look) : this.g.skin };
+    return { name: this.myName || 'Игрок', hero: h.id, skin: h.custom ? JSON.stringify(this.g.look) : this.g.skins?.[h.id] || 'classic' };
   }
 
   #wire() {
@@ -323,7 +324,8 @@ export class Multiplayer {
     else if (e.type === 'phase') {
       this.net.send({ t: 'roster', roster: makeRoster(this.g.round) });
       this.net.send({ t: 'ev', k: 'phase', name: e.newGhostName, pid: e.agent ? pidOf(e.agent) : null });
-    } else if (e.type === 'poof') this.net.send({ t: 'ev', k: 'poof', x: e.x, y: e.y, z: e.z, ghost: !!e.ghost });
+    } else if (e.type === 'nature') this.net.send({ t: 'ev', k: 'nature', kind: e.kind, x: e.x, z: e.z });
+    else if (e.type === 'poof') this.net.send({ t: 'ev', k: 'poof', x: e.x, y: e.y, z: e.z, ghost: !!e.ghost });
   }
 
   hostEnd(r) {
@@ -540,6 +542,12 @@ export class Multiplayer {
     } else if (m.k === 'lanternPickup') {
       ui.toast(m.pid === me ? 'Фонарь у тебя! Неси к голубому лучу святилища.' : `${m.name} несёт фонарь!`);
       g.sound.chime([660, 880]);
+    } else if (m.k === 'nature') {
+      const r = natureVisual(m.kind, CONFIG.abilities.lamp.radius);
+      r.position.set(m.x, 0, m.z);
+      g.scene.add(r);
+      (g.guestNature ||= []).push(r);
+      g.sound.totoroCue?.('grow');
     } else if (m.k === 'lanternDropped') ui.toast('Безлик выбил фонарь! Подберите его снова.');
     else if (m.k === 'lanternDelivered') { ui.toast(`Фонарь доставлен! ${m.count}/${m.goal}`); g.sound.chime([784, 1046, 1318]); }
     else if (m.k === 'resisted') {

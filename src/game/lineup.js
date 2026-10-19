@@ -175,7 +175,7 @@ export class Lineup {
     if (key === this.layoutKey) return;
     this.layoutKey = key;
     const rows = twoRows
-      ? [this.slots.filter(s => ['kid', 'masha', 'catbus'].includes(s.hero.id)), this.slots.filter(s => !['kid', 'masha', 'catbus'].includes(s.hero.id))]
+      ? [this.slots.filter(s => ['kid', 'masha', 'catbus', 'noface'].includes(s.hero.id)), this.slots.filter(s => !['kid', 'masha', 'catbus', 'noface'].includes(s.hero.id))]
       : [this.slots];
     rows.forEach((row, r) => {
       const gap = 0.12;
@@ -275,7 +275,7 @@ export class Lineup {
       this.ring.scale.setScalar(r * (1 + Math.sin(t * 3.6) * 0.04));
       this.ring.material.opacity = 0.85 + Math.sin(t * 3.6) * 0.15;
       this.light.position.set(p.x, p.y + sel.hero.height * 0.7, p.z + 1.2);
-      this.light.intensity = 5 + Math.sin(t * 3.6) * 1.2;
+      this.light.intensity = 2.2 + Math.sin(t * 3.6) * 0.6;
     } else { this.ring.visible = false; this.light.intensity = 0; }
   }
 

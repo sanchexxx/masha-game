@@ -158,9 +158,9 @@ export class Training {
       { icon: BASICS[2].icon, title: 'Присядь', text: `Нажми ${this.key('C', 'кнопку присесть')}. Сидя тебя хуже видно и совсем не слышно.`, check: () => p.ctrl.crouching },
     ];
     for (const a of p.abilities.list) {
-      if (a.id === 'wave' || a.id === 'split') continue;
+      if (a.id === 'wave' || a.id === 'split' || a.id === 'nekohelp') continue;
       const info = POWERS[a.id] || {};
-      T.push({ icon: a.icon, title: `Суперспособность: ${a.name}`, text: `Нажми ${this.key(a.key, `кнопку ${a.icon} внизу`)}. ${info.do || ''} ${info.tip || ''}`, ability: a.id, power: true,
+      T.push({ icon: a.icon, title: `Суперспособность: ${a.name}`, text: `Нажми ${this.key(a.key, `кнопку ${a.icon} справа`)}. ${info.do || ''} ${info.tip || ''}`, ability: a.id, power: true,
         check: () => this.used === a.id });
     }
     T.push({ icon: '🌿', title: 'Спрячься в кусте', text: 'Иди по светящимся следам лапок к кусту и зайди в него. Безлик не видит тех, кто в кусте, — только не беги внутри!', enter: () => this.#pawToBush(p), check: () => p.hidden && !p.prop });

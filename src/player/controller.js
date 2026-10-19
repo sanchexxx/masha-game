@@ -132,7 +132,7 @@ export class PlayerController {
     if (dashing) maxSpeed = ph.run * ph.dash.mul * this.moveMul * this.slowMul * waterMul;
     const target = (dashing && wishLen < 0.2 ? _wish.set(Math.sin(this.yaw), 0, Math.cos(this.yaw)) : _wish).multiplyScalar(maxSpeed);
     _hv.set(this.vel.x, 0, this.vel.z);
-    let accel = this.grounded ? (wishLen > 0.01 ? ph.accel : ph.decel) : ph.air;
+    let accel = (this.grounded || this.rideT > 0 ? (wishLen > 0.01 ? ph.accel : ph.decel) : ph.air) * (this.accelMul ?? 1);
     // Занос: на большой скорости резкий разворот «съедает» сцепление — тяжёлых заносит сильнее
     if (this.grounded && wishLen > 0.2) {
       const hs = _hv.length();
@@ -195,7 +195,18 @@ export class PlayerController {
       } else if (this.grounded) this.flyEnergy = Math.min(1, this.flyEnergy + dt * ph.fly.regen);
     }
 
-    if (this.climbing) {
+    // Полёт на НэкоБусе: держимся на высоте над землёй, гравитации нет
+    const riding = this.rideT > 0 && !this.swimming;
+    if (riding) {
+      this.rideT = Math.max(0, this.rideT - dt);
+      const floor = this.world.groundAt(this.pos.x, this.pos.z, this.radius, this.pos.y + 0.5);
+      const want = floor + (this.rideHeight ?? 4);
+      this.vel.y = THREE.MathUtils.clamp((want - this.pos.y) * 3, -5, 6);
+      this.grounded = false;
+      this.climbing = false;
+    }
+    if (riding) { /* высоту держит полёт */ }
+    else if (this.climbing) {
       this.vel.y = ph.climb ?? 3.2;
       this.vel.x *= 0.5; this.vel.z *= 0.5;
       this.grounded = false;
@@ -237,7 +248,7 @@ export class PlayerController {
     if (hs > 0.4 && (wishLen > 0.05 || dashing)) {
       const targetYaw = Math.atan2(this.vel.x, this.vel.z);
       const d = Math.atan2(Math.sin(targetYaw - this.yaw), Math.cos(targetYaw - this.yaw));
-      this.yaw += d * Math.min(1, ph.turn * dt);
+      this.yaw += d * Math.min(1, ph.turn * (this.turnMul ?? 1) * dt);
     } else if (this.climbing && lad) this.yaw = Math.atan2(-lad.nx, -lad.nz);
     this.speed = hs;
   }

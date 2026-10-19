@@ -76,6 +76,7 @@ export class Ghost {
     this.wanderTarget = null;
     this.sees = false;
     this.stunT = 0; this.slowT = 0; this.confusedT = 0; this.fearT = 0; this.fearSource = null; this.fearGoal = null;
+    this.clumsyT = 0; this.lampSlow = false;
     this.controlImmuneT = 0; this.controlKind = '';
     this.showControl(0, 0, 0, '', 0);
     this.stuckT = 0; this.stuckFrom = null;
@@ -135,12 +136,24 @@ export class Ghost {
     this.reveal();
     return true;
   }
+  // Рёв Тоторо: Безлик пугается и становится неповоротливым — медленно разворачивается и разгоняется
+  // Неповоротливость действует всегда; короткое оглушение — только если Безлик не защищён от контроля.
+  clumsy(sec, flinch = 0.6) {
+    this.clumsyT = Math.max(this.clumsyT, sec);
+    if (this.controlImmuneT <= 0) this.stunT = Math.max(this.stunT, flinch);
+    this.controlImmuneT = Math.max(this.controlImmuneT, 3);
+    this.controlKind = 'clumsy';
+    this.ctrl.dashT = 0;
+    this.path = null;
+    this.reveal();
+    return true;
+  }
   showControl(stun, slow, confused, kind, t, fear = 0) {
-    const remaining = Math.max(stun || 0, slow || 0, confused || 0, fear || 0, this.fearT || 0);
+    const remaining = Math.max(stun || 0, slow || 0, confused || 0, fear || 0, this.fearT || 0, this.clumsyT || 0);
     const visible = remaining > 0.05;
     this.controlRing.visible = this.controlHalo.visible = this.controlLabel.visible = visible;
     if (!visible) return;
-    const color = kind === 'hypnosis' ? 0xa85bff : kind === 'glare' ? 0xffdc77
+    const color = kind === 'clumsy' ? 0x7dff9a : kind === 'hypnosis' ? 0xa85bff : kind === 'glare' ? 0xffdc77
       : kind === 'roar' ? 0xffa74a
         : kind === 'wisps' ? 0x75f2d1 : kind === 'fear' ? 0xff657e
           : kind === 'repel' ? 0x8eeaff : 0xffad65;
@@ -243,6 +256,7 @@ export class Ghost {
     this.slowT = Math.max(0, this.slowT - dt);
     this.confusedT = Math.max(0, this.confusedT - dt);
     this.fearT = Math.max(0, this.fearT - dt);
+    this.clumsyT = Math.max(0, this.clumsyT - dt);
     if (this.fearT <= 0) { this.fearSource = null; this.fearGoal = null; }
     this.showControl(this.stunT, this.slowT, this.confusedT, this.controlKind, t, this.fearT);
     this.disguiseCd = Math.max(0, this.disguiseCd - dt);
@@ -260,7 +274,9 @@ export class Ghost {
     const c = this.ctrl;
     c.moveMul = this.stunT > 0 ? 0 : 1;
     if (this.disguise?.prop && move) { c.moveMul *= CONFIG.abilities.prop.walk; move = { ...move, run: false, jumpHold: false, jump: false }; }
-    c.slowMul = (this.slowT > 0 ? 0.45 : 1) * (1 + C.lateBoost * roundT) * (this.speedMul ?? 1);
+    c.slowMul = (this.slowT > 0 ? 0.45 : 1) * (this.clumsyT > 0 ? 0.78 : 1) * (this.lampSlow ? 0.8 : 1) * (1 + C.lateBoost * roundT) * (this.speedMul ?? 1);
+    c.turnMul = this.clumsyT > 0 ? 0.14 : 1;
+    c.accelMul = this.clumsyT > 0 ? 0.3 : 1;
     const wasDash = c.dashT > 0;
     c.update(dt, this.stunT > 0 ? { x: 0, y: 0 } : move, this.human ? camYaw : 0);
     if (c.dashT > 0 && !wasDash) this.reveal();          // рывок выдаёт маскировку
@@ -295,6 +311,7 @@ export class Ghost {
       const p = a.ctrl.pos;
       const dx = p.x - this.pos.x, dz = p.z - this.pos.z;
       const d = Math.hypot(dx, dz);
+      if (a.vanishT > 0 && d > 1.3) continue;           // невидимого Тоторо не видно и не слышно
       const spiritFog = this.world.inSpiritFog?.(p.x, p.z) || false;
       const water = a.underwaterHidden && this.world.waterAt?.(this.pos.x, this.pos.z);
       const submerged = !!water && this.pos.y < water.level - 0.15;

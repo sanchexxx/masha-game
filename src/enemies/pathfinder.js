@@ -4,6 +4,7 @@
 export class NavGrid {
   constructor(world, clearance = 0.55, cell = 0.5) {
     this.cell = cell;
+    this.clearance = clearance;
     this.half = world.half;
     this.n = Math.round((world.half * 2) / cell);
     this.blocked = new Uint8Array(this.n * this.n);

@@ -33,6 +33,17 @@ export const HERO_ABILITIES = {
     { id: 'roar', key: '2', name: 'Рёв НэкоБуса', icon: '🔊', tag: 'Отталкивание', anim: 'cast', dur: 0.6, lock: 0.1 },
     { id: 'prop', key: 'Q', name: 'Маскировка', icon: '🎭', tag: 'Прятки', anim: 'poof', dur: 0.25, lock: 0 },
   ],
+  totoro: [
+    { id: 'oak', key: '1', name: 'Великий дуб', icon: '🌳', tag: 'Природа', anim: 'cast', dur: 0.9, lock: 0.6 },
+    { id: 'hut', key: '2', name: 'Лесной домик', icon: '🛖', tag: 'Природа', anim: 'cast', dur: 0.8, lock: 0.5 },
+    { id: 'lamp', key: '3', name: 'Лесной фонарь', icon: '🏮', tag: 'Природа', anim: 'cast', dur: 0.7, lock: 0.4 },
+    { id: 'minis', key: '4', name: 'Маленькие Тоторо', icon: '🐾', tag: 'Помощники', anim: 'summon', dur: 0.8, lock: 0.3 },
+    { id: 'troar', key: '5', name: 'Рёв Тоторо', icon: '🗯️', tag: 'Контроль', anim: 'roar', dur: 1.0, lock: 0.5 },
+    { id: 'nekohelp', key: 'F', name: 'Зов НэкоБуса', icon: '🐈', tag: 'Помощь', anim: 'summon', dur: 0.6, lock: 0 },
+    { id: 'nekoride', key: 'R', name: 'Полёт на НэкоБусе', icon: '🚌', tag: 'Полёт', anim: 'summon', dur: 0.4, lock: 0 },
+    { id: 'vanish', key: 'Q', name: 'Невидимость', icon: '👻', tag: 'Прятки', anim: 'cast', dur: 0.4, lock: 0 },
+    { id: 'wave', key: 'G', name: 'Привет!', icon: '👋', tag: 'Эмоция', anim: 'wave', dur: 1.6, lock: 0 },
+  ],
   brothers: [
     { id: 'fear', key: '1', name: 'Страх', icon: '🔥', tag: 'Контроль', anim: 'fear', dur: 0.75, lock: 0.3 },
     { id: 'hypnosis', key: '2', name: 'Гипноз', icon: '🌀', tag: 'Контроль', anim: 'hypnosis', dur: 0.85, lock: 0.35 },
@@ -58,6 +69,21 @@ export class AbilitySet {
     if (!a || a.cdLeft > 0 || !this.agent.alive) return false;
     if (id === 'tailhop' && (!this.agent.ctrl.grounded || this.agent.ctrl.swimming || this.agent.ctrl.flying || this.agent.ctrl.climbing)) return false;
     if (id === 'split' && (this.agent.splitUsed || this.agent.splitActive)) return false;
+    // Тоторо: созданий ограниченное число, а помогать можно, только когда кого-то ловят
+    const T = this.game.nature;
+    if (['oak', 'hut', 'lamp'].includes(id) && T) {
+      if (T.count(id) >= A()[id].max) { this.game.emit?.('natureFull', { agent: this.agent, id }); return false; }
+      const spot = T.findSpot(this.agent, id === 'oak' ? 1.1 : id === 'hut' ? 1.3 : 0.4);
+      if (!spot) { this.game.emit?.('natureNoRoom', { agent: this.agent, id }); return false; }
+      this.agent.natureSpot = spot;
+    }
+    if (id === 'nekohelp') {
+      const need = this.game.helpNeeded?.(this.agent);
+      if (!need) { this.game.emit?.('noHelpNeeded', { agent: this.agent }); return false; }
+      this.agent.helpGhost = this.agent.helpGhost && this.agent.helpGhost.active ? this.agent.helpGhost : need.ghost;
+      this.agent.helpAlly = need.ally;
+    }
+    if (id === 'nekoride' && (this.agent.ctrl.swimming || this.agent.ctrl.rideT > 0)) return false;
     if (this.agent.action && this.agent.action.lock > 0) return false;
     a.cdLeft = this.cooldown(a);
     this.agent.action = { name: a.anim, t: 0, dur: a.dur, lock: a.lock, id: a.id, fired: false };
@@ -73,7 +99,7 @@ export class AbilitySet {
     act.lock = Math.max(0, act.lock - dt);
     if (act.lock > 0) this.agent.ctrl.moveMul = 0.15;
     // эффект срабатывает в «сильный» момент анимации
-    const fireAt = act.name === 'swing' ? 0.3 : act.name === 'wave' ? 99 : ['poof', 'split'].includes(act.name) ? 0 : 0.45;
+    const fireAt = act.name === 'swing' ? 0.3 : act.name === 'wave' ? 99 : ['poof', 'split'].includes(act.name) || ['nekoride', 'vanish', 'nekohelp'].includes(act.id) ? 0 : act.name === 'roar' ? 0.3 : 0.45;
     if (!act.fired && act.t / act.dur >= fireAt) { act.fired = true; this.#fire(act.id); }
     if (act.t >= act.dur) this.agent.action = null;
   }
@@ -185,6 +211,36 @@ export class AbilitySet {
       for (const gh of g.ghosts) if (gh.active && Math.hypot(gh.pos.x - p.x, gh.pos.z - p.z) <= cfg.radius)
         gh.stun(cfg.stun, 'repel');
       snd.chime?.([784, 1046, 1568]);
+    } else if (['oak', 'hut', 'lamp'].includes(id)) {
+      const s = me.natureSpot;
+      if (s && g.nature) {
+        if (id === 'oak') g.nature.addOak(s.x, s.z);
+        else if (id === 'hut') g.nature.addHut(s.x, s.z);
+        else g.nature.addLamp(s.x, s.z, cfg.radius);
+        g.emit?.('nature', { kind: id, x: s.x, z: s.z, agent: me });
+        g.addFx(FX.burst(g.scene, s.x, s.z, id === 'oak' ? 3 : 2, 0x8fe07a));
+      }
+      snd.totoroCue?.('grow');
+    } else if (id === 'minis') {
+      g.spawnMinis?.(me, cfg);
+      snd.totoroCue?.('minis');
+    } else if (id === 'troar') {
+      g.addFx(FX.roarWave(g.scene, p.x, p.y, p.z, c.yaw, cfg.radius, 0x8fe07a));
+      for (const gh of g.ghosts) if (gh.active && Math.hypot(gh.pos.x - p.x, gh.pos.z - p.z) <= cfg.radius) gh.clumsy?.(cfg.time);
+      g.cam.shake = Math.max(g.cam.shake, 0.35);
+      snd.totoroCue?.('roar');
+    } else if (id === 'nekohelp') {
+      g.sendNekobus?.(me, me.helpGhost, me.helpAlly, cfg);
+      me.helpGhost = null; me.helpAlly = null;
+      snd.totoroCue?.('neko');
+    } else if (id === 'nekoride') {
+      c.rideT = cfg.time; c.rideHeight = cfg.height;
+      c.boostT = cfg.time; c.boostMul = cfg.boost;
+      snd.totoroCue?.('neko');
+    } else if (id === 'vanish') {
+      me.vanishT = cfg.time;
+      g.addFx(FX.burst(g.scene, p.x, p.z, 1.6, 0xd8e6ff));
+      snd.totoroCue?.('vanish');
     } else if (id === 'fear') {
       g.addFx(FX.fearWave(g.scene, p.x, p.y, p.z, cfg.radius));
       for (const gh of g.ghosts) if (gh.active && Math.hypot(gh.pos.x - p.x, gh.pos.z - p.z) <= cfg.radius) {
@@ -219,6 +275,19 @@ export class AbilitySet {
       if (threat && td < A().hypnosis.radius && this.ready('hypnosis')) return this.use('hypnosis');
       if (threat && td < A().glare.radius && this.ready('glare')) return this.use('glare');
       if (threat && td < 5 && this.ready('split') && !this.agent.splitUsed) return this.use('split');
+    }
+    // Тоторо: помогает друзьям, пугает рёвом, строит укрытия, когда спокойно
+    if (this.get('troar')) {
+      const me = this.agent;
+      if (this.ready('nekohelp') && g.helpNeeded?.(me)) return this.use('nekohelp');
+      if (threat && td < A().troar.radius * 0.8 && this.ready('troar')) return this.use('troar');
+      if (threat && td < 5 && this.ready('vanish')) return this.use('vanish');
+      if (threat && td < 7 && this.ready('minis')) return this.use('minis');
+      if (threat && td < 4 && this.ready('nekoride')) return this.use('nekoride');
+      if (!threat && g.phase === 'hide' && Math.random() < 0.004) {
+        const pick = ['hut', 'oak', 'lamp'][(Math.random() * 3) | 0];
+        if (this.ready(pick)) return this.use(pick);
+      }
     }
     // Маскировка под предмет: в прятках, когда Безлика не видно, — превращаемся и замираем.
     // Безлик подошёл вплотную — бросаем маскировку и бежим.

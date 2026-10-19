@@ -22,6 +22,62 @@ export class Sound {
 
   // Записанные русские реплики звучат одинаково на iOS, Android и ПК.
   // Три слегка разнесённых и пониженных голоса создают характер трёх братьев.
+  // Мультяшные звуки Тоторо — синтез, без файлов: рёв, «ху-ху», писк малышей, мяу-гудок НэкоБуса.
+  totoroCue(id) {
+    if (this.muted) return;
+    if (!this.ctx) this.unlock();
+    if (!this.ctx) return;
+    const c = this.ctx, t = c.currentTime, out = this.master;
+    const tone = (type, f0, f1, start, dur, vol, filter) => {
+      const o = c.createOscillator(); o.type = type;
+      o.frequency.setValueAtTime(f0, t + start);
+      o.frequency.exponentialRampToValueAtTime(f1, t + start + dur);
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t + start);
+      g.gain.exponentialRampToValueAtTime(vol, t + start + Math.min(0.06, dur * 0.3));
+      g.gain.exponentialRampToValueAtTime(0.0001, t + start + dur);
+      let node = o;
+      if (filter) { const f = c.createBiquadFilter(); f.type = filter[0]; f.frequency.value = filter[1]; f.Q.value = filter[2] || 1; node = o.connect(f); }
+      node.connect(g).connect(out);
+      o.start(t + start); o.stop(t + start + dur + 0.05);
+      return o;
+    };
+    if (id === 'roar') {
+      // «ГУОООО!»: низкий рёв с дрожью + шум ветра
+      const o = tone('sawtooth', 120, 70, 0, 1.25, 0.32, ['lowpass', 520, 3]);
+      const lfo = c.createOscillator(); lfo.frequency.value = 18;
+      const depth = c.createGain(); depth.gain.value = 10;
+      lfo.connect(depth).connect(o.frequency); lfo.start(t); lfo.stop(t + 1.3);
+      tone('square', 240, 130, 0.02, 1.1, 0.06, ['bandpass', 700, 4]);
+      const n = this.#noise(1.2);
+      const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.setValueAtTime(300, t); f.frequency.linearRampToValueAtTime(900, t + 0.4); f.frequency.linearRampToValueAtTime(200, t + 1.2);
+      const g = c.createGain(); g.gain.setValueAtTime(0.18, t); g.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
+      n.connect(f).connect(g).connect(out); n.start(t);
+    } else if (id === 'select') {
+      // доброе «ху-ху»
+      tone('sine', 150, 120, 0, 0.32, 0.3, ['lowpass', 900]);
+      tone('triangle', 300, 240, 0, 0.32, 0.06);
+      tone('sine', 175, 135, 0.36, 0.4, 0.3, ['lowpass', 900]);
+      tone('triangle', 350, 270, 0.36, 0.4, 0.06);
+    } else if (id === 'grow') {
+      [392, 523, 659, 784, 1046].forEach((f, i) => tone('sine', f, f * 1.01, i * 0.07, 0.35, 0.08));
+      tone('triangle', 90, 160, 0, 0.6, 0.12);
+    } else if (id === 'minis') {
+      [0, 0.12, 0.3, 0.42].forEach((d, i) => tone('triangle', 900 + i * 120, 1500 + i * 150, d, 0.09, 0.09));
+    } else if (id === 'neko') {
+      // мяу + гудок, как у автобуса
+      tone('sawtooth', 380, 720, 0, 0.22, 0.14, ['bandpass', 1300, 2]);
+      tone('sawtooth', 720, 330, 0.22, 0.38, 0.14, ['bandpass', 1100, 2]);
+      tone('square', 330, 330, 0.65, 0.35, 0.07, ['lowpass', 1400]);
+      tone('square', 415, 415, 0.65, 0.35, 0.05, ['lowpass', 1400]);
+    } else if (id === 'vanish') {
+      [1568, 1318, 1046, 784].forEach((f, i) => tone('sine', f, f * 0.8, i * 0.06, 0.3, 0.07));
+    } else if (id === 'alert') {
+      tone('square', 880, 880, 0, 0.1, 0.06, ['lowpass', 2000]);
+      tone('square', 660, 660, 0.14, 0.1, 0.06, ['lowpass', 2000]);
+    }
+  }
+
   async brothersCue(id) {
     if (!['select', 'fear', 'hypnosis', 'glare', 'resist'].includes(id) || this.muted) return;
     if (!this.ctx) this.unlock();

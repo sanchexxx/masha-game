@@ -13,6 +13,7 @@ import { PlayerController, separate } from '../player/controller.js?v=2026100901
 import { BotBrain } from '../player/bot.js?v=2026100901';
 import { AbilitySet } from '../abilities/abilities.js?v=2026100901';
 import { PROP_KINDS } from '../world/props.js?v=2026100901';
+import { Nature, miniTotoro } from '../world/nature.js';
 
 export const BOT_SPAWNS = [[-5, 19], [5.5, 17], [-9, 23], [9, 21], [-3, 14], [3, 25]];
 export const GHOST_SPAWNS = [[0, -21], [-7, -20], [7, -20], [0, -14]];
@@ -37,6 +38,59 @@ export class Round {
     this.phase = 'none';
     this.activeGhosts = [];
     this.netIn = new Map();        // совместная игра: последний ввод каждого гостя (по его id)
+    this.nature = new Nature(this); // дубы, домики, фонари и обманки Тоторо
+    this.minis = null;
+  }
+
+  // ---------- Тоторо ----------
+  // Кого из друзей сейчас ловит Безлик (Тоторо это «чувствует» на любом расстоянии)
+  helpNeeded(me) {
+    let best = null, bd = Infinity;
+    for (const g of this.activeGhosts) {
+      if (!g.active || g.state !== 'hunt' || !g.target || g.target.decoy) continue;
+      const a = g.target.headOwner || g.target;
+      if (!a.alive || a === me || a.protected || !this.agents.includes(a)) continue;
+      const d = g.pos.distanceTo(a.ctrl.pos);
+      if (d < 13 && d < bd) { bd = d; best = { ally: a, ghost: g }; }
+    }
+    return best;
+  }
+
+  spawnMinis(me, cfg) {
+    this.minis ||= { chu: miniTotoro('chu'), chibi: miniTotoro('chibi') };
+    const p = me.ctrl.pos, yaw = me.ctrl.yaw;
+    const made = [];
+    for (const [kind, side, speed, h] of [['chu', 1, 6.4, 0.95], ['chibi', -1, 7.2, 0.6]]) {
+      const old = this.nature.decoys.find(d => d.char === this.minis[kind]);
+      if (old) this.nature.decoyCaught(old);
+      const x = p.x + Math.cos(yaw) * side * 1.2, z = p.z - Math.sin(yaw) * side * 1.2;
+      made.push(this.nature.addDecoy({ char: this.minis[kind], x, z, speed, life: cfg.time, height: h, radius: 0.4,
+        name: kind === 'chu' ? 'Тю' : 'Тиби' }));
+    }
+    for (const g of this.activeGhosts) {
+      if (!g.active || g.pos.distanceTo(p) > cfg.lure) continue;
+      const d = made.sort((a, b) => a.ctrl.pos.distanceTo(g.pos) - b.ctrl.pos.distanceTo(g.pos))[0];
+      this.nature.lure(g, d);
+    }
+    this.emit('minis', { agent: me });
+  }
+
+  // НэкоБус прибегает к Безлику, который гонится за другом, и уводит его за собой
+  sendNekobus(me, ghost, ally, cfg) {
+    if (!ghost?.active) return;
+    const cat = this.heroes.find(h => h.id === 'catbus');
+    if (!cat) return;
+    if (!this.nekoChar) this.nekoChar = this.makeChar(cat, 'classic');
+    const old = this.nature.decoys.find(d => d.char === this.nekoChar);
+    if (old) this.nature.decoyCaught(old);
+    const gx = ghost.pos.x, gz = ghost.pos.z;
+    const ax = ally ? ally.ctrl.pos.x - gx : 1, az = ally ? ally.ctrl.pos.z - gz : 0;
+    const len = Math.hypot(ax, az) || 1;
+    // появляется сбоку от Безлика, поперёк его пути к другу
+    const x = gx - az / len * 2.4, z = gz + ax / len * 2.4;
+    const d = this.nature.addDecoy({ char: this.nekoChar, x, z, speed: 9.5, life: cfg.time, height: 1.9, radius: 0.85, name: 'НэкоБус', hero: cat });
+    this.nature.lure(ghost, d);
+    this.emit('nekoHelp', { agent: me, ally, ghost, x, z });
   }
 
   addFx(f) { this.fx.push(f); }          // хозяин (game.js) подменяет своим addFx
@@ -169,7 +223,7 @@ export class Round {
         }
       }
     } else {
-      if (opts.withBots || !remotes.length) for (const h of this.heroes) if (h.bot !== false) this.makeAgent(h, false, at(spawns.pop()), h.id === 'moti' ? opts.mSkin || 'classic' : 'classic');
+      if (opts.withBots || !remotes.length) for (const h of this.heroes) if (h.bot !== false) this.makeAgent(h, false, at(spawns.pop()), opts.skins?.[h.id] || 'classic');
     }
     for (const g of this.ghosts) { g.isPlayer = false; g.remote = null; g.reset(at(this.ghostSpawns[0])); }
     const humansAsGhosts = (opts.mode === 'hunter' ? 1 : 0) + remoteGhosts.length;
@@ -182,6 +236,9 @@ export class Round {
     if (opts.mode === 'hunter') { this.playerGhost = this.activeGhosts[gi++]; this.playerGhost.isPlayer = true; }
     for (const r of remoteGhosts) { const g = this.activeGhosts[gi++]; g.remote = r.id; g.remoteName = r.name; }
     this.netIn.clear();
+    this.nature.clear();
+    this.nekoChar = null;
+    this.minis = null;
     this.setPhase(this.gameMode === 'delivery' ? 'delivery' : 'hide');
     // Цель зависит от числа людей в комнате; боты помогают, но не раздувают норму.
     const participants = Math.max(1, remotes.length + (opts.mode === 'watch' ? 0 : 1));
@@ -365,6 +422,7 @@ export class Round {
     for (const a of this.agents) {
       if (!a.alive) continue;
       a.invulnerableT = Math.max(0, a.invulnerableT - dt);
+      if (a.vanishT > 0) a.vanishT = Math.max(0, a.vanishT - dt);
       a.abilities.update(dt);
       if (a.splitActive) {
         this.#stepSplit(a, dt, inp, camYaw, live);
@@ -397,7 +455,8 @@ export class Round {
       if (a.protected) a.ctrl.stamina = Math.min(1, a.ctrl.stamina + dt * 0.25);   // в приюте отдыхается быстрее
     }
     separate(this.agents);
-    const targets = this.#splitTargets();
+    this.nature.update(dt, time);
+    const targets = [...this.#splitTargets(), ...this.nature.decoys];
 
     // Безлики
     const k = Math.min(1, this.t / this.duration);
@@ -412,6 +471,7 @@ export class Round {
     for (const g of this.activeGhosts) {
       for (const a of targets) {
         if (!g.catches(a)) continue;
+        if (a.decoy) { this.nature.decoyCaught(a); continue; }
         this.#caught(a, g);
       }
     }
@@ -419,7 +479,7 @@ export class Round {
     if (this.phase === 'delivery') this.#stepDelivery();
 
     // Конец фазы
-    const heroesLeft = this.agents.filter(a => a.alive).length;
+    const heroesLeft = this.agents.filter(a => a.alive && !a.decoy).length;
     if (this.t >= this.duration || heroesLeft === 0) {
       if (this.phase === 'hide') this.#toChase();
       else if (this.phase === 'delivery') { this.phase = 'over'; this.emit('end', { result: this.result() }); }

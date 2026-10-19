@@ -40,7 +40,8 @@ export class CollisionWorld {
   }
 
   addCircle(x, z, r, top, opt = {}) {
-    const c = { x, z, r, bottom: opt.bottom ?? 0, top, sight: opt.sight ?? top > 1.4, nav: opt.nav ?? true };
+    // platform — площадка (крона дуба): на неё встают сверху, а снизу проходят насквозь
+    const c = { x, z, r, bottom: opt.bottom ?? 0, top, sight: opt.sight ?? top > 1.4, nav: opt.nav ?? true, platform: !!opt.platform };
     this.circles.push(c);
     this.grid = null;
     return c;
@@ -107,7 +108,7 @@ export class CollisionWorld {
       if (x + rr > b.minX && x - rr < b.maxX && z + rr > b.minZ && z - rr < b.maxZ) c = b.bottom;
     }
     for (const k of cell.circles) {
-      if (k.bottom <= y + 0.05 || k.bottom >= c) continue;
+      if (k.platform || k.bottom <= y + 0.05 || k.bottom >= c) continue;
       if ((x - k.x) ** 2 + (z - k.z) ** 2 < (k.r + rr) ** 2) c = k.bottom;
     }
     return c;
@@ -143,7 +144,7 @@ export class CollisionWorld {
         hit = moved = true;
       }
       for (const c of cell.circles) {
-        if (c.top <= stepTop || c.bottom >= headY) continue;
+        if (c.platform || c.top <= stepTop || c.bottom >= headY) continue;
         const dx = pos.x - c.x, dz = pos.z - c.z;
         const min = r + c.r;
         const d2 = dx * dx + dz * dz;
