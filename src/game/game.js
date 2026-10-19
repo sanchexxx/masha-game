@@ -25,6 +25,8 @@ import { makeThumbnails } from '../ui/thumbnails.js?v=2026100901';
 import { LOOK_OPTIONS, loadLook, saveLook } from '../characters/kid.js?v=2026100901';
 import { HERO_ABILITIES } from '../abilities/abilities.js?v=2026100901';
 import { Multiplayer } from '../net/multiplayer.js?v=2026100901';
+import { Lineup } from './lineup.js';
+import { Coach, Training, tutorialSeen } from '../ui/tutorial.js';
 
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 const isMobile = isTouch && Math.min(screen.width, screen.height) < 820;
@@ -132,12 +134,21 @@ export class Game {
     this.#buildMapCards();
     ui.progress(1, 'Готово!');
 
-    ui.buildCards(HEROES, GHOST, thumbs, id => this.selectHero(id));
+    ui.buildCards(HEROES, GHOST, thumbs, id => this.#pickHero(id));
+    this.lineup = new Lineup({ tags: document.getElementById('lineup-tags'), onPick: id => this.#pickHero(id) });
+    this.coach = new Coach(this);
+    this.#lineupPointer();
+    ui.on('btn-tutorial', () => this.coach.start());
+    ui.on('btn-pause-tut', () => { this.ui.show('paused', false); this.#quitTraining(); this.coach.start(); });
+    ui.on('btn-maps-train', () => this.beginRound(this.hero.id === 'noface' ? 'hunter' : 'play', true));
+    ui.on('btn-td-real', () => { this.ui.show('train-done', false); this.beginRound(this.hero.id === 'noface' ? 'hunter' : 'play'); });
+    ui.on('btn-td-again', () => { this.ui.show('train-done', false); this.beginRound(this.hero.id === 'noface' ? 'hunter' : 'play', true); });
+    ui.on('btn-td-menu', () => { this.ui.show('train-done', false); this.toSelect(); });
     ui.on('btn-choose', () => (this.mp.inRoom ? this.mp.showLobby() : this.toMaps()));
     ui.on('btn-friends', () => (this.mp.inRoom ? this.mp.showLobby() : this.mp.showRooms()));
     ui.on('btn-maps-back', () => this.toSelect());
     ui.on('btn-maps-go', () => this.beginRound(this.hero.id === 'noface' ? 'hunter' : 'play'));
-    for (const [id, mode] of [['maps-mode-hide', 'hide'], ['maps-mode-delivery', 'delivery']]) ui.on(id, () => this.setGameMode(mode));
+    for (const [id, mode] of [['maps-mode-hide', 'hide'], ['maps-mode-delivery', 'delivery']]) ui.on(id, () => { this.setGameMode(mode); this.coach.signal('mode'); });
     ui.on('btn-watch', () => this.beginRound('watch'));
     ui.on('btn-again', () => this.beginRound(this.mode));
     ui.on('btn-room-restart', () => {
@@ -147,7 +158,7 @@ export class Game {
     });
     ui.on('btn-change', () => (this.mp.inRoom ? this.mp.showLobby() : this.toSelect()));
     ui.on('btn-resume', () => this.resume());
-    ui.on('btn-quit', () => { this.ui.show('paused', false); this.toSelect(); });
+    ui.on('btn-quit', () => { this.ui.show('paused', false); this.#quitTraining(); this.toSelect(); });
     ui.on('btn-pause', () => this.pause());
     ui.on('btn-next', () => this.state === 'guest' ? this.mp.nextGuestFocus() : this.#nextFocus());
     ui.on('btn-tuner', () => this.tuner.toggle());
@@ -156,7 +167,7 @@ export class Game {
     ui.onOptions({
       ghosts: n => { this.ghostCount = n; },
       bots: on => { this.withBots = on; },
-      skin: s => { this.skin = s; this.selectHero('moti'); },
+      skin: s => { this.skin = s; this.selectHero('moti', true); },
     }, { ghosts: this.ghostCount, bots: this.withBots });
     this.tuner = new Tuner(HEROES, () => this.hero?.id || 'masha');
     ui.minimapInit(this.world, this.world.half);
@@ -202,6 +213,7 @@ export class Game {
     // ссылка с комнатой (?room=КОД) — сразу в лобби к друзьям
     const room = new URLSearchParams(location.search).get('room');
     if (room) this.mp.join(room);
+    else if (!tutorialSeen()) setTimeout(() => { if (this.state === 'select') this.coach.start(); }, 900);
 
     this.last = performance.now();
     this.renderer.setAnimationLoop(() => this.#tick());
@@ -297,6 +309,7 @@ export class Game {
       const m = this.maps.find(x => x.id === id);
       if (!m.ready) { this.ui.toast(`«${m.name}» скоро откроется!`); return; }
       this.mapId = id; this.ui.pickMap(id); this.setGameMode(this.gameMode);
+      this.coach?.signal('map');
     });
     this.ui.pickMap(this.mapId);
   }
@@ -317,6 +330,8 @@ export class Game {
   }
 
   #releaseAll() {
+    this.lineupReady = false;
+    this.lineup?.clear();
     for (const c of this.acquired) { c.inUse = false; this.scene.remove(c.root); }
     this.acquired = [];
     for (const a of this.agents) if (a.prop?.obj) this.scene.remove(a.prop.obj);
@@ -330,16 +345,67 @@ export class Game {
   }
 
   // ---------- Выбор героя ----------
-  selectHero(id) {
+  // Все герои стоят на улице в ряд; выбранный светится зелёной обводкой.
+  selectHero(id, rebuild = false) {
     this.hero = id === GHOST.id ? GHOST : HEROES.find(h => h.id === id);
-    this.#releaseAll();
-    for (const g of this.ghostPool) { g.reveal(); g.reset(this.map.ghostSpawn); }
-    this.showGhost.root.visible = id === GHOST.id;
-    this.showcase = id === GHOST.id ? null : this.round.makeAgent(this.hero, true, this.map.playerSpawn, this.#skinFor(this.hero));
-    this.ui.showHero(this.hero, this.skin);
-    if (id === 'brothers') this.sound.brothersCue?.('select');
+    if (rebuild || !this.lineupReady) this.#buildLineup();
+    this.lineup.select(id);
+    this.ui.showHero(this.hero, this.skin, this.#powersOf(this.hero), isTouch);
     if (this.hero.custom) this.ui.buildCreator(this.look, LOOK_OPTIONS, (k, v) => this.#setLook(k, v));
     this.cam.configure(this.hero.cam);
+  }
+
+  // Нажали на героя (на улице, на табличке или на карточке)
+  #pickHero(id) {
+    const changed = id !== this.hero?.id;
+    this.selectHero(id);
+    if (changed) {
+      this.sound.unlock();
+      this.sound.chime([523, 784]);
+      if (id === 'brothers') this.sound.brothersCue?.('select');
+    }
+    this.coach?.signal('pick');
+  }
+
+  #buildLineup() {
+    this.#releaseAll();
+    for (const g of this.ghostPool) { g.reveal(); g.reset(this.map.ghostSpawn); }
+    const entries = HEROES.map(h => ({ hero: h, char: this.#acquire(h, this.#skinFor(h)) }));
+    this.showGhost.root.visible = true;
+    entries.push({ hero: GHOST, char: this.showGhost, ghost: true });
+    this.lineup.build(this.scene, this.map.playerSpawn, entries);
+    this.lineupReady = true;
+  }
+
+  // Суперспособности для правой панели: умения героя + рывок (у Безлика — его набор).
+  #powersOf(h) {
+    if (h.id === GHOST.id) return GHOST_ABILITIES.map(a => ({ ...a, power: a.id === 'dash' ? 'ghost-dash' : a.id }));
+    const list = (HERO_ABILITIES[h.id] || []).filter(a => a.id !== 'wave');
+    return [...list, { id: 'dash', key: 'E', icon: '💨', name: 'Рывок' }];
+  }
+
+  lineupRect() { return this.state === 'select' && this.lineup ? this.lineup.screenRect(this.camera) : null; }
+
+  // Мышка и палец на экране выбора: наведение подсвечивает, нажатие выбирает.
+  #lineupPointer() {
+    const c = this.canvas;
+    let down = null;
+    c.addEventListener('pointerdown', e => { if (this.state === 'select') down = { x: e.clientX, y: e.clientY }; });
+    c.addEventListener('pointerup', e => {
+      if (this.state !== 'select' || !down) return;
+      const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+      down = null;
+      if (moved > 12) return;
+      const id = this.lineup.pick(e.clientX, e.clientY, this.camera);
+      if (id) this.#pickHero(id);
+    });
+    c.addEventListener('pointermove', e => {
+      if (this.state !== 'select' || e.pointerType !== 'mouse') return;
+      const id = this.lineup.pick(e.clientX, e.clientY, this.camera);
+      this.lineup.hover = id;
+      c.style.cursor = id ? 'pointer' : '';
+    });
+    c.addEventListener('pointerleave', () => { if (this.lineup) this.lineup.hover = null; c.style.cursor = ''; });
   }
 
   #skinFor(h) { return h.custom ? JSON.stringify(this.look) : this.skin; }
@@ -351,7 +417,7 @@ export class Game {
     saveLook(this.look);
     for (const key of [...this.pool.keys()]) if (key.startsWith('kid:')) this.pool.delete(key);
     this.sound.chime([660, 880]);
-    this.selectHero('kid');
+    this.selectHero('kid', true);
   }
 
   toSelect() {
@@ -359,17 +425,22 @@ export class Game {
     this.input.enabled = false;
     this.input.lookOnly = false;
     this.input.releasePointer();
-    this.selectHero(this.hero.id);
-    this.sound.setTension(0);
+    this.#quitTraining();
+    this.ui.show('train-done', false);
     this.ui.mode('select', isTouch);
+    this.selectHero(this.hero.id, true);
+    this.sound.setTension(0);
     this.ui.wallet(wallet.get());
     this.showLight.intensity = 14;
+    this.showLight.distance = 18;
+    this.coach?.signal('select');
   }
 
   toMaps() {
     this.state = 'maps';
     this.ui.mode('maps', isTouch);
     this.setGameMode(this.gameMode);
+    this.coach?.signal('maps');
   }
 
   setGameMode(mode) {
@@ -386,9 +457,12 @@ export class Game {
   }
 
   // ---------- Раунд ----------
-  async beginRound(mode) {
+  // training — тренировка на выбранной карте: подсказки-задания, один Безлик, без ботов
+  async beginRound(mode, training = false) {
     if (this.roundStarting) return;
     this.roundStarting = true;
+    this.#quitTraining();
+    this.coach?.signal('round');
     document.getElementById('btn-room-restart')?.classList.add('hidden');
     try {
     this.mode = mode;
@@ -399,9 +473,9 @@ export class Game {
     this.showcase = null;
     this.input.reset();
     const hero = this.hero.id === GHOST.id ? HEROES[0] : this.hero;
-    const withBots = this.mp.isHost ? this.mp.net.bots : this.withBots;
+    const withBots = training ? mode === 'hunter' : this.mp.isHost ? this.mp.net.bots : this.withBots;
     if (this.mp.isHost) this.gameMode = this.mp.net.gameMode;
-    this.round.start({ mode, gameMode: this.gameMode, hero, skin: this.#skinFor(hero), mSkin: this.skin, ghosts: this.ghostCount, withBots, remotes: this.mp.remotes() });
+    this.round.start({ mode, gameMode: training ? 'hide' : this.gameMode, hero, skin: this.#skinFor(hero), mSkin: this.skin, ghosts: training ? 1 : this.ghostCount, withBots, remotes: training ? [] : this.mp.remotes() });
     this.mp.hostStarted();
     this.pumpkins.spawn(CONFIG.round.pumpkins);
     this.focus = 0;
@@ -410,7 +484,8 @@ export class Game {
     this.#configureCam(follow);
     this.cam.snap(this.#posOf(follow));
     this.state = 'play';
-    this.birthdaySky.start();
+    if (!training) this.birthdaySky.start();
+    document.getElementById('hud').classList.toggle('training', training);
     this.input.enabled = true;
     this.input.lookOnly = mode === 'watch';
     this.ui.mode('play', isTouch, mode);
@@ -419,11 +494,40 @@ export class Game {
     this.#aliveHud();
     this.ui.pumpkins(0);
     this.showLight.intensity = 0;
+    this.showLight.distance = 9;
+    if (training) {
+      this.training = new Training(this, isTouch);
+      clearTimeout(this.ui.hintTimer);
+      document.getElementById('hint').style.opacity = 0;
+    }
     } catch (e) {
       console.error('Не удалось открыть карту', e);
       this.ui.hideLoading();
       this.ui.toast('Не удалось открыть карту. Попробуй выбрать её ещё раз.');
     } finally { this.roundStarting = false; }
+  }
+
+  trainingFinished(ok) {
+    this.training = null;
+    this.state = 'result';
+    this.input.enabled = false;
+    this.input.releasePointer();
+    this.sound.setTension(0);
+    ok ? this.sound.win() : this.sound.lose();
+    document.getElementById('td-emoji').textContent = ok ? '🎉' : '👺';
+    document.getElementById('td-title').textContent = ok ? 'Обучение пройдено!' : 'Безлик тебя поймал!';
+    document.getElementById('td-text').textContent = ok
+      ? `Ты умеешь бегать, прыгать, прятаться и знаешь все суперспособности героя «${this.hero.name}». Теперь — настоящая игра!`
+      : 'Ничего страшного — так все учатся. Сиди в кусте тихо и не беги внутри. Попробуешь ещё раз?';
+    this.ui.mode('result', isTouch);
+    this.ui.show('result', false);
+    this.ui.show('train-done', true);
+  }
+
+  #quitTraining() {
+    if (!this.training) return;
+    this.training.close();
+    this.training = null;
   }
 
   #abilityBar() {
@@ -437,6 +541,7 @@ export class Game {
   #useAbility(id) {
     if (this.state === 'guest') return this.mp.guestAbility(id);
     const R = this.round, pg = R.playerGhost;
+    this.training?.onUse(id);
     if (id === 'dash') { this.input.dashQueued = true; return; }
     if (pg) {
       if (id === 'fly') this.input.jumpQueued = true;
@@ -620,6 +725,7 @@ export class Game {
     this.world.setVisionFog?.(fogVision);
     try {
       this.renderer.render(this.scene, this.camera);
+      if (this.state === 'select' || this.state === 'maps') this.lineup?.renderOutline(this.renderer, this.camera, t);
     } finally {
       this.world.setVisionFog?.(fogVision);
       if (firstPersonModel) firstPersonModel.visible = firstPersonVisible;
@@ -628,34 +734,10 @@ export class Game {
   }
 
   #showcase(dt, t) {
-    const isGhost = this.hero.id === GHOST.id;
+    const free = this.state === 'select' ? this.ui.freeRect() : { x: 0, y: 0, w: innerWidth, h: innerHeight };
+    this.lineup.update(dt, t, this.camera, free);
     const p = this.map.playerSpawn;
-    if (isGhost) {
-      const r = this.showGhost.root;
-      r.position.copy(p);
-      r.rotation.y = -0.35 + Math.sin(t * 0.4) * 0.3;
-      this.showGhost.update(dt, { t, speed: 0, mode: Math.sin(t * 0.5) > 0.3 ? 'hunt' : 'search', appear: 1 });
-    } else if (this.showcase) {
-      const a = this.showcase;
-      a.abilities.update(dt);
-      // на экране выбора герой иногда машет или красуется умением (без эффекта)
-      if (!a.action && Math.random() < dt * 0.25) {
-        const pick = a.abilities.list.filter(x => ['wave', 'cast', 'swing', 'summon'].includes(x.anim));
-        if (pick.length) { const x = pick[(Math.random() * pick.length) | 0]; a.action = { name: x.anim, t: 0, dur: x.dur, lock: 0, fired: true }; }
-      }
-      a.char.root.position.copy(p);
-      a.char.root.rotation.y = -0.35 + Math.sin(t * 0.4) * 0.3;
-      a.char.update(dt, { t, speed: 0, grounded: true, landed: false, action: a.abilities.pose() });
-    }
-    const h = this.hero.height;
-    const narrow = innerWidth < 760;
-    const dist = h * (narrow ? 2.9 : 2.0) + 1.4;
-    const ang = 0.12 + Math.sin(t * 0.15) * 0.06;
-    const shift = (narrow ? 0.55 : 1.25) * (h / 1.7) + (narrow ? 0 : 0.3);
-    const focus = new THREE.Vector3(p.x + shift, p.y + h * 0.6, p.z);
-    this.camera.position.set(focus.x + Math.sin(ang) * dist, focus.y + h * 0.18, focus.z + Math.cos(ang) * dist);
-    this.camera.lookAt(focus);
-    this.showLight.position.set(p.x + 0.8, p.y + h * 0.9, p.z + 2.4);
+    this.showLight.position.set(p.x, p.y + 3.2, p.z + 4.5);
   }
 
   #play(dt, t) {
@@ -678,9 +760,12 @@ export class Game {
     }
 
     // Логика раунда
+    const training = this.training;    // тренировка может закончиться посреди списка событий
+    training?.preStep();
     R.step(dt, t, inp, this.cam.yaw);
-    for (const e of R.events) this.#onEvent(e);
+    for (const e of R.events) if (!training?.onEvent(e)) this.#onEvent(e);
     R.events.length = 0;
+    if (this.training) this.training.update(dt);
     this.mp.hostTick(dt);
     if (this.state !== 'play') return;
     document.getElementById('btn-room-restart')?.classList.toggle('hidden',
@@ -767,6 +852,8 @@ export class Game {
         : carrierAgent ? `${carrierAgent.name} несёт фонарь — ищи следующий или помоги ему`
         : targetLantern ? `🏮 Фонарь ${guide} · подойди и подбери · ${d.delivered}/${d.goal}`
         : `🏮 Доставлено ${d.delivered}/${d.goal} · помоги команде`, 'calm');
+    } else if (this.training && R.spawned === 0 && !R.playerGhost) {
+      this.ui.status('Тренировка: Безлик пока спит дома', 'calm');
     } else if (R.phase === 'hide' && R.spawned === 0) {
       if (R.playerGhost) this.ui.status(`Закрой глаза и считай: ${headLeft}… Герои прячутся!`, 'calm');
       else this.ui.status(`Безлики выйдут через ${headLeft} — прячься!`, 'calm');

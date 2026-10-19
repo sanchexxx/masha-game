@@ -1,4 +1,5 @@
 // Интерфейс поверх 3D: загрузка, выбор героя, HUD, итог раунда.
+import { POWERS } from './powers.js';
 const $ = id => document.getElementById(id);
 const ICONS = { kid: '🐱', masha: '🦶', catbus: '🐈', moti: '🛡️', brothers: '👥', noface: '🎭' };
 
@@ -202,7 +203,8 @@ export class UI {
     box.querySelectorAll('.cr-opts button').forEach(b => b.addEventListener('click', () => onChange(b.parentElement.dataset.k, b.dataset.v)));
   }
 
-  showHero(h, skin) {
+  // powers: [{id, key, icon, name}] — суперспособности героя; touch — без подписей клавиш
+  showHero(h, skin, powers = [], touch = false) {
     $('creator').classList.toggle('hidden', !h.custom);
     document.querySelector('.sel-info').classList.toggle('custom', !!h.custom);
     const sk = $('skins');
@@ -216,11 +218,33 @@ export class UI {
     r.textContent = h.rarity;
     r.className = 'pill ' + h.rarityClass;
     $('hero-about').textContent = h.about;
-    $('hero-ab').textContent = h.ability;
-    $('hero-ab-text').textContent = h.abilityText;
-    $('hero-ab-icon').textContent = ICONS[h.id] || '✦';
-    $('hero-tags').innerHTML = h.tags.map(t => `<span class="tag">${t}</span>`).join('');
+    $('powers-count').textContent = powers.length;
+    const list = $('powers-list');
+    list.innerHTML = powers.map((a, i) => {
+      const info = POWERS[a.power || a.id] || {};
+      return `<div class="pw" style="--d:${i * 60}ms"><div class="pw-ic">${a.icon}${touch ? '' : `<em>${a.key}</em>`}</div>`
+        + `<div class="pw-tx"><b>${a.name}</b><span>${info.do || ''}</span>${info.tip ? `<small>👉 ${info.tip}</small>` : ''}</div></div>`;
+    }).join('');
+    const box = document.querySelector('.si-scroll');
+    if (box) box.scrollTop = 0;
     this.cards?.forEach((c, id) => c.classList.toggle('active', id === h.id));
+  }
+
+  // Часть экрана, не закрытая панелью, заголовком и карточками, — там стоят герои.
+  freeRect() {
+    const W = innerWidth, H = innerHeight;
+    let x0 = 0, y0 = 0, x1 = W, y1 = H;
+    const box = el => { const r = el?.getBoundingClientRect(); return r && r.width && r.height ? r : null; };
+    const panel = box(document.querySelector('.sel-info'));
+    if (panel) {
+      if (panel.left > W * 0.4) x1 = Math.min(x1, panel.left - 6);
+      else y1 = Math.min(y1, panel.top - 4);
+    }
+    const head = box(document.querySelector('.sel-head'));
+    if (head && head.bottom < H * 0.45) y0 = Math.max(y0, head.bottom);
+    const cards = box($('cards'));
+    if (cards && cards.top > H * 0.5) y1 = Math.min(y1, cards.top - 4);
+    return { x: x0, y: y0, w: Math.max(40, x1 - x0), h: Math.max(40, y1 - y0) };
   }
 
   status(text, cls) {

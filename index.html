@@ -588,6 +588,194 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .game-mode-card .lb-bot-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
 .game-mode-card .ghost-btn.active { border-color: #f3c374; color: #ffe7ac; background: rgba(159, 98, 39, .34); }
 .game-mode-card .lb-note { line-height: 1.4; color: #e5d9c8; }
+
+/* ================= Обучение и шеренга героев (19.10.2026) ================= */
+:root { --neon: #3dff8a; --neon-soft: rgba(61, 255, 138, .55); }
+
+/* Раскладка экрана выбора: слева улица с героями, справа панель */
+html:root #select.show { grid-template-columns: minmax(0, 1fr) clamp(290px, 31vw, 390px); grid-template-rows: auto minmax(0, 1fr) auto; gap: 8px 16px;
+  padding: max(12px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  background: linear-gradient(180deg, rgba(8, 8, 30, .62), transparent 24%, transparent 72%, rgba(8, 8, 30, .72)); }
+html:root .sel-head { grid-column: 1; grid-row: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 16px; text-align: left; }
+html:root .sel-head h1 { font-size: clamp(28px, 4.4vw, 50px); }
+html:root .sel-head p { display: block; margin: 0; font-size: 14px; color: #cfc8e6; }
+html:root .sel-info { grid-column: 2; grid-row: 1 / 4; align-self: stretch; max-height: 100%; display: flex; flex-direction: column; padding: 0; overflow: hidden;
+  background: linear-gradient(165deg, rgba(40, 30, 92, .82), rgba(15, 12, 40, .86) 55%); border: 1px solid rgba(255, 232, 168, .2);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .08); border-radius: 24px; }
+html:root .si-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 16px 10px; scrollbar-width: thin; }
+html:root .si-scroll::-webkit-scrollbar { width: 6px; }
+html:root .si-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .2); border-radius: 6px; }
+html:root .si-foot { padding: 4px 16px 14px; border-top: 1px solid rgba(255, 255, 255, .08); background: linear-gradient(180deg, rgba(10, 8, 30, 0), rgba(10, 8, 30, .45)); }
+html:root .si-foot .wallet-row { margin-top: 8px; }
+html:root .si-foot .gold { margin-top: 8px; }
+html:root .si-name { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+html:root .si-name h2 { margin: 0; font-size: clamp(26px, 3vw, 36px); }
+html:root .sel-info #hero-about { display: block; margin: 8px 0 4px; font-size: 13.5px; color: #d8d2e6; }
+html:root .sel-cards { grid-column: 1; grid-row: 3; justify-content: safe center; gap: 8px; }
+html:root .card { width: clamp(76px, 8.4vw, 108px); height: clamp(92px, 13vh, 136px); border-radius: 14px; }
+html:root .card .c-name { font-size: clamp(14px, 1.5vw, 19px); }
+html:root .card .c-tag { display: none; }
+
+/* Телефон вертикально: улица сверху, панель снизу листом, карточки не нужны — герои стоят на улице */
+html:root:not(.landscape) #select.show { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; gap: 6px; }
+html:root:not(.landscape) .sel-head { grid-column: 1; justify-content: center; text-align: center; }
+html:root:not(.landscape) .sel-head h1 { font-size: clamp(30px, 9vw, 44px); width: 100%; }
+html:root:not(.landscape) .sel-info { grid-column: 1; grid-row: 3; max-height: 49vh; max-height: 49dvh; border-radius: 22px 22px 18px 18px; }
+html:root:not(.landscape) .sel-cards { display: none; }
+html:root:not(.landscape) .sel-head p { display: none; }
+html:root:not(.landscape) .sel-head h1 { font-size: clamp(28px, 8vw, 40px); }
+html:root:not(.landscape) .tut-btn { font-size: 14px; padding: 4px 14px 4px 4px; }
+html:root:not(.landscape) .tut-ic { width: 26px; height: 26px; font-size: 15px; }
+html:root:not(.landscape) .sel-info { display: block; overflow-y: auto; max-height: 52vh; max-height: 52dvh; }
+html:root:not(.landscape) .si-scroll { overflow: visible; padding: 14px 14px 8px; }
+html:root:not(.landscape) .si-foot { position: sticky; bottom: 0; padding: 0 12px 10px; background: linear-gradient(180deg, rgba(18, 14, 46, .75), rgba(14, 11, 38, .98) 30%); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+html:root:not(.landscape) .si-foot .wallet-row { display: none; }
+html:root:not(.landscape) .si-foot .gold { margin-top: 10px; padding: 11px 16px; font-size: 19px; }
+html:root:not(.landscape) .si-foot .friends-btn, html:root:not(.landscape) .si-foot .sel-row .ghost-btn { margin-top: 6px; padding: 8px; font-size: 13px; }
+
+/* Таблички с именами над героями */
+#select > .lineup-tags { position: absolute; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.lu-tag { position: absolute; left: 0; top: 0; pointer-events: auto; display: flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; white-space: nowrap;
+  font: 800 13px/1.2 var(--body); color: #f6f0ff; background: rgba(14, 12, 40, .72); border: 1px solid rgba(255, 255, 255, .2);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .35); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transition: background .2s, border-color .2s, box-shadow .2s, color .2s; }
+.lu-tag:hover { border-color: rgba(255, 232, 168, .8); }
+.lu-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--common); box-shadow: 0 0 6px currentColor; }
+.lu-dot.hero { background: var(--hero); } .lu-dot.epic { background: #b17cff; } .lu-dot.rare { background: #5aa2ff; } .lu-dot.hunter { background: #c9a8ff; }
+.lu-tag.on { color: #eafff2; background: rgba(8, 40, 26, .82); border-color: var(--neon); box-shadow: 0 0 0 1px var(--neon), 0 0 18px var(--neon-soft), 0 4px 14px rgba(0, 0, 0, .35); }
+.lu-tag.on b::before { content: '✓ '; color: var(--neon); }
+.lu-tag.on::after { content: ''; position: absolute; left: 50%; bottom: -6px; width: 9px; height: 9px; margin-left: -5px; transform: rotate(45deg); background: rgba(8, 40, 26, .9); border-right: 1px solid var(--neon); border-bottom: 1px solid var(--neon); }
+
+/* Кнопка «Пройти обучение» */
+.tut-btn { display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px 6px 6px; border-radius: 999px; font: 800 15px/1 var(--body); color: #fff4d6;
+  background: linear-gradient(180deg, rgba(255, 232, 168, .2), rgba(240, 185, 74, .08)); border: 1.5px solid rgba(255, 214, 130, .75);
+  box-shadow: 0 0 18px rgba(255, 200, 100, .35), inset 0 1px 0 rgba(255, 255, 255, .25); animation: tutGlow 2.4s ease-in-out infinite; }
+.tut-btn:active { transform: scale(.97); }
+.tut-ic { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 17px; background: linear-gradient(180deg, var(--gold1), var(--gold2)); box-shadow: 0 2px 0 #a8741d; }
+@keyframes tutGlow { 50% { box-shadow: 0 0 30px rgba(255, 200, 100, .6), inset 0 1px 0 rgba(255, 255, 255, .25); } }
+
+/* Суперспособности */
+.powers { margin-top: 12px; }
+.pw-title { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; font: 800 13px/1 var(--body); letter-spacing: .08em; text-transform: uppercase; color: #ffe2a0; }
+.pw-title span { font-size: 16px; filter: drop-shadow(0 0 6px #ffcf6a); }
+.pw-title small { margin-left: auto; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; display: grid; place-items: center; font-size: 12px; letter-spacing: 0; color: #3a2610; background: linear-gradient(var(--gold1), var(--gold2)); }
+.pw-list { display: grid; gap: 7px; }
+.pw { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 11px; align-items: start; padding: 9px 10px 9px 9px; border-radius: 15px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .025)); border: 1px solid rgba(255, 255, 255, .09);
+  animation: pwIn .45s cubic-bezier(.2, .8, .2, 1) both; animation-delay: var(--d, 0ms); }
+.pw-ic { position: relative; width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center; font-size: 23px;
+  background: radial-gradient(circle at 50% 35%, #4a2c14, #1b0f08); border: 1.5px solid var(--gold2); box-shadow: 0 0 12px rgba(240, 185, 74, .35), inset 0 0 12px rgba(240, 185, 74, .35); }
+.pw-ic em { position: absolute; right: -6px; bottom: -6px; min-width: 21px; height: 21px; padding: 0 4px; border-radius: 7px; display: grid; place-items: center;
+  font: 900 11px/1 var(--body); font-style: normal; color: #3a2610; background: #fff3cf; box-shadow: 0 2px 0 #b98a3c; }
+.pw-tx b { display: block; font-size: 14.5px; line-height: 1.2; color: #fff; }
+.pw-tx span { display: block; margin-top: 3px; font-size: 12.5px; line-height: 1.35; color: #e4def2; }
+.pw-tx small { display: block; margin-top: 4px; font-size: 12px; line-height: 1.3; font-weight: 700; color: #a6f5c4; }
+@keyframes pwIn { from { opacity: 0; transform: translateY(8px); } }
+html:root .sel-info.custom .powers { display: block; }
+
+@media (max-height: 520px) {
+  html:root .sel-head p { display: none; }
+  html:root .sel-head h1 { font-size: clamp(22px, 6vh, 34px); }
+  html:root .sel-info #hero-about { display: none; }
+  html:root .si-scroll { padding: 10px 12px 6px; }
+  html:root .si-foot { padding: 2px 12px 8px; }
+  .tut-btn { font-size: 13px; padding: 4px 12px 4px 4px; }
+  .tut-ic { width: 24px; height: 24px; font-size: 14px; }
+  .pw { grid-template-columns: 36px minmax(0, 1fr); gap: 9px; padding: 7px 8px; }
+  .pw-ic { width: 36px; height: 36px; font-size: 18px; border-radius: 10px; }
+  .pw-tx b { font-size: 13px; } .pw-tx span { font-size: 11.5px; } .pw-tx small { display: none; }
+  .lu-tag { font-size: 11px; padding: 3px 8px; }
+  html:root .sel-cards { display: none; }
+  html:root .si-foot .wallet-row { display: none; }
+  html:root .si-foot .gold { margin-top: 6px; padding: 7px 12px; font-size: 16px; }
+  html:root .si-foot .friends-btn, html:root .si-foot .sel-row .ghost-btn { margin-top: 4px; padding: 5px 8px; font-size: 12px; }
+  html:root .si-foot .sel-row .ghost-btn.small { width: 34px; flex: none; }
+}
+@media (max-width: 760px) {
+  .lu-tag { font-size: 11.5px; padding: 3px 9px; gap: 4px; }
+  .pw-tx small { font-size: 11.5px; }
+}
+
+/* Экскурсия по меню: подсветка цели + облачко */
+#coach { position: fixed; inset: 0; z-index: 40; pointer-events: none; display: none; }
+#coach.on { display: block; }
+.co-spot { position: absolute; left: 0; top: 0; width: 10px; height: 10px; border-radius: 18px;
+  box-shadow: 0 0 0 200vmax rgba(6, 5, 22, .58), 0 0 0 2px var(--neon), 0 0 26px 6px var(--neon-soft);
+  transition: transform .35s cubic-bezier(.2, .8, .2, 1), width .35s, height .35s, opacity .3s; }
+.co-spot::after { content: ''; position: absolute; inset: -8px; border-radius: 24px; border: 2px solid var(--neon); opacity: 0; animation: coRing 1.6s ease-out infinite; }
+@keyframes coRing { 0% { opacity: .8; transform: scale(.97); } 100% { opacity: 0; transform: scale(1.06); } }
+.co-ping { position: absolute; left: 0; top: 0; width: 0; height: 0; transition: transform .35s cubic-bezier(.2, .8, .2, 1), opacity .3s; }
+.co-ping::before { content: '👆'; position: absolute; left: -6px; top: 6px; font-size: 38px; filter: drop-shadow(0 4px 8px rgba(0, 0, 0, .6)); animation: coTap 1.2s ease-in-out infinite; }
+@keyframes coTap { 0%, 100% { transform: translateY(0) scale(1); } 45% { transform: translateY(-10px) scale(1.05); } 60% { transform: translateY(0) scale(.92); } }
+.co-bubble { position: absolute; left: 0; top: 0; width: min(350px, 90vw); pointer-events: auto; padding: 13px 16px 14px; border-radius: 22px; color: var(--text);
+  background: linear-gradient(160deg, #31266e, #17123d 70%); border: 1.5px solid rgba(255, 232, 168, .6);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .55), 0 0 30px rgba(255, 200, 100, .2), inset 0 1px 0 rgba(255, 255, 255, .12);
+  transition: transform .3s cubic-bezier(.2, .8, .2, 1); }
+.co-bubble.pop .co-title, .co-bubble.pop .co-text { animation: pwIn .4s cubic-bezier(.2, .8, .2, 1) both; }
+.co-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.co-step { font: 900 11.5px/1 var(--body); letter-spacing: .1em; text-transform: uppercase; color: #0e2a1a; background: var(--neon); padding: 5px 9px; border-radius: 999px; box-shadow: 0 0 12px var(--neon-soft); }
+.co-skip { font-size: 12px; font-weight: 700; color: var(--muted); padding: 4px 2px; }
+.co-title { margin: 9px 0 4px; font: 400 28px/1.05 var(--title); color: #fff2cf; text-shadow: 0 0 16px rgba(255, 210, 140, .35); }
+.co-text { margin: 0; font-size: 14.5px; line-height: 1.42; color: #e6e0f4; }
+.co-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 11px; min-height: 8px; }
+.co-dots { display: flex; gap: 5px; }
+.co-dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, .22); transition: all .3s; }
+.co-dots i.done { background: rgba(61, 255, 138, .6); }
+.co-dots i.on { width: 20px; border-radius: 4px; background: var(--neon); box-shadow: 0 0 8px var(--neon-soft); }
+.co-bubble .co-next { width: auto; margin: 0; padding: 8px 18px; font-size: 16px; }
+.co-arrow { position: absolute; width: 16px; height: 16px; background: #2a2163; border: 1.5px solid rgba(255, 232, 168, .6); transform: rotate(45deg); }
+.co-arrow.below { top: -9px; border-right: 0; border-bottom: 0; }
+.co-arrow.above { bottom: -9px; top: auto; border-left: 0; border-top: 0; background: #1b1546; }
+.co-arrow.left { right: -9px; border-left: 0; border-bottom: 0; }
+.co-arrow.right { left: -9px !important; border-right: 0; border-top: 0; }
+.co-arrow.over, .co-arrow:not(.below):not(.above):not(.left):not(.right) { display: none; }
+
+/* Кнопка «Обучение» на выборе карты */
+.maps-foot { flex-wrap: wrap; justify-content: center; }
+.maps-foot .train-btn { flex: none; padding: 12px 20px; border-radius: 999px; font-weight: 800; font-size: 17px; color: #d6ffe6;
+  background: rgba(61, 255, 138, .1); border: 1.5px solid var(--neon); box-shadow: 0 0 18px rgba(61, 255, 138, .3), inset 0 0 12px rgba(61, 255, 138, .12); }
+.maps-foot .train-btn:active { transform: scale(.97); }
+.maps-foot .gold { flex: 1; min-width: 200px; }
+
+/* Задание тренировки на карте */
+#train { position: fixed; z-index: 7; top: max(122px, calc(env(safe-area-inset-top) + 116px)); left: 50%; width: min(440px, 92vw); transform: translateX(-50%);
+  padding: 11px 14px 12px; border-radius: 20px; pointer-events: auto; color: var(--text);
+  background: linear-gradient(160deg, rgba(41, 31, 96, .92), rgba(16, 12, 42, .92)); border: 1.5px solid rgba(61, 255, 138, .55);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, .5), 0 0 22px rgba(61, 255, 138, .2); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+#train.pop { animation: trPop .45s cubic-bezier(.2, .9, .3, 1.2) both; }
+@keyframes trPop { from { opacity: 0; transform: translateX(-50%) translateY(-10px) scale(.95); } }
+.tr-head { display: flex; align-items: center; justify-content: space-between; }
+.tr-badge { font: 900 11.5px/1 var(--body); letter-spacing: .1em; text-transform: uppercase; color: #0e2a1a; background: var(--neon); padding: 5px 9px; border-radius: 999px; }
+.tr-count { font-weight: 800; font-size: 13px; color: var(--muted); }
+.tr-body { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 12px; margin-top: 9px; align-items: start; }
+.tr-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 25px; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .15); }
+.tr-icon.power { background: radial-gradient(circle at 50% 35%, #4a2c14, #1b0f08); border: 1.5px solid var(--gold2); box-shadow: 0 0 14px rgba(240, 185, 74, .45); }
+.tr-body b { display: block; font-size: 17px; color: #fff; }
+.tr-body p { margin: 3px 0 0; font-size: 13.5px; line-height: 1.4; color: #e2dcf0; }
+.tr-time { display: inline-block; margin-top: 6px; padding: 3px 10px; border-radius: 999px; font-weight: 900; font-size: 15px; color: #ffe39a; background: rgba(0, 0, 0, .35); }
+kbd { display: inline-block; min-width: 22px; padding: 1px 6px; margin: 0 1px; border-radius: 6px; font: 900 12px/1.5 var(--body); text-align: center; color: #3a2610; background: #fff3cf; box-shadow: 0 2px 0 #b98a3c; }
+.tr-bar { height: 5px; margin-top: 10px; border-radius: 5px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+.tr-bar i { display: block; height: 100%; border-radius: 5px; background: linear-gradient(90deg, #22d37a, var(--neon)); box-shadow: 0 0 8px var(--neon-soft); transition: width .5s; }
+.tr-head { gap: 8px; }
+.tr-head .tr-count { margin-left: auto; }
+.tr-skip { font-size: 12px; font-weight: 800; color: var(--muted); padding: 3px 9px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .2); }
+#hud.training .timer-pill, #hud.training .alive { display: none; }
+.tr-check { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 20px; font-size: 54px; font-weight: 900; color: #fff;
+  background: rgba(20, 150, 80, .75); text-shadow: 0 0 20px var(--neon); opacity: 0; pointer-events: none; transition: opacity .2s; }
+#train.passed .tr-check { opacity: 1; }
+@media (max-height: 520px) {
+  #train { top: auto; bottom: max(70px, calc(env(safe-area-inset-bottom) + 64px)); width: min(380px, 52vw); padding: 8px 11px 9px; }
+  .tr-body { grid-template-columns: 38px minmax(0, 1fr); gap: 9px; margin-top: 6px; }
+  .tr-icon { width: 38px; height: 38px; font-size: 20px; }
+  .tr-body b { font-size: 14.5px; } .tr-body p { font-size: 12px; }
+}
+html:root:not(.landscape) #train { top: max(232px, calc(env(safe-area-inset-top) + 222px)); }
+.tr-skip { white-space: nowrap; }
+@media (max-width: 520px) { .tr-word { display: none; } .tr-badge { font-size: 10.5px; } }
+
+/* Итог тренировки */
+#train-done { background: rgba(8, 6, 26, .55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 12; }
+#train-done.show { display: grid; place-items: center; }
+.td-card { border-color: rgba(61, 255, 138, .5); box-shadow: 0 0 30px rgba(61, 255, 138, .2); }
 </style>
 <!-- Для старых WebKit загружается совместимая сборка с WebGL 1; графика игры одинаковая. -->
 </head>
@@ -603,30 +791,35 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 
 <!-- Выбор персонажа -->
 <div id="select" class="screen">
+  <div class="lineup-tags" id="lineup-tags"></div>
   <header class="sel-head">
     <h1>Выбор персонажа <span class="wisp"></span></h1>
-    <p>Странные духи для больших приключений</p>
+    <p>Нажми на героя на улице — он засветится</p>
+    <button class="tut-btn" id="btn-tutorial"><span class="tut-ic">🎓</span> Пройти обучение</button>
   </header>
   <section class="sel-info">
-    <h2 id="hero-name">Маша <span class="paw">🐾</span></h2>
-    <span id="hero-rarity" class="pill hero">ГЕРОЙ</span>
-    <p id="hero-about"></p>
-    <div class="label">Способность</div>
-    <div class="ability"><div class="ab-icon" id="hero-ab-icon">✦</div><div><b id="hero-ab"></b><small id="hero-ab-text"></small></div></div>
-    <div class="label">Особенности</div>
-    <div class="tags" id="hero-tags"></div>
-    <div class="skins hidden" id="skins"></div>
-    <div class="creator hidden" id="creator"></div>
-    <div class="opts">
-      <div class="opt"><span>Безликов</span><div class="seg" id="opt-ghosts"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button></div></div>
-      <div class="opt"><span>Другие герои-боты</span><div class="seg" id="opt-bots"><button data-v="1">Да</button><button data-v="0">Нет</button></div></div>
+    <div class="si-scroll">
+      <div class="si-name"><h2 id="hero-name">Маша <span class="paw">🐾</span></h2><span id="hero-rarity" class="pill hero">ГЕРОЙ</span></div>
+      <p id="hero-about"></p>
+      <div class="powers" id="hero-powers">
+        <div class="pw-title"><span>⚡</span> Суперспособности <small id="powers-count"></small></div>
+        <div class="pw-list" id="powers-list"></div>
+      </div>
+      <div class="skins hidden" id="skins"></div>
+      <div class="creator hidden" id="creator"></div>
+      <div class="opts">
+        <div class="opt"><span>Безликов</span><div class="seg" id="opt-ghosts"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button></div></div>
+        <div class="opt"><span>Другие герои-боты</span><div class="seg" id="opt-bots"><button data-v="1">Да</button><button data-v="0">Нет</button></div></div>
+      </div>
     </div>
-    <div class="wallet-row"><span class="pumpkin-ico">🎃</span> <b id="wallet">0</b> тыковок</div>
-    <button id="btn-choose" class="gold">Играть <span>›</span></button>
-    <button class="ghost-btn friends-btn" id="btn-friends">👫 Играть с друзьями</button>
-    <div class="sel-row">
-      <button class="ghost-btn" id="btn-watch">👀 Смотреть, как бегают все</button>
-      <button class="ghost-btn small" id="btn-tuner2" title="Физика героев">⚙</button>
+    <div class="si-foot">
+      <div class="wallet-row"><span class="pumpkin-ico">🎃</span> <b id="wallet">0</b> тыковок</div>
+      <button id="btn-choose" class="gold">Играть <span>›</span></button>
+      <button class="ghost-btn friends-btn" id="btn-friends">👫 Играть с друзьями</button>
+      <div class="sel-row">
+        <button class="ghost-btn" id="btn-watch">👀 Смотреть, как бегают все</button>
+        <button class="ghost-btn small" id="btn-tuner2" title="Физика героев">⚙</button>
+      </div>
     </div>
   </section>
   <section class="sel-cards" id="cards"></section>
@@ -642,6 +835,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
       <small class="lb-note" id="maps-mode-note">Спрячься от Безлика, переживи поиски и догонялки.</small></div>
     <div class="maps-foot">
       <button class="ghost-btn" id="btn-maps-back">‹ Назад</button>
+      <button class="train-btn" id="btn-maps-train">🎓 Обучение</button>
       <button class="gold" id="btn-maps-go">Начать прятки <span>›</span></button>
     </div>
   </div>
@@ -763,12 +957,26 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   </div>
 </div>
 
+<!-- Обучение на карте: задание и итог -->
+<div id="train" class="hidden"></div>
+<div id="train-done" class="screen">
+  <div class="res-card td-card">
+    <div class="res-emoji" id="td-emoji">🎓</div>
+    <h2 id="td-title">Обучение пройдено!</h2>
+    <p id="td-text"></p>
+    <button class="gold" id="btn-td-real">Играть по-настоящему <span>›</span></button>
+    <button class="ghost-btn" id="btn-td-again">↻ Пройти обучение ещё раз</button>
+    <button class="ghost-btn" id="btn-td-menu">В меню</button>
+  </div>
+</div>
+
 <!-- Пауза -->
 <div id="paused" class="screen">
   <div class="res-card">
     <h2>Пауза</h2>
     <button class="gold" id="btn-resume">Продолжить <span>›</span></button>
     <button class="ghost-btn" id="btn-quit">В меню</button>
+    <button class="ghost-btn" id="btn-pause-tut">🎓 Пройти обучение</button>
   </div>
 </div>
 
@@ -797,7 +1005,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   window.__bundleVariant = legacy ? 'legacy' : 'modern';
   window.__bootStage = 'скачиваем файл игры (' + window.__bundleVariant + ')';
   var script = document.createElement('script');
-  script.src = legacy ? '/src/main.legacy.bundle.js?v=2026101123' : '/src/main.bundle.js?v=2026101123';
+  script.src = legacy ? '/src/main.legacy.bundle.js?v=2026101920' : '/src/main.bundle.js?v=2026101920';
   script.onerror = function () { say('не загрузился файл игры (' + window.__bundleVariant + ')'); };
   script.onload = function () {
     if (!window.__bootEntered) say('файл игры скачан, но браузер не смог выполнить его (' + window.__bundleVariant + ')');
