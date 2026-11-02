@@ -22,6 +22,23 @@ export class Sound {
 
   // Записанные русские реплики звучат одинаково на iOS, Android и ПК.
   // Три слегка разнесённых и пониженных голоса создают характер трёх братьев.
+  // Теневой гнев Безлика: низкий гул + визгливый рёв (страшно, но не слишком — игра детская)
+  ghostRage() {
+    if (this.muted) return;
+    if (!this.ctx) this.unlock();
+    if (!this.ctx) return;
+    const c = this.ctx, t = c.currentTime;
+    for (const [f0, f1, type, vol, dur] of [[70, 45, 'sawtooth', 0.28, 1.6], [105, 60, 'square', 0.08, 1.4], [620, 260, 'sawtooth', 0.07, 1.1]]) {
+      const o = c.createOscillator(); o.type = type;
+      o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+      const lfo = c.createOscillator(); lfo.frequency.value = 11; const dg = c.createGain(); dg.gain.value = f0 * 0.08;
+      lfo.connect(dg).connect(o.frequency); lfo.start(t); lfo.stop(t + dur);
+      const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900;
+      const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.15); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(f).connect(g).connect(this.master); o.start(t); o.stop(t + dur + 0.05);
+    }
+  }
+
   // Мультяшные звуки Тоторо — синтез, без файлов: рёв, «ху-ху», писк малышей, мяу-гудок НэкоБуса.
   totoroCue(id) {
     if (this.muted) return;

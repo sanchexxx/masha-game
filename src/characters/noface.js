@@ -72,10 +72,15 @@ export function buildNoFace() {
     model.rotation.z = Math.sin(t * 0.9) * 0.03;
     arms.forEach((a, i) => {
       const s = i ? 1 : -1;
+      if (st.rage) {   // Теневой гнев: руки в стороны и размахивает
+        a.rotation.x = -0.5 + Math.sin(t * 7 + i * 2) * 0.7;
+        a.rotation.z = s * (1.3 + Math.sin(t * 9 + i) * 0.45);
+        return;
+      }
       a.rotation.x = THREE.MathUtils.lerp(0.05, -1.35 + Math.sin(t * 5 + i) * 0.08, hunt);
       a.rotation.z = s * (0.06 + 0.1 * (1 - hunt));
     });
-    holeMat.emissiveIntensity = hunt * (0.9 + Math.sin(t * 6) * 0.3);
+    holeMat.emissiveIntensity = st.rage ? 2 : hunt * (0.9 + Math.sin(t * 6) * 0.3);
     glow.material.opacity = (0.25 + hunt * 0.5) * (st.appear ?? 1);
     const ap = st.appear ?? 1;
     cloak.opacity = 0.93 * ap;

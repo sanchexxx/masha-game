@@ -79,6 +79,8 @@ export class Ghost {
     this.sees = false;
     this.stunT = 0; this.slowT = 0; this.confusedT = 0; this.fearT = 0; this.fearSource = null; this.fearGoal = null;
     this.clumsyT = 0; this.wetT = 0;
+    this.rageT = 0; this.rageUsed = false; this.rageStart = false; this.feedN = 0; this.sizeK = 1;
+    this.maskCd = {}; this.vanishT = 0;
     this.controlImmuneT = 0; this.controlKind = '';
     this.showControl(0, 0, 0, '', 0);
     this.stuckT = 0; this.stuckFrom = null;
@@ -188,7 +190,7 @@ export class Ghost {
   get disguiseReady() { return this.disguiseCd <= 0 && !this.disguise && this.active && this.stunT <= 0; }
 
   // kind: 'hero' — притвориться героем, 'prop' — предметом (ящик, фонарь, тыква…)
-  useDisguise(targets = [], kind = 'hero') {
+  useDisguise(targets = [], kind = 'hero', forced = null) {
     if (!this.disguiseReady) return false;
     if (kind === 'prop') {
       const pk = PROP_KINDS[(Math.random() * PROP_KINDS.length) | 0];
@@ -203,7 +205,7 @@ export class Ghost {
       const aliveIds = new Set(targets.filter(a => a.alive).map(a => a.hero.id));
       const pool = this.heroes.filter(h => !aliveIds.has(h.id));
       const list = pool.length ? pool : this.heroes;
-      const hero = list[(Math.random() * list.length) | 0];
+      const hero = forced || list[(Math.random() * list.length) | 0];
       let char = this.disguises.get(hero.id);
       if (!char) {
         char = hero.build('classic');
@@ -222,6 +224,35 @@ export class Ghost {
     }
     this.root.visible = false;
     this.poof = true;              // игра покажет облачко
+    return true;
+  }
+
+  // Мистическая маска: сменить героя без ожидания (оставшееся время маски сохраняется)
+  maskAs(hero) {
+    if (!this.disguise?.hero) return false;
+    const left = this.disguise.t;
+    this.#hideDisguise();
+    this.disguise = null; this.disguiseCd = 0;
+    const ok = this.useDisguise([], 'hero', hero);
+    if (ok) this.disguise.t = Math.max(left, 4);
+    return ok;
+  }
+
+  // Теневой гнев: раз за раунд. Растёт, машет руками, ревёт; раунд выгоняет героев из кустов.
+  rage() {
+    if (this.rageUsed || !this.active) return false;
+    this.rageUsed = true;
+    this.rageT = C.rage.time;
+    this.rageStart = true;
+    this.reveal();
+    this.stunT = 0;
+    return true;
+  }
+
+  // Поглощение: поймал героя или съел тыковку — чуть подрос и ускорился
+  feed() {
+    if (this.feedN >= C.absorb.max) return false;
+    this.feedN++;
     return true;
   }
 
@@ -260,6 +291,9 @@ export class Ghost {
     this.fearT = Math.max(0, this.fearT - dt);
     this.clumsyT = Math.max(0, this.clumsyT - dt);
     this.wetT = Math.max(0, (this.wetT || 0) - dt);
+    this.rageT = Math.max(0, this.rageT - dt);
+    this.vanishT = Math.max(0, this.vanishT - dt);
+    for (const k in this.maskCd) this.maskCd[k] = Math.max(0, this.maskCd[k] - dt);
     if (this.fearT <= 0) { this.fearSource = null; this.fearGoal = null; }
     this.showControl(this.stunT, this.slowT, this.confusedT, this.controlKind, t, this.fearT);
     this.disguiseCd = Math.max(0, this.disguiseCd - dt);
@@ -277,7 +311,7 @@ export class Ghost {
     const c = this.ctrl;
     c.moveMul = this.stunT > 0 ? 0 : 1;
     if (this.disguise?.prop && move) { c.moveMul *= CONFIG.abilities.prop.walk; move = { ...move, run: false, jumpHold: false, jump: false }; }
-    c.slowMul = (this.slowT > 0 ? 0.45 : 1) * (this.clumsyT > 0 ? 0.78 : 1) * (this.wetT > 0 ? C_RAIN().slow : 1) * (1 + C.lateBoost * roundT) * (this.speedMul ?? 1);
+    c.slowMul = (this.slowT > 0 ? 0.45 : 1) * (this.clumsyT > 0 ? 0.78 : 1) * (this.wetT > 0 ? C_RAIN().slow : 1) * (this.rageT > 0 ? C.rage.speed : 1) * (1 + C.absorb.speed * this.feedN) * (1 + C.lateBoost * roundT) * (this.speedMul ?? 1);
     c.turnMul = this.clumsyT > 0 ? 0.14 : 1;
     // мокрый Безлик летает с трудом и невысоко
     c.flyMul = this.wetT > 0 ? C_RAIN().fly : 1;
@@ -361,6 +395,8 @@ export class Ghost {
     const c = this.ctrl;
     const inp = { x: 0, y: 0, run: false, jump: false, jumpHold: false, dash: false };
 
+    // Теневой гнев: давно никого не видит — раз за раунд выгоняет всех из кустов
+    if (!this.rageUsed && this.state === 'search' && this.unseen > 6 && Math.random() < dt * 0.05) this.rage();
     // Маскировка: никого не видит — прикидывается героем и тихо идёт к ближайшему
     if (!pick && this.disguiseReady && Math.random() < dt * 0.25) this.useDisguise(targets, Math.random() < 0.3 ? 'prop' : 'hero');
     // в маске-предмете стоит тихо и ждёт, пока кто-нибудь подойдёт
@@ -553,6 +589,10 @@ export class Ghost {
     }
     this.root.position.copy(this.pos);
     this.root.rotation.y = this.yaw;
+    const wantK = (1 + C.absorb.size * this.feedN) * (this.rageT > 0 ? C.rage.size : 1);
+    this.sizeK += (wantK - this.sizeK) * Math.min(1, dt * 4);
+    this.root.scale.setScalar(this.sizeK);
+    st.rage = this.rageT > 0;
     this.root.rotation.z = st.stunned ? Math.sin(st.t * 18) * 0.06 : 0;
     this.char.update(dt, st);
   }
@@ -565,7 +605,7 @@ export class Ghost {
     const water = a.underwaterHidden && this.world.waterAt?.(p.x, p.z);
     // Нырнувшего можно поймать только пикированием, уже войдя в воду.
     if (a.underwaterHidden && (!diving || !water || this.pos.y >= water.level - 0.15)) return false;
-    return Math.hypot(p.x - this.pos.x, p.z - this.pos.z) < C.catchRadius + a.ctrl.radius * 0.6
+    return Math.hypot(p.x - this.pos.x, p.z - this.pos.z) < C.catchRadius + (this.sizeK - 1) * 0.9 + a.ctrl.radius * 0.6
       && p.y - this.pos.y < C.catchHeight && this.pos.y - p.y < (diving ? C.diveCatchHeight : 1.5);
   }
 }

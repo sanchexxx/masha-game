@@ -15,6 +15,9 @@ import { AbilitySet } from '../abilities/abilities.js?v=2026100901';
 import { PROP_KINDS } from '../world/props.js?v=2026100901';
 import { Nature, miniTotoro } from '../world/nature.js';
 
+// Умения героев, которые работают у Безлика в облике героя (остальные — про защиту друзей)
+const MASK_OK = new Set(['petals', 'tailhop', 'repel', 'roar', 'fear', 'hypnosis', 'glare', 'troar', 'swing', 'oak', 'hut', 'nekoride', 'vanish']);
+
 export const BOT_SPAWNS = [[-5, 19], [5.5, 17], [-9, 23], [9, 21], [-3, 14], [3, 25]];
 export const GHOST_SPAWNS = [[0, -21], [-7, -20], [7, -20], [0, -14]];
 
@@ -80,6 +83,79 @@ export class Round {
     this.rainT = cfg.time;
     for (const g of this.activeGhosts) g.wetT = cfg.time;
     this.emit('rain', { agent: me, time: cfg.time });
+  }
+
+  // ---------- Безлик: умения (и для игрока на этом устройстве, и для гостя совместной игры) ----------
+  // Вернёт 'on' — сработало, 'off' — маска снята, 'cd' — копится, 'used' — уже было, 'wait' — ещё не вышел
+  ghostAbility(g, id) {
+    if (!g.active) return 'wait';
+    if (id === 'mask-hero') {
+      const list = this.heroes;
+      if (g.disguise?.hero) {
+        const i = list.indexOf(g.disguise.hero);
+        if (i >= list.length - 1) { g.reveal(); return 'off'; }
+        return g.maskAs(list[i + 1]) ? 'on' : 'cd';
+      }
+      if (g.disguised) g.reveal();
+      return g.useDisguise(this.agents, 'hero', list[0]) ? 'on' : 'cd';
+    }
+    if (id === 'mask-prop') {
+      if (g.disguised) { g.reveal(); return 'off'; }
+      return g.useDisguise(this.agents, 'prop') ? 'on' : 'cd';
+    }
+    if (id === 'rage') return g.rage() ? 'on' : 'used';
+    if (id.startsWith('m:')) return this.#maskAbility(g, id.slice(2));
+    return 'off';
+  }
+
+  // Умения героя, в облике которого Безлик (до 4, клавиши 4–7)
+  maskAbilities(g) {
+    const hero = g?.disguise?.hero;
+    if (!hero) return [];
+    return (this.heroAbilities?.[hero.id] || []).filter(a => MASK_OK.has(a.id)).slice(0, 4)
+      .map((a, i) => ({ ...a, id: 'm:' + a.id, key: String(4 + i) }));
+  }
+
+  #maskAbility(g, id) {
+    const cfg = CONFIG.abilities[id];
+    if (!cfg || !g.disguise?.hero) return 'off';
+    if ((g.maskCd[id] || 0) > 0) return 'cd';
+    g.maskCd[id] = cfg.cd ?? 10;
+    const c = g.ctrl, p = g.pos;
+    if (id === 'petals') { c.boostT = cfg.time; c.boostMul = cfg.boost; }
+    else if (id === 'tailhop') { c.vel.y = Math.max(c.vel.y, 7.5); c.vel.x += Math.sin(c.yaw) * cfg.forward * 2; c.vel.z += Math.cos(c.yaw) * cfg.forward * 2; }
+    else if (id === 'nekoride') { c.rideT = cfg.time; c.rideHeight = cfg.height; c.boostT = cfg.time; c.boostMul = cfg.boost; }
+    else if (id === 'vanish') g.vanishT = cfg.time;
+    else if (id === 'oak' || id === 'hut') {
+      const spot = this.nature.findSpot({ ctrl: { pos: p, yaw: c.yaw } }, id === 'oak' ? 1.1 : 1.3);
+      if (!spot) { g.maskCd[id] = 0; return 'cd'; }
+      id === 'oak' ? this.nature.addOak(spot.x, spot.z) : this.nature.addHut(spot.x, spot.z);
+      this.emit('nature', { kind: id, x: spot.x, z: spot.z, agent: g });
+    } else {
+      // «Пугающие» умения героев в лапах Безлика пугают самих героев: те ненадолго теряются
+      const r = cfg.radius ?? cfg.range ?? 5;
+      for (const a of this.agents) if (a.alive && a.ctrl.pos.distanceTo(p) < r) a.ctrl.stagger = Math.max(a.ctrl.stagger, CONFIG.ghost.maskScare);
+    }
+    this.emit('ghostMaskAbility', { ghost: g, id, x: p.x, y: p.y, z: p.z, yaw: c.yaw });
+    return 'on';
+  }
+
+  // Теневой гнев: все герои в кустах, домиках и в облике вещей рядом выскакивают и разбегаются
+  #rageFlush(g) {
+    const R = CONFIG.ghost.rage;
+    let n = 0;
+    for (const a of this.agents) {
+      if (!a.alive) continue;
+      const dx = a.ctrl.pos.x - g.pos.x, dz = a.ctrl.pos.z - g.pos.z, d = Math.hypot(dx, dz);
+      if (d > R.radius) continue;
+      const hiding = a.hidden || a.prop;
+      a.flushT = R.flush;
+      if (a.prop) this.toggleProp(a);
+      a.ctrl.vel.x += dx / (d || 1) * 7; a.ctrl.vel.z += dz / (d || 1) * 7;
+      if (hiding) n++;
+      this.emit('rageFlush', { agent: a, ghost: g, hiding });
+    }
+    this.emit('rage', { ghost: g, flushed: n });
   }
 
   // НэкоБус прибегает к Безлику, который гонится за другом, и уводит его за собой
@@ -418,7 +494,9 @@ export class Round {
     });
 
     // Герои: игрок — от клавиатуры, боты — от «мозга»
-    const live = this.activeGhosts.filter(g => g.active);
+    for (const g of this.activeGhosts) if (g.rageStart) { g.rageStart = false; this.#rageFlush(g); }
+    // невидимого (в маске Тоторо) Безлика боты не замечают
+    const live = this.activeGhosts.filter(g => g.active && !(g.vanishT > 0));
     if (this.delivery) {
       this.delivery.claims ||= new Map();
       for (const [lanternId, agentKey] of this.delivery.claims) {
@@ -456,9 +534,10 @@ export class Round {
       const p = a.ctrl.pos;
       const water = this.world.waterAt?.(p.x, p.z);
       a.underwaterHidden = underwaterHidden(a.ctrl, water);
-      a.hidden = (this.world.inBush(p.x, p.z, p.y) && !a.ctrl.running)
+      if (a.flushT > 0) a.flushT = Math.max(0, a.flushT - dt);
+      a.hidden = !(a.flushT > 0) && ((this.world.inBush(p.x, p.z, p.y) && !a.ctrl.running)
         || a.underwaterHidden
-        || (!!a.prop && a.ctrl.speed < 0.6);
+        || (!!a.prop && a.ctrl.speed < 0.6));
       a.protected = a.invulnerableT > 0 || this.domes.some(d => Math.hypot(p.x - d.x, p.z - d.z) < d.r);
       if (a.protected) a.ctrl.stamina = Math.min(1, a.ctrl.stamina + dt * 0.25);   // в приюте отдыхается быстрее
     }
@@ -531,6 +610,7 @@ export class Round {
   }
 
   #caught(a, g) {
+    if (g.feed?.()) this.emit('absorb', { ghost: g, n: g.feedN });
     if (this.gameMode === 'delivery' && this.delivery) {
       const owner = a.headOwner || a;
       const carried = this.delivery.lanterns.find(l => l.carrier === owner.key);

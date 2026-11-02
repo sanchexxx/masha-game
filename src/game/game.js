@@ -37,8 +37,9 @@ const isMobile = isTouch && Math.min(screen.width, screen.height) < 820;
 const MAX_GHOSTS = 5;
 const GHOST_ABILITIES = [
   { id: 'dash', key: 'E', icon: '💨', name: 'Рывок' },
-  { id: 'mask-hero', key: '1', icon: '🎭', name: 'Стать героем' },
+  { id: 'mask-hero', key: '1', icon: '🎭', name: 'Мистическая маска' },
   { id: 'mask-prop', key: '2', icon: '📦', name: 'Стать вещью' },
+  { id: 'rage', key: '3', icon: '👹', name: 'Теневой гнев' },
   { id: 'fly', key: '␣', icon: '🪶', name: 'Взлететь' },
 ];
 
@@ -129,7 +130,7 @@ export class Game {
 
     this.round = new Round({
       world: this.world, scene: this.scene, navFor: r => this.navFor(r), ghosts: this.ghostPool, heroes: HEROES,
-      makeChar: (h, s) => this.#acquire(h, s), makeProp: k => buildProp(k), sound: this.sound, cam: this.cam, navs: () => this.navs.values(),
+      makeChar: (h, s) => this.#acquire(h, s), makeProp: k => buildProp(k), sound: this.sound, cam: this.cam, navs: () => this.navs.values(), heroAbilities: HERO_ABILITIES,
       playerSpawn: this.map.playerSpawn, botSpawns: this.map.botSpawns, ghostSpawns: this.map.ghostSpawns,
     });
     this.round.addFx = f => this.fx.push(f);
@@ -195,6 +196,9 @@ export class Game {
       if (pg) {
         if (key === '1') this.#useAbility('mask-hero');
         if (key === '2') this.#useAbility('mask-prop');
+        if (key === '3') this.#useAbility('rage');
+        const masked = this.round.maskAbilities(pg).find(a => a.key === key);
+        if (masked) this.#useAbility(masked.id);
       } else if (this.round.player?.alive) {
         const ab = this.round.player.abilities.list.find(a => a.key === key);
         if (ab) this.round.player.abilities.use(ab.id);
@@ -277,7 +281,7 @@ export class Game {
       this.scene.add(this.showLight, this.showGhost.root);
       this.round = new Round({
         world: this.world, scene: this.scene, navFor: r => this.navFor(r), ghosts: this.ghostPool, heroes: HEROES,
-        makeChar: (h, s) => this.#acquire(h, s), makeProp: k => buildProp(k), sound: this.sound, cam: this.cam, navs: () => this.navs.values(),
+        makeChar: (h, s) => this.#acquire(h, s), makeProp: k => buildProp(k), sound: this.sound, cam: this.cam, navs: () => this.navs.values(), heroAbilities: HERO_ABILITIES,
         playerSpawn: nextMap.playerSpawn, botSpawns: nextMap.botSpawns, ghostSpawns: nextMap.ghostSpawns,
       });
       this.round.addFx = f => this.fx.push(f);
@@ -393,7 +397,7 @@ export class Game {
 
   // Суперспособности для правой панели: умения героя + рывок (у Безлика — его набор).
   #powersOf(h) {
-    if (h.id === GHOST.id) return GHOST_ABILITIES.map(a => ({ ...a, power: a.id === 'dash' ? 'ghost-dash' : a.id }));
+    if (h.id === GHOST.id) return [...GHOST_ABILITIES.map(a => ({ ...a, power: a.id === 'dash' ? 'ghost-dash' : a.id })), { id: 'absorb', key: 'само', icon: '🍙', name: 'Поглощение' }];
     const list = (HERO_ABILITIES[h.id] || []).filter(a => a.id !== 'wave');
     return [...list, { id: 'dash', key: 'E', icon: '💨', name: 'Рывок' }];
   }
@@ -603,7 +607,7 @@ export class Game {
 
   #abilityBar() {
     const R = this.round;
-    if (R.playerGhost) this.ui.abilityBar(GHOST_ABILITIES);
+    if (R.playerGhost) { this.ghostBarHero = R.playerGhost.disguise?.hero?.id || null; this.ui.abilityBar([...GHOST_ABILITIES, ...R.maskAbilities(R.playerGhost)]); }
     else if (R.player) this.ui.abilityBar(R.player.abilities.list);   // рывок — круглая кнопка справа
     else this.ui.abilityBar([]);
     document.getElementById('abil-bar').classList.toggle('hidden', this.mode === 'watch');
@@ -615,11 +619,13 @@ export class Game {
     this.training?.onUse(id);
     if (id === 'dash') { this.input.dashQueued = true; return; }
     if (pg) {
-      if (id === 'fly') this.input.jumpQueued = true;
-      else if (id === 'mask-hero' || id === 'mask-prop') {
-        if (pg.disguised) pg.reveal();
-        else if (!pg.useDisguise(R.agents, id === 'mask-prop' ? 'prop' : 'hero')) this.ui.toast(pg.active ? 'Маскировка ещё копится…' : 'Сначала дождись своего выхода');
-      }
+      if (id === 'fly') { this.input.jumpQueued = true; return; }
+      const res = R.ghostAbility(pg, id);
+      if (res === 'wait') this.ui.toast('Сначала дождись своего выхода');
+      else if (res === 'cd') this.ui.toast('Ещё копится…');
+      else if (res === 'used') this.ui.toast('Теневой гнев — только раз за раунд');
+      else if (id === 'mask-hero' && pg.disguise?.hero) this.ui.toast(`Ты — ${pg.disguise.hero.name}! Его умения: клавиши 4–7`);
+      this.#abilityBar();
       return;
     }
     if (R.player?.alive) R.player.abilities.use(id);
@@ -888,6 +894,7 @@ export class Game {
     const me = R.player?.alive ? R.player : R.playerGhost;
     const collectors = [me, ...R.agents.filter(a => a.remote && a.alive), ...R.activeGhosts.filter(g => g.remote && g.active)].filter(Boolean);
     for (const c of this.pumpkins.update(dt, t, collectors)) {
+      if (c === me && R.playerGhost?.feed()) this.#onEvent({ type: 'absorb', ghost: R.playerGhost, n: R.playerGhost.feedN });
       if (c === me) { R.stats.pumpkins++; this.ui.pumpkins(R.stats.pumpkins); this.sound.chime([784, 1046, 1318]); }
       else this.mp.hostPumpkin(c.remote);
     }
@@ -1048,6 +1055,18 @@ export class Game {
       this.addFx(burst(this.scene, e.x, e.z, 2.2, 0xffc860));
     } else if (e.type === 'rain') {
       this.ui.toast(e.agent.isPlayer ? 'Дождь! Безлики промокли: медленные и еле летают' : 'Тоторо вызвал дождь — Безлики промокли!');
+    } else if (e.type === 'rage') {
+      this.sound.ghostRage?.();
+      this.cam.shake = Math.max(this.cam.shake, 0.9);
+      this.addFx(burst(this.scene, e.ghost.pos.x, e.ghost.pos.z, CONFIG.ghost.rage.radius * 0.5, 0x8a1c2a));
+      this.ui.toast(e.ghost.isPlayer ? `ТЕНЕВОЙ ГНЕВ! Из укрытий выскочило: ${e.flushed}` : 'Безлик в гневе! Все выскочили из кустов — бегите!');
+    } else if (e.type === 'rageFlush') {
+      if (e.agent.isPlayer && e.hiding) this.ui.toast('Безлик выгнал тебя из укрытия — беги!');
+    } else if (e.type === 'absorb') {
+      if (e.ghost.isPlayer) this.ui.toast(`Поглощение: ты подрос и ускорился (${e.n}/${CONFIG.ghost.absorb.max})`);
+    } else if (e.type === 'ghostMaskAbility') {
+      this.addFx(burst(this.scene, e.x, e.z, 2.4, 0x9a5ae0));
+      this.sound.chime([392, 523, 466]);
     } else if (e.type === 'minis') {
       if (e.agent.isPlayer) this.ui.toast('Тю и Тиби уводят Безликов за собой!');
     } else if (e.type === 'end') {
@@ -1088,7 +1107,10 @@ export class Game {
     const pg = R.playerGhost;
     if (pg) {
       const c = pg.ctrl, d = c.phys.dash;
+      if ((pg.disguise?.hero?.id || null) !== this.ghostBarHero) this.#abilityBar();   // маска сменилась — другие кнопки
       this.ui.cooldowns(id => {
+        if (id === 'rage') return { k: pg.rageUsed && pg.rageT <= 0 ? 1 : 0, n: pg.rageT > 0 ? Math.ceil(pg.rageT) : '' };
+        if (id.startsWith('m:')) { const a = id.slice(2); return { k: (pg.maskCd[a] || 0) / (CONFIG.abilities[a]?.cd || 10) }; }
         if (id === 'dash') return { k: c.dashCharges > 0 ? c.dashCd / d.cooldown : 1 - c.chargeT / d.recharge, n: c.dashCharges };
         if (id === 'mask-hero' || id === 'mask-prop') return { k: pg.disguised ? 0 : pg.disguiseCd / CONFIG.ghost.disguise.cd, n: pg.disguised ? Math.ceil(pg.disguise.t) : '' };
         if (id === 'fly') return { k: 1 - c.flyEnergy };
