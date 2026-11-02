@@ -17,6 +17,6 @@ else
 fi
 
 common=(src/main.js --bundle --target=safari15,chrome70 --format=iife --minify)
-"${builder[@]}" "${common[@]}" --alias:three=./vendor/three.min.js --outfile=src/main.bundle.js
-"${builder[@]}" "${common[@]}" --alias:three=./vendor/three.r160.js --outfile=src/main.legacy.bundle.js
+"${builder[@]}" "${common[@]}" --alias:three=./vendor/three.min.js --alias:jsm=./vendor/jsm186 --outfile=src/main.bundle.js
+"${builder[@]}" "${common[@]}" --alias:three=./vendor/three.r160.js --alias:jsm=./vendor/jsm160 --outfile=src/main.legacy.bundle.js
 python3 scripts/build-inline-pages.py

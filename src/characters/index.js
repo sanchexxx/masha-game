@@ -6,6 +6,7 @@ import { buildNoFace } from './noface.js?v=2026100901';
 import { buildKid, loadLook } from './kid.js?v=2026100901';
 import { buildBrothers } from './brothers.js?v=2026101008';
 import { buildTotoro, TOTORO_SKINS } from './totoro.js';
+import { buildTotoroModel } from './totoro-model.js';
 
 const lookOf = skin => { try { return skin && skin !== 'classic' ? JSON.parse(skin) : loadLook(); } catch { return loadLook(); } };
 
@@ -58,7 +59,7 @@ export const HEROES = [
     about: 'Хранитель Леса из мультика «Мой сосед Тоторо». Мудрый дух: растит деревья, зовёт НэкоБуса и всегда чувствует, когда друзьям нужна помощь.',
     ability: 'Магия леса', abilityText: '1 — дуб, 2 — домик, 3 — фонарь, 4 — маленькие Тоторо, 5 — рёв, F — позвать НэкоБуса на помощь, R — полёт на НэкоБусе, Q — невидимость.',
     tags: ['Природа', 'Помощь', 'Контроль', 'Команда'],
-    build: skin => buildTotoro(skin), radius: 0.95, height: 3.0,
+    build: skin => buildTotoroModel(skin) || buildTotoro(skin), radius: 0.95, height: 3.0,
     skins: TOTORO_SKINS, skinKey: 'tSkin',
     helper: true,
     cam: { distance: 9.6, height: 3.4, side: 1.3 },

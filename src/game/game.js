@@ -27,6 +27,7 @@ import { HERO_ABILITIES } from '../abilities/abilities.js?v=2026100901';
 import { Multiplayer } from '../net/multiplayer.js?v=2026100901';
 import { Lineup } from './lineup.js';
 import { setGhostly } from '../characters/totoro.js';
+import { loadTotoroModels } from '../characters/totoro-model.js';
 import { natureVisual } from '../world/nature.js';
 import { Coach, Training, tutorialSeen } from '../ui/tutorial.js';
 
@@ -73,6 +74,7 @@ export class Game {
 
   async start() {
     loadSavedPhysics();
+    const models = loadTotoroModels();
     const ui = this.ui;
     ui.progress(0.1, 'Строим деревню…');
     await frame();
@@ -132,6 +134,8 @@ export class Game {
     });
     this.round.addFx = f => this.fx.push(f);
 
+    ui.progress(0.9, 'Будим Тоторо…');
+    await models;
     const thumbs = makeThumbnails([...HEROES, GHOST]);
     this.#buildMapCards();
     ui.progress(1, 'Готово!');

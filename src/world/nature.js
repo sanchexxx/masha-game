@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { mat, mesh, G, fluffySphere } from '../characters/common.js?v=2026100901';
 import { buildMiniTotoro } from '../characters/totoro.js';
+import { buildMiniModel } from '../characters/totoro-model.js';
 
 const OAK = { trunk: 0.75, deck: 5.0, crown: 2.6 };
 
@@ -305,7 +306,7 @@ export class Nature {
   }
 }
 
-export function miniTotoro(kind) { return buildMiniTotoro(kind); }
+export function miniTotoro(kind) { return buildMiniModel(kind) || buildMiniTotoro(kind); }
 
 // Только картинка (у гостей совместной игры физику считает хозяин комнаты)
 export function natureVisual(kind, radius = 9) {

@@ -115,7 +115,8 @@ async def check_totoro(b, errs):
     # подъём по стволу: встаём к дубу с востока, камера смотрит на запад, жмём W
     await E(f'''(() => {{ const g = window.__game, o = g.round.nature.items.find(i => i.kind === 'oak'); const c = {P}.ctrl;
         c.pos.set(o.x + 1.75, 0, o.z); c.vel.set(0, 0, 0); g.cam.yaw = Math.PI / 2; }})()''')
-    await page.keyboard.down('w'); await page.wait_for_timeout(2600); await page.keyboard.up('w'); await page.wait_for_timeout(600)
+    # ~1,5 с хватает долезть; дольше — Тоторо пройдёт крону насквозь и спрыгнет с другой стороны
+    await page.keyboard.down('w'); await page.wait_for_timeout(1500); await page.keyboard.up('w'); await page.wait_for_timeout(600)
     log['высота_после_подъёма'] = await E(f'+{P}.ctrl.pos.y.toFixed(2)')
     await page.screenshot(path=f'{OUT}/totoro_deck.png')
     await E(f'(() => {{ const c = {P}.ctrl; c.pos.set(0, 0, 20); c.vel.set(0, 0, 0); window.__game.cam.yaw = 0; }})()')
@@ -127,10 +128,14 @@ async def check_totoro(b, errs):
     await page.keyboard.press('5'); await page.wait_for_timeout(600)
     log['рёв_неповоротлив_с'] = await E('window.__game.round.activeGhosts.map(g => +g.clumsyT.toFixed(1))')
     await page.screenshot(path=f'{OUT}/totoro_roar.png')
-    await E(f'''(() => {{ const R = window.__game.round; const ally = R.agents.find(a => !a.isPlayer && a.alive);
-        const g = R.activeGhosts.find(g => g.active); g.clumsyT = 0; g.stunT = 0; ally.invulnerableT = 30;
-        g.ctrl.pos.set(ally.ctrl.pos.x + 4, ally.ctrl.pos.y, ally.ctrl.pos.z); g.target = ally; g.state = 'hunt'; g.lastSeen = ally.ctrl.pos.clone();
-        R.player.abilities.get('nekohelp').cdLeft = 0; }})()''')
+    # друга ловит Безлик (малышей-обманок убираем, чтобы Безлик не отвлёкся на них); держим погоню 3 с
+    await E(f'''(() => {{ const R = window.__game.round; R.nature.decoys.forEach(d => R.nature.decoyCaught(d));
+        const ally = R.agents.find(a => !a.isPlayer && a.alive); ally.invulnerableT = 30;
+        const g = R.activeGhosts.find(g => g.active); R.player.abilities.get('nekohelp').cdLeft = 0;
+        const hold = () => {{ if (R.nature.decoys.some(d => d.name === 'НэкоБус')) return;   // НэкоБус уже увёл — не мешаем
+          g.clumsyT = 0; g.stunT = 0; g.target = ally; g.state = 'hunt'; g.lastSeen = ally.ctrl.pos.clone();
+          if (g.pos.distanceTo(ally.ctrl.pos) > 6) g.ctrl.pos.set(ally.ctrl.pos.x + 4, ally.ctrl.pos.y, ally.ctrl.pos.z); }};
+        hold(); const id = setInterval(hold, 100); setTimeout(() => clearInterval(id), 3000); }})()''')
     await page.wait_for_selector('#help-card:not(.hidden)', timeout=3000)
     await page.wait_for_timeout(400)
     await page.screenshot(path=f'{OUT}/totoro_help.png')
