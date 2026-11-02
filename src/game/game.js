@@ -9,7 +9,7 @@ import { buildMap } from '../world/map.js?v=2026100901';
 import { buildForest } from '../world/forest.js?v=2026100901';
 import { loadForestAssets } from '../world/forest-assets.js?v=2026101003';
 import { buildFireflies, buildSoot } from '../world/effects.js?v=2026100901';
-import { createBirthdaySky } from '../world/birthday.js';
+import { createRain } from '../fx/rain.js';
 import { buildProp, poof, Pumpkins, wallet } from '../world/props.js?v=2026100901';
 import { LanternView, objectiveGuide } from '../world/lanterns.js';
 import { Input } from '../player/input.js?v=2026100901';
@@ -88,7 +88,7 @@ export class Game {
     r.shadowMap.type = THREE.PCFShadowMap;
 
     this.scene = new THREE.Scene();
-    this.birthdaySky = createBirthdaySky(this.scene);
+    this.rain = createRain(this.scene);
     this.camera = new THREE.PerspectiveCamera(CONFIG.camera.fov, innerWidth / innerHeight, 0.1, 400);
     this.insetCamera = new THREE.PerspectiveCamera(72, 16 / 9, 0.08, 180);
     this.map = buildMap(this.scene, { isMobile });
@@ -262,7 +262,7 @@ export class Game {
       oldScene.remove(this.showGhost.root);
       for (const g of this.ghostPool) oldScene.remove(g.root);
       this.scene = nextScene;
-      this.birthdaySky.setScene(nextScene);
+      this.rain.setScene(nextScene);
       this.map = nextMap;
       this.world = nextMap.world;
       this.navs.clear();
@@ -499,7 +499,7 @@ export class Game {
     this.#configureCam(follow);
     this.cam.snap(this.#posOf(follow));
     this.state = 'play';
-    if (!training) this.birthdaySky.start();
+    this.rain.stop();
     document.getElementById('hud').classList.toggle('training', training);
     this.input.enabled = true;
     this.input.lookOnly = mode === 'watch';
@@ -766,7 +766,8 @@ export class Game {
     this.last = now;
     this.t += dt;
     const t = this.t;
-    this.birthdaySky.update(dt, this.camera, this.state === 'play' || this.state === 'guest');
+    if (this.state === 'play' && this.round?.rainT > 0 && !this.rain.active) this.rain.start(this.round.rainT);
+    this.rain.update(dt, this.camera);
 
     if (this.state === 'play') this.#play(dt, t);
     else if (this.state === 'guest') this.mp.guestTick(dt, t);
@@ -1032,10 +1033,10 @@ export class Game {
       this.#configureCam(f);
       this.cam.snap(this.#posOf(f));
     } else if (e.type === 'nature') {
-      const names = { oak: 'Вырос Великий дуб! Залезай по стволу наверх', hut: 'Готов лесной домик — внутри тебя не видно', lamp: 'Фонарь горит: Безлик в его свете виден и медленнее' };
+      const names = { oak: 'Вырос Великий дуб! Залезай по стволу наверх', hut: 'Готов лесной домик — внутри тебя не видно', };
       if (e.agent.isPlayer) this.ui.toast(names[e.kind]);
     } else if (e.type === 'natureFull') {
-      if (e.agent.isPlayer) this.ui.toast(e.id === 'lamp' ? 'Фонарей уже 3 — больше нельзя' : e.id === 'oak' ? 'Дубов уже 2 — больше нельзя' : 'Домиков уже 2 — больше нельзя');
+      if (e.agent.isPlayer) this.ui.toast(e.id === 'oak' ? 'Дубов уже 2 — больше нельзя' : 'Домиков уже 2 — больше нельзя');
     } else if (e.type === 'natureNoRoom') {
       if (e.agent.isPlayer) this.ui.toast('Тут тесно — выйди на открытое место');
     } else if (e.type === 'noHelpNeeded') {
@@ -1045,6 +1046,8 @@ export class Game {
       if (e.agent.isPlayer) this.ui.toast(`НэкоБус помчался выручать: ${e.ally?.name || 'друг'}!`);
       else if (e.ally?.isPlayer) this.ui.toast('Тоторо прислал НэкоБуса тебе на помощь! Беги!');
       this.addFx(burst(this.scene, e.x, e.z, 2.2, 0xffc860));
+    } else if (e.type === 'rain') {
+      this.ui.toast(e.agent.isPlayer ? 'Дождь! Безлики промокли: медленные и еле летают' : 'Тоторо вызвал дождь — Безлики промокли!');
     } else if (e.type === 'minis') {
       if (e.agent.isPlayer) this.ui.toast('Тю и Тиби уводят Безликов за собой!');
     } else if (e.type === 'end') {

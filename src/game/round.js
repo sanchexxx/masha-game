@@ -75,6 +75,13 @@ export class Round {
     this.emit('minis', { agent: me });
   }
 
+  // Дождь на всю карту: Безлики промокают — медленнее, летают низко и с трудом
+  startRain(me, cfg) {
+    this.rainT = cfg.time;
+    for (const g of this.activeGhosts) g.wetT = cfg.time;
+    this.emit('rain', { agent: me, time: cfg.time });
+  }
+
   // НэкоБус прибегает к Безлику, который гонится за другом, и уводит его за собой
   sendNekobus(me, ghost, ally, cfg) {
     if (!ghost?.active) return;
@@ -237,6 +244,7 @@ export class Round {
     for (const r of remoteGhosts) { const g = this.activeGhosts[gi++]; g.remote = r.id; g.remoteName = r.name; }
     this.netIn.clear();
     this.nature.clear();
+    this.rainT = 0;
     this.nekoChar = null;
     this.minis = null;
     this.setPhase(this.gameMode === 'delivery' ? 'delivery' : 'hide');
@@ -456,6 +464,7 @@ export class Round {
     }
     separate(this.agents);
     this.nature.update(dt, time);
+    if (this.rainT > 0) { this.rainT = Math.max(0, this.rainT - dt); for (const g of this.activeGhosts) g.wetT = Math.max(g.wetT || 0, this.rainT); }
     const targets = [...this.#splitTargets(), ...this.nature.decoys];
 
     // Безлики

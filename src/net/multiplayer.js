@@ -324,7 +324,8 @@ export class Multiplayer {
     else if (e.type === 'phase') {
       this.net.send({ t: 'roster', roster: makeRoster(this.g.round) });
       this.net.send({ t: 'ev', k: 'phase', name: e.newGhostName, pid: e.agent ? pidOf(e.agent) : null });
-    } else if (e.type === 'nature') this.net.send({ t: 'ev', k: 'nature', kind: e.kind, x: e.x, z: e.z });
+    } else if (e.type === 'rain') this.net.send({ t: 'ev', k: 'rain', time: e.time });
+    else if (e.type === 'nature') this.net.send({ t: 'ev', k: 'nature', kind: e.kind, x: e.x, z: e.z });
     else if (e.type === 'poof') this.net.send({ t: 'ev', k: 'poof', x: e.x, y: e.y, z: e.z, ghost: !!e.ghost });
   }
 
@@ -367,7 +368,7 @@ export class Multiplayer {
     g.showcase = null;
     g.input.reset();
     g.state = 'guest';
-    g.birthdaySky.start();
+    g.rain.stop();
     g.input.enabled = true;
     g.input.lookOnly = false;
     g.cam.yaw = 0; g.cam.pitch = 0.3;
@@ -542,8 +543,11 @@ export class Multiplayer {
     } else if (m.k === 'lanternPickup') {
       ui.toast(m.pid === me ? 'Фонарь у тебя! Неси к голубому лучу святилища.' : `${m.name} несёт фонарь!`);
       g.sound.chime([660, 880]);
+    } else if (m.k === 'rain') {
+      g.rain.start(m.time);
+      ui.toast('Тоторо вызвал дождь — Безлики промокли!');
     } else if (m.k === 'nature') {
-      const r = natureVisual(m.kind, CONFIG.abilities.lamp.radius);
+      const r = natureVisual(m.kind);
       r.position.set(m.x, 0, m.z);
       g.scene.add(r);
       (g.guestNature ||= []).push(r);

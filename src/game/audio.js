@@ -72,6 +72,13 @@ export class Sound {
       tone('square', 415, 415, 0.65, 0.35, 0.05, ['lowpass', 1400]);
     } else if (id === 'vanish') {
       [1568, 1318, 1046, 784].forEach((f, i) => tone('sine', f, f * 0.8, i * 0.06, 0.3, 0.07));
+    } else if (id === 'rain') {
+      // шум ливня нарастает и стихает + капли
+      const n = this.#noise(3.2);
+      const f = c.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 1200;
+      const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 0.6); g.gain.exponentialRampToValueAtTime(0.0001, t + 3.2);
+      n.connect(f).connect(g).connect(out); n.start(t);
+      [0.1, 0.35, 0.5, 0.8, 1.1].forEach((d, i) => tone('sine', 1800 + i * 200, 900, d, 0.06, 0.05));
     } else if (id === 'alert') {
       tone('square', 880, 880, 0, 0.1, 0.06, ['lowpass', 2000]);
       tone('square', 660, 660, 0.14, 0.1, 0.06, ['lowpass', 2000]);

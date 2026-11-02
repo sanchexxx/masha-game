@@ -1,7 +1,6 @@
 // Магия леса Тоторо: то, что он создаёт и призывает во время раунда.
 //  • Великий дуб — стоит до конца раунда, по стволу можно залезть на площадку в кроне;
 //  • Лесной домик — шалаш из веток: внутри тебя не видно, как в кусте;
-//  • Лесной фонарь — Безлик в его свете подсвечен сквозь стены и идёт медленнее;
 //  • Обманки — маленькие Тоторо и НэкоБус-помощник: Безлик гонится за ними, а не за друзьями.
 // Всё созданное убирается в начале следующего раунда (clear).
 import * as THREE from 'three';
@@ -76,20 +75,6 @@ function buildHut() {
   return root;
 }
 
-function buildLamp() {
-  const root = new THREE.Group();
-  root.add(mesh(G.cyl(0.08, 0.1, 2.4, 8), mat(0x6a4a2e), { y: 1.2 }));
-  root.add(mesh(G.torus(0.2, 0.04, 6, 12, Math.PI * 1.3), mat(0x6a4a2e), { y: 2.45, x: 0.15, rz: 0.4 }));
-  const glow = mat(0xffd27a, { emissive: 0xffa640, emissiveIntensity: 3 });
-  root.add(mesh(G.cyl(0.17, 0.17, 0.36, 12), glow, { x: 0.33, y: 2.0, shadow: false }));
-  // Светящееся пятно на земле — граница света фонаря
-  const ring = new THREE.Mesh(new THREE.RingGeometry(0.1, 1, 48), new THREE.MeshBasicMaterial({ color: 0xffc860, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide }));
-  ring.rotation.x = -Math.PI / 2;
-  ring.position.y = 0.05;
-  root.add(ring);
-  root.userData.ring = ring;
-  return root;
-}
 
 export class Nature {
   // host — Round: world, scene, navFor, agents, activeGhosts, makeChar, heroes, emit
@@ -97,7 +82,6 @@ export class Nature {
     this.host = host;
     this.items = [];          // {kind, x, z, root, colliders, ladders, bush, cells}
     this.decoys = [];
-    this.markers = new Map(); // Безлик → метка, когда он в свете фонаря
   }
 
   get oaks() { return this.items.filter(i => i.kind === 'oak').length; }
@@ -164,15 +148,6 @@ export class Nature {
     return true;
   }
 
-  addLamp(x, z, radius) {
-    const root = buildLamp();
-    root.position.set(x, 0, z);
-    root.userData.ring.scale.setScalar(radius);
-    this.host.scene.add(root);
-    this.items.push({ kind: 'lamp', x, z, r: radius, root, colliders: [], ladders: [], cells: [], grow: 0 });
-    root.scale.set(0.05, 0.05, 0.05);
-    return true;
-  }
 
   // Обманка: бежит прочь от Безлика; Безлик принимает её за героя.
   addDecoy({ char, x, z, speed, life, name, radius = 0.45, height = 1, hero = null }) {
@@ -228,25 +203,6 @@ export class Nature {
         const k = 1 - (1 - it.grow) ** 3;
         it.root.scale.set(k, k * (1 + Math.sin(it.grow * Math.PI) * 0.12), k);
       }
-      if (it.kind === 'lamp') it.root.userData.ring.material.opacity = 0.13 + Math.sin(t * 2.4) * 0.04;
-    }
-    // Фонари: Безлик в свете подсвечен и медленнее
-    const lamps = this.items.filter(i => i.kind === 'lamp');
-    for (const g of R.activeGhosts || []) {
-      const lit = g.active && lamps.some(l => Math.hypot(g.pos.x - l.x, g.pos.z - l.z) < l.r);
-      g.lampSlow = lit;
-      let m = this.markers.get(g);
-      if (lit && !m) {
-        m = new THREE.Mesh(new THREE.OctahedronGeometry(0.28, 0), new THREE.MeshBasicMaterial({ color: 0xffc860, depthTest: false, transparent: true, opacity: 0.9 }));
-        m.renderOrder = 10;
-        R.scene.add(m);
-        this.markers.set(g, m);
-      }
-      if (m) {
-        m.visible = lit;
-        m.position.set(g.pos.x, g.pos.y + 3.4 + Math.sin(t * 4) * 0.1, g.pos.z);
-        m.rotation.y = t * 3;
-      }
     }
     // Обманки бегут прочь от ближайшего Безлика по сетке путей
     for (const d of this.decoys) {
@@ -300,19 +256,12 @@ export class Nature {
     this.items = [];
     for (const d of this.decoys) { d.char.root.visible = false; d.char.root.removeFromParent(); }
     this.decoys = [];
-    for (const m of this.markers.values()) m.removeFromParent();
-    this.markers.clear();
-    for (const g of this.host.activeGhosts || []) g.lampSlow = false;
   }
 }
 
 export function miniTotoro(kind) { return buildMiniModel(kind) || buildMiniTotoro(kind); }
 
 // Только картинка (у гостей совместной игры физику считает хозяин комнаты)
-export function natureVisual(kind, radius = 9) {
-  if (kind === 'oak') return buildOak();
-  if (kind === 'hut') return buildHut();
-  const r = buildLamp();
-  r.userData.ring.scale.setScalar(radius);
-  return r;
+export function natureVisual(kind) {
+  return kind === 'oak' ? buildOak() : buildHut();
 }

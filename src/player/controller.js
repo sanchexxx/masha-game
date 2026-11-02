@@ -189,8 +189,9 @@ export class PlayerController {
       const want = inp.jumpHold || inp.jump;
       if (want && this.flyEnergy > 0) {
         this.flying = true;
-        this.vel.y += (ph.fly.speed - this.vel.y) * Math.min(1, dt * 8);
-        this.flyEnergy = Math.max(0, this.flyEnergy - dt / ph.fly.time);
+        const fs = this.pos.y >= (this.flyCeil ?? Infinity) ? 0 : ph.fly.speed * (this.flyMul ?? 1);
+        this.vel.y += (fs - this.vel.y) * Math.min(1, dt * 8);
+        this.flyEnergy = Math.max(0, this.flyEnergy - dt / ph.fly.time / (this.flyMul ?? 1));
         this.grounded = false;
       } else if (this.grounded) this.flyEnergy = Math.min(1, this.flyEnergy + dt * ph.fly.regen);
     }

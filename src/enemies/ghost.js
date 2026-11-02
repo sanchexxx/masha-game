@@ -13,6 +13,8 @@ import { CONFIG } from '../config/config.js?v=2026100901';
 import { NavGrid } from './pathfinder.js?v=2026100901';
 import { PlayerController } from '../player/controller.js?v=2026100901';
 import { radialTexture } from '../characters/noface.js?v=2026100901';
+
+const C_RAIN = () => CONFIG.abilities.rain;
 import { buildProp, PROP_KINDS } from '../world/props.js?v=2026100901';
 
 const C = CONFIG.ghost;
@@ -76,7 +78,7 @@ export class Ghost {
     this.wanderTarget = null;
     this.sees = false;
     this.stunT = 0; this.slowT = 0; this.confusedT = 0; this.fearT = 0; this.fearSource = null; this.fearGoal = null;
-    this.clumsyT = 0; this.lampSlow = false;
+    this.clumsyT = 0; this.wetT = 0;
     this.controlImmuneT = 0; this.controlKind = '';
     this.showControl(0, 0, 0, '', 0);
     this.stuckT = 0; this.stuckFrom = null;
@@ -257,6 +259,7 @@ export class Ghost {
     this.confusedT = Math.max(0, this.confusedT - dt);
     this.fearT = Math.max(0, this.fearT - dt);
     this.clumsyT = Math.max(0, this.clumsyT - dt);
+    this.wetT = Math.max(0, (this.wetT || 0) - dt);
     if (this.fearT <= 0) { this.fearSource = null; this.fearGoal = null; }
     this.showControl(this.stunT, this.slowT, this.confusedT, this.controlKind, t, this.fearT);
     this.disguiseCd = Math.max(0, this.disguiseCd - dt);
@@ -274,8 +277,11 @@ export class Ghost {
     const c = this.ctrl;
     c.moveMul = this.stunT > 0 ? 0 : 1;
     if (this.disguise?.prop && move) { c.moveMul *= CONFIG.abilities.prop.walk; move = { ...move, run: false, jumpHold: false, jump: false }; }
-    c.slowMul = (this.slowT > 0 ? 0.45 : 1) * (this.clumsyT > 0 ? 0.78 : 1) * (this.lampSlow ? 0.8 : 1) * (1 + C.lateBoost * roundT) * (this.speedMul ?? 1);
+    c.slowMul = (this.slowT > 0 ? 0.45 : 1) * (this.clumsyT > 0 ? 0.78 : 1) * (this.wetT > 0 ? C_RAIN().slow : 1) * (1 + C.lateBoost * roundT) * (this.speedMul ?? 1);
     c.turnMul = this.clumsyT > 0 ? 0.14 : 1;
+    // мокрый Безлик летает с трудом и невысоко
+    c.flyMul = this.wetT > 0 ? C_RAIN().fly : 1;
+    c.flyCeil = this.wetT > 0 ? this.world.groundAt(this.pos.x, this.pos.z, this.radius, this.pos.y + 0.5) + C_RAIN().flyHeight : Infinity;
     c.accelMul = this.clumsyT > 0 ? 0.3 : 1;
     const wasDash = c.dashT > 0;
     c.update(dt, this.stunT > 0 ? { x: 0, y: 0 } : move, this.human ? camYaw : 0);

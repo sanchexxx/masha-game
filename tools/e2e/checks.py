@@ -168,7 +168,7 @@ async def check_phone(b, errs):
     for _ in range(6):
         await page.evaluate('document.querySelector(".tr-skip").click()'); await page.wait_for_timeout(1000)
     done = []
-    for ab in ['oak', 'hut', 'lamp', 'minis', 'troar', 'nekoride', 'vanish']:
+    for ab in ['oak', 'hut', 'rain', 'minis', 'troar', 'nekoride', 'vanish']:
         k0 = await page.evaluate('window.__game.training.k')
         await page.evaluate(f'document.querySelector(\'.ab[data-id="{ab}"]\').click()')
         await page.wait_for_timeout(2200)

@@ -36,7 +36,7 @@ export const HERO_ABILITIES = {
   totoro: [
     { id: 'oak', key: '1', name: 'Великий дуб', icon: '🌳', tag: 'Природа', anim: 'cast', dur: 0.9, lock: 0.6 },
     { id: 'hut', key: '2', name: 'Лесной домик', icon: '🛖', tag: 'Природа', anim: 'cast', dur: 0.8, lock: 0.5 },
-    { id: 'lamp', key: '3', name: 'Лесной фонарь', icon: '🏮', tag: 'Природа', anim: 'cast', dur: 0.7, lock: 0.4 },
+    { id: 'rain', key: '3', name: 'Вызов дождя', icon: '🌧️', tag: 'Природа', anim: 'cast', dur: 0.9, lock: 0.4 },
     { id: 'minis', key: '4', name: 'Маленькие Тоторо', icon: '🐾', tag: 'Помощники', anim: 'summon', dur: 0.8, lock: 0.3 },
     { id: 'troar', key: '5', name: 'Рёв Тоторо', icon: '🗯️', tag: 'Контроль', anim: 'roar', dur: 1.0, lock: 0.5 },
     { id: 'nekohelp', key: 'F', name: 'Зов НэкоБуса', icon: '🐈', tag: 'Помощь', anim: 'summon', dur: 0.6, lock: 0 },
@@ -71,9 +71,9 @@ export class AbilitySet {
     if (id === 'split' && (this.agent.splitUsed || this.agent.splitActive)) return false;
     // Тоторо: созданий ограниченное число, а помогать можно, только когда кого-то ловят
     const T = this.game.nature;
-    if (['oak', 'hut', 'lamp'].includes(id) && T) {
+    if (['oak', 'hut'].includes(id) && T) {
       if (T.count(id) >= A()[id].max) { this.game.emit?.('natureFull', { agent: this.agent, id }); return false; }
-      const spot = T.findSpot(this.agent, id === 'oak' ? 1.1 : id === 'hut' ? 1.3 : 0.4);
+      const spot = T.findSpot(this.agent, id === 'oak' ? 1.1 : 1.3);
       if (!spot) { this.game.emit?.('natureNoRoom', { agent: this.agent, id }); return false; }
       this.agent.natureSpot = spot;
     }
@@ -211,12 +211,14 @@ export class AbilitySet {
       for (const gh of g.ghosts) if (gh.active && Math.hypot(gh.pos.x - p.x, gh.pos.z - p.z) <= cfg.radius)
         gh.stun(cfg.stun, 'repel');
       snd.chime?.([784, 1046, 1568]);
-    } else if (['oak', 'hut', 'lamp'].includes(id)) {
+    } else if (id === 'rain') {
+      g.startRain?.(me, cfg);
+      snd.totoroCue?.('rain');
+    } else if (['oak', 'hut'].includes(id)) {
       const s = me.natureSpot;
       if (s && g.nature) {
         if (id === 'oak') g.nature.addOak(s.x, s.z);
-        else if (id === 'hut') g.nature.addHut(s.x, s.z);
-        else g.nature.addLamp(s.x, s.z, cfg.radius);
+        else g.nature.addHut(s.x, s.z);
         g.emit?.('nature', { kind: id, x: s.x, z: s.z, agent: me });
         g.addFx(FX.burst(g.scene, s.x, s.z, id === 'oak' ? 3 : 2, 0x8fe07a));
       }
@@ -281,11 +283,12 @@ export class AbilitySet {
       const me = this.agent;
       if (this.ready('nekohelp') && g.helpNeeded?.(me)) return this.use('nekohelp');
       if (threat && td < A().troar.radius * 0.8 && this.ready('troar')) return this.use('troar');
+      if (threat && td < 12 && this.ready('rain')) return this.use('rain');
       if (threat && td < 5 && this.ready('vanish')) return this.use('vanish');
       if (threat && td < 7 && this.ready('minis')) return this.use('minis');
       if (threat && td < 4 && this.ready('nekoride')) return this.use('nekoride');
       if (!threat && g.phase === 'hide' && Math.random() < 0.004) {
-        const pick = ['hut', 'oak', 'lamp'][(Math.random() * 3) | 0];
+        const pick = ['hut', 'oak'][(Math.random() * 2) | 0];
         if (this.ready(pick)) return this.use(pick);
       }
     }
