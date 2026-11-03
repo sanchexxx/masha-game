@@ -107,7 +107,7 @@ export class AbilitySet {
   // Состояние для анимации персонажа
   pose() {
     const act = this.agent.action;
-    return act ? { name: act.name, k: act.t / act.dur } : null;
+    return act ? { name: act.name, id: act.id, k: act.t / act.dur } : null;
   }
 
   #fire(id) {

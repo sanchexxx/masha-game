@@ -1,5 +1,6 @@
 // Реестр персонажей: кто есть, как выглядит карточка, какие бонусы в игре.
 import { buildMasha } from './masha.js?v=2026100901';
+import { buildMashaModel, MASHA_SKINS } from './masha-model.js';
 import { buildCatbus } from './catbus.js?v=2026100901';
 import { buildMoti, MOTI_SKINS } from './moti.js?v=2026100901';
 import { buildMotiModel } from './moti-model.js';
@@ -27,7 +28,8 @@ export const HEROES = [
     about: 'Смелая девочка, которая нашла дорогу в мир духов. Лёгкая, прыгучая и очень быстрая на поворотах.',
     ability: 'Порыв листьев', abilityText: '1 — вспышка; 2 — ускорение с вихрем листьев; E — рывок. Лёгкая и прыгучая.',
     tags: ['Прыжок', 'Ускорение'],
-    build: buildMasha, radius: 0.42, height: 1.72,
+    build: skin => buildMashaModel(skin) || buildMasha(), radius: 0.42, height: 1.5,
+    skins: MASHA_SKINS, skinKey: 'mSkin',
     cam: { distance: 6.2, height: 1.45 },
   },
   {

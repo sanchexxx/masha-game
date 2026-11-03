@@ -31,6 +31,7 @@ import { setGhostly } from '../characters/totoro.js';
 import { loadTotoroModels } from '../characters/totoro-model.js';
 import { loadNofaceModel } from '../characters/noface-model.js';
 import { loadMotiModel } from '../characters/moti-model.js';
+import { loadMashaModel } from '../characters/masha-model.js';
 import { natureVisual } from '../world/nature.js';
 import { Coach, Training, tutorialSeen } from '../ui/tutorial.js';
 
@@ -77,7 +78,7 @@ export class Game {
 
   async start() {
     loadSavedPhysics();
-    const models = Promise.all([loadTotoroModels(), loadMotiModel()]);
+    const models = Promise.all([loadTotoroModels(), loadMotiModel(), loadMashaModel()]);
     const nofaceModel = loadNofaceModel();
     const villageModels = loadVillageAssets();
     const ui = this.ui;

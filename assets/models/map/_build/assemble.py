@@ -248,6 +248,8 @@ def build():
         for sx in (-1, 1):
             if abs(z) < 6:
                 continue
+            if abs(z - 52 * K) < 9:
+                continue        # у старта не ставим: там выстраиваются герои на экране выбора
             L.add("props.gltf", sx * 4.0, z, 0, node="PostLantern")
     for x in range(round(-44 * K), round(37 * K), 9):
         if abs(x) < 6:

@@ -1036,7 +1036,7 @@ html:root:not(.landscape) #train { top: max(232px, calc(env(safe-area-inset-top)
   window.__bootStage = 'скачиваем файл игры (' + window.__bundleVariant + ')';
   // Приложение с иконки на iPhone держит старую страницу в памяти. Сверяем версию с сервером
   // при каждом возвращении в игру и раз в 3 минуты; обновляемся только вне раунда.
-  window.__gameVersion = '202611040235';
+  window.__gameVersion = '202611040243';
   var updateReady = false;
   function checkVersion() {
     if (!window.fetch) return;
@@ -1054,7 +1054,7 @@ html:root:not(.landscape) #train { top: max(232px, calc(env(safe-area-inset-top)
   setInterval(checkVersion, 180000);
   setInterval(tryUpdate, 5000);
   var script = document.createElement('script');
-  script.src = legacy ? '/src/main.legacy.bundle.js?v=202611040235' : '/src/main.bundle.js?v=202611040235';
+  script.src = legacy ? '/src/main.legacy.bundle.js?v=202611040243' : '/src/main.bundle.js?v=202611040243';
   script.onerror = function () { say('не загрузился файл игры (' + window.__bundleVariant + ')'); };
   script.onload = function () {
     if (!window.__bootEntered) say('файл игры скачан, но браузер не смог выполнить его (' + window.__bundleVariant + ')');
