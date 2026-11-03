@@ -253,6 +253,7 @@ export class Ghost {
   feed() {
     if (this.feedN >= C.absorb.max) return false;
     this.feedN++;
+    this.eatT = 1.1;
     return true;
   }
 
@@ -260,6 +261,7 @@ export class Ghost {
     if (!this.disguise) return;
     this.#hideDisguise();
     this.disguise = null;
+    this.swapT = 0.6;                 // снимает маску-облик — взмах у лица
     this.disguiseCd = C.disguise.cd;
     this.root.visible = this.state !== 'hidden';
     this.poof = true;
@@ -338,6 +340,11 @@ export class Ghost {
     st.mode = this.stunT > 0 ? 'search' : this.state === 'hunt' ? 'hunt' : 'search';
     st.speed = c.speed;
     st.stunned = this.stunT > 0;
+    st.fly = c.flying || (!c.grounded && c.vel.y > 0.5);
+    st.dash = c.dashT > 0;
+    this.eatT = Math.max(0, (this.eatT || 0) - dt);
+    st.eat = this.eatT > 0;
+    st.swap = (this.swapT = Math.max(0, (this.swapT || 0) - dt)) > 0;
     this.#pose(st, dt);
     return st;
   }

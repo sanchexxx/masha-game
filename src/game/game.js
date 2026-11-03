@@ -28,6 +28,7 @@ import { Multiplayer } from '../net/multiplayer.js?v=2026100901';
 import { Lineup } from './lineup.js';
 import { setGhostly } from '../characters/totoro.js';
 import { loadTotoroModels } from '../characters/totoro-model.js';
+import { loadNofaceModel } from '../characters/noface-model.js';
 import { natureVisual } from '../world/nature.js';
 import { Coach, Training, tutorialSeen } from '../ui/tutorial.js';
 
@@ -76,6 +77,7 @@ export class Game {
   async start() {
     loadSavedPhysics();
     const models = loadTotoroModels();
+    const nofaceModel = loadNofaceModel();
     const ui = this.ui;
     ui.progress(0.1, 'Строим деревню…');
     await frame();
@@ -99,6 +101,7 @@ export class Game {
 
     this.fireflies = buildFireflies(this.scene, isMobile ? 50 : CONFIG.graphics.fireflies, 28);
     this.soot = buildSoot(this.scene, this.world, isMobile ? 10 : 16);
+    await nofaceModel;   // Безликов строим сразу из настоящей модели
     const ghostNav = this.navFor(GHOST.radius);
     this.ghostPool = Array.from({ length: MAX_GHOSTS }, () => new Ghost(GHOST, this.world, this.scene, ghostNav, { heroes: HEROES }));
     this.input = new Input(this.canvas, document.getElementById('touch'));
@@ -366,6 +369,7 @@ export class Game {
   selectHero(id, rebuild = false) {
     this.hero = id === GHOST.id ? GHOST : HEROES.find(h => h.id === id);
     if (rebuild || !this.lineupReady) this.#buildLineup();
+    this.showGhost.setSkin?.(this.skins[GHOST.id] || 'classic');
     this.lineup.select(id);
     this.ui.showHero(this.hero, this.#skinFor(this.hero), this.#powersOf(this.hero), isTouch);
     if (this.hero.custom) this.ui.buildCreator(this.look, LOOK_OPTIONS, (k, v) => this.#setLook(k, v));

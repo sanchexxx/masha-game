@@ -3,6 +3,7 @@ import { buildMasha } from './masha.js?v=2026100901';
 import { buildCatbus } from './catbus.js?v=2026100901';
 import { buildMoti, MOTI_SKINS } from './moti.js?v=2026100901';
 import { buildNoFace } from './noface.js?v=2026100901';
+import { buildNofaceModel, NOFACE_SKINS } from './noface-model.js';
 import { buildKid, loadLook } from './kid.js?v=2026100901';
 import { buildBrothers } from './brothers.js?v=2026101008';
 import { buildTotoro, TOTORO_SKINS } from './totoro.js';
@@ -71,6 +72,7 @@ export const GHOST = {
   about: 'Тихий дух в белой маске. Сначала ищет спрятавшихся, потом догоняет. Умеет притворяться героями и вещами.',
   ability: 'Маскировка', abilityText: 'Играешь водящим! 1 — Мистическая маска (облик и умения героя), 2 — стать предметом, 3 — Теневой гнев (раз за игру), E — рывок, Пробел — взлететь. Поглощение работает само.',
   tags: ['Охота', 'Маскировка', 'Полёт'],
-  build: buildNoFace, radius: 0.55, height: 2.5,
+  build: skin => buildNofaceModel(skin) || buildNoFace(), radius: 0.55, height: 2.5,
+  skins: NOFACE_SKINS, skinKey: 'nfSkin',
   cam: { distance: 7.6, height: 2.3, side: 0.6 },
 };

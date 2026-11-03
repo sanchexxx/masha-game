@@ -314,7 +314,7 @@ export class Round {
       ? Math.max(1, Math.min(3, opts.ghosts), humansAsGhosts)
       : Math.max(1, humansAsGhosts));
     this.activeGhosts = this.ghosts.slice(0, n);
-    this.activeGhosts.forEach((g, i) => g.reset(this.ghostSpawn(i)));
+    this.activeGhosts.forEach((g, i) => { g.reset(this.ghostSpawn(i)); g.char.setSkin?.(opts.skins?.noface || 'classic'); });
     let gi = 0;
     if (opts.mode === 'hunter') { this.playerGhost = this.activeGhosts[gi++]; this.playerGhost.isPlayer = true; }
     for (const r of remoteGhosts) { const g = this.activeGhosts[gi++]; g.remote = r.id; g.remoteName = r.name; }
