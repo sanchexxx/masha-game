@@ -38,8 +38,8 @@ export async function loadTotoroModels(timeoutMs = 15000) {
   }
 }
 
-// Своя копия материалов и текстуры лица: у каждого Тоторо своё выражение и свой скин.
-function instance(gltf) {
+// Своя копия материалов и текстуры лица: у каждого героя своё выражение и свой скин (общее с Моти).
+export function instance(gltf) {
   const root = cloneSkinned(gltf.scene);
   const mats = {};
   root.traverse(o => {
@@ -54,13 +54,13 @@ function instance(gltf) {
   return { root, mats, mixer, clips };
 }
 
-function setFace(mats, n) {
+export function setFace(mats, n) {
   const map = mats.Face?.map;
   if (map) map.offset.set(0.5 * (n % 2), 0.5 * Math.floor(n / 2));   // формула из MODEL_NOTES.md
 }
 
 // Плавно переключаем основное движение (идёт, бежит, падает…)
-function baseSwitcher(clips) {
+export function baseSwitcher(clips) {
   let current = null;
   return (name, timeScale = 1) => {
     const next = clips[name];

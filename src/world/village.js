@@ -96,6 +96,10 @@ export function buildVillage(scene, { isMobile }) {
   };
 
   // ---------- Модели ----------
+  // Срез этажей: когда герой в доме, у этого дома не рисуем всё выше потолка его этажа —
+  // верхний этаж и крыша не мельтешат перед камерой (вид как в кукольном домике).
+  const cuts = new Map();               // модель дома → плоскость среза
+  for (const b of L.buildings || []) if (!cuts.has(b.model)) cuts.set(b.model, new THREE.Plane(new THREE.Vector3(0, -1, 0), 1e5));
   const crowns = [];                  // кроны, в которые можно залезть: прозрачнеют, когда в них камера
   let wheel = null;
   for (const it of L.instances) {
@@ -128,6 +132,11 @@ export function buildVillage(scene, { isMobile }) {
         });
         crowns.push({ ...fade, mats, k: 1 });
       }
+    }
+    const cut = cuts.get(it.model);
+    if (cut) {
+      const tag = '@' + it.model.replace('.gltf', '');
+      g.traverse(m => { if (m.isMesh && m.material.name?.endsWith(tag)) m.material.clippingPlanes = [cut]; });
     }
     const ww = g.getObjectByName('WaterWheel');
     if (ww) { ww.traverse(m => { m.userData.keep = true; }); wheel = ww; }
@@ -166,7 +175,9 @@ export function buildVillage(scene, { isMobile }) {
   scene.add(glow);
   const pl = [];
   for (let i = 0; i < (isMobile ? 2 : 5); i++) { const p = new THREE.PointLight(0xffa04a, 18, 12, 1.8); scene.add(p); pl.push(p); }
+  const focus = new THREE.Vector3(0, 0, 0);
   function updateLights(center) {
+    focus.copy(center);
     const sorted = lanternSpots.slice().sort((a, b) => a.distanceToSquared(center) - b.distanceToSquared(center));
     pl.forEach((p, i) => { if (sorted[i]) p.position.copy(sorted[i]); });
     moonLight.position.set(center.x - 18, 30, center.z - 14);
@@ -176,6 +187,11 @@ export function buildVillage(scene, { isMobile }) {
   // Крона прозрачнеет, когда в неё зашла камера; водяное колесо бани крутится
   function updateVisuals(t, cam) {
     if (wheel) wheel.rotation.x = -t * 0.6;
+    for (const p of cuts.values()) p.constant = 1e5;
+    for (const b of L.buildings || []) for (const lv of b.levels) {
+      if (Math.abs(focus.x - lv.x) < lv.w / 2 + 0.3 && Math.abs(focus.z - lv.z) < lv.d / 2 + 0.3
+        && focus.y > lv.y - 0.8 && focus.y < lv.ceiling - 0.2) cuts.get(b.model).constant = lv.ceiling - 0.05;
+    }
     if (!cam) return;
     for (const c of crowns) {
       const inside = Math.hypot(cam.x - c.x, cam.z - c.z) < c.r && cam.y > c.bottom - 2;

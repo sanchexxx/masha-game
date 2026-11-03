@@ -510,6 +510,7 @@ export class BotBrain {
     const p = this.agent.ctrl.pos;
     let best = null, bs = -Infinity;
     for (const b of this.world.bushes) {
+      if (b.y != null && b.y > 1.2) continue;   // на этажи и в кроны боты не лазят
       const d = Math.hypot(b.x - p.x, b.z - p.z);
       if (d > 20) continue;
       if (!g && d < b.r + 1) continue;   // без погони — не в то же укрытие, где уже сидели

@@ -30,6 +30,7 @@ import { Lineup } from './lineup.js';
 import { setGhostly } from '../characters/totoro.js';
 import { loadTotoroModels } from '../characters/totoro-model.js';
 import { loadNofaceModel } from '../characters/noface-model.js';
+import { loadMotiModel } from '../characters/moti-model.js';
 import { natureVisual } from '../world/nature.js';
 import { Coach, Training, tutorialSeen } from '../ui/tutorial.js';
 
@@ -76,7 +77,7 @@ export class Game {
 
   async start() {
     loadSavedPhysics();
-    const models = loadTotoroModels();
+    const models = Promise.all([loadTotoroModels(), loadMotiModel()]);
     const nofaceModel = loadNofaceModel();
     const villageModels = loadVillageAssets();
     const ui = this.ui;
@@ -89,6 +90,7 @@ export class Game {
     r.toneMapping = THREE.ACESFilmicToneMapping;
     r.toneMappingExposure = 1.15;
     r.shadowMap.enabled = CONFIG.graphics.shadows;
+    r.localClippingEnabled = true;   // срез этажей в домах (village.js)
     r.shadowMap.type = THREE.PCFShadowMap;
 
     this.scene = new THREE.Scene();

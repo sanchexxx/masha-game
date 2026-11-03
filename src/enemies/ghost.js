@@ -531,6 +531,7 @@ export class Ghost {
     const now = performance.now();
     let best = null, bs = -Infinity;
     for (const b of this.world.bushes) {
+      if (b.y != null && b.y > 1.2) continue;   // на этажи и в кроны боты не лазят
       const d = Math.hypot(b.x - this.pos.x, b.z - this.pos.z);
       const ago = (now - (this.checked.get(b) || -1e9)) / 1000;
       const s = Math.min(ago, 60) * 0.5 - d + Math.random() * 8;

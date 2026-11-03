@@ -2,6 +2,7 @@
 import { buildMasha } from './masha.js?v=2026100901';
 import { buildCatbus } from './catbus.js?v=2026100901';
 import { buildMoti, MOTI_SKINS } from './moti.js?v=2026100901';
+import { buildMotiModel } from './moti-model.js';
 import { buildNoFace } from './noface.js?v=2026100901';
 import { buildNofaceModel, NOFACE_SKINS } from './noface-model.js';
 import { buildKid, loadLook } from './kid.js?v=2026100901';
@@ -42,7 +43,7 @@ export const HEROES = [
     about: 'Добродушный великан, который носит на спине уютный приют для духов. Там всегда найдётся место для новых друзей.',
     ability: 'Уютный приют', abilityText: 'Купол, в котором Безлик никого не поймает. Ещё 3 умения: 2, 3, 4, F.',
     tags: ['Защита', 'Лечение', 'Поддержка', 'Команда'],
-    build: skin => buildMoti(skin), radius: 0.85, height: 2.4,
+    build: skin => buildMotiModel(skin) || buildMoti(skin), radius: 0.85, height: 2.4,
     skins: MOTI_SKINS,
     helper: true,                  // бот-Моти бежит выручать друзей
     cam: { distance: 8.4, height: 3.0, side: 1.3 },   // выше рюкзака и чуть сбоку
