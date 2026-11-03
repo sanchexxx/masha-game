@@ -97,11 +97,7 @@ export class Round {
         return g.maskAs(list[i + 1]) ? 'on' : 'cd';
       }
       if (g.disguised) g.reveal();
-      return g.useDisguise(this.agents, 'hero', list[0]) ? 'on' : 'cd';
-    }
-    if (id === 'mask-prop') {
-      if (g.disguised) { g.reveal(); return 'off'; }
-      return g.useDisguise(this.agents, 'prop') ? 'on' : 'cd';
+      return g.useDisguise(this.agents, list[0]) ? 'on' : 'cd';
     }
     if (id === 'rage') return g.rage() ? 'on' : 'used';
     if (id.startsWith('m:')) return this.#maskAbility(g, id.slice(2));

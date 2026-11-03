@@ -344,7 +344,7 @@ export class Multiplayer {
     const a = R.agents.find(x => x.remote === m.from && x.alive);
     if (a) { a.abilities.use(m.id); return; }
     const gh = R.activeGhosts.find(x => x.remote === m.from);
-    if (gh && (m.id === 'mask-hero' || m.id === 'mask-prop' || m.id === 'rage' || m.id.startsWith('m:'))) {
+    if (gh && (m.id === 'mask-hero' || m.id === 'rage' || m.id.startsWith('m:'))) {
       R.ghostAbility(gh, m.id);
     }
   }
@@ -517,7 +517,7 @@ export class Multiplayer {
 
   // Клавиши гостя: те же, что в одиночной игре
   guestKey(key) {
-    if (this.lastBar === 'ghost') { if (key === '1') this.guestAbility('mask-hero'); if (key === '2') this.guestAbility('mask-prop'); if (key === '3') this.guestAbility('rage'); return; }
+    if (this.lastBar === 'ghost') { if (key === '1') this.guestAbility('mask-hero'); if (key === '2') this.guestAbility('rage'); return; }
     if (this.lastBar?.startsWith('hero:')) {
       const ab = this.g.heroAbilities(this.lastBar.slice(5)).find(a => a.key === key);
       if (ab) this.guestAbility(ab.id);

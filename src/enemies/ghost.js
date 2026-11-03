@@ -15,7 +15,6 @@ import { PlayerController } from '../player/controller.js?v=2026100901';
 import { radialTexture } from '../characters/noface.js?v=2026100901';
 
 const C_RAIN = () => CONFIG.abilities.rain;
-import { buildProp, PROP_KINDS } from '../world/props.js?v=2026100901';
 
 const C = CONFIG.ghost;
 const EYE = 2.1;
@@ -189,39 +188,30 @@ export class Ghost {
   // ---------- Маскировка ----------
   get disguiseReady() { return this.disguiseCd <= 0 && !this.disguise && this.active && this.stunT <= 0; }
 
-  // kind: 'hero' — притвориться героем, 'prop' — предметом (ящик, фонарь, тыква…)
-  useDisguise(targets = [], kind = 'hero', forced = null) {
+  // Мистическая маска: притвориться героем (в вещи Безлик не превращается)
+  useDisguise(targets = [], forced = null) {
     if (!this.disguiseReady) return false;
-    if (kind === 'prop') {
-      const pk = PROP_KINDS[(Math.random() * PROP_KINDS.length) | 0];
-      let obj = this.disguises.get('prop:' + pk.id);
-      if (!obj) { obj = { root: buildProp(pk.id), update() {} }; this.disguises.set('prop:' + pk.id, obj); }
-      this.scene.add(obj.root);
-      obj.root.visible = true;
-      this.disguise = { prop: pk, char: obj, t: C.disguise.time };
-    } else {
-      if (!this.heroes.length) return false;
-      // притворяемся тем, кого сейчас нет рядом (чтобы не было двух одинаковых Маш бок о бок)
-      const aliveIds = new Set(targets.filter(a => a.alive).map(a => a.hero.id));
-      const pool = this.heroes.filter(h => !aliveIds.has(h.id));
-      const list = pool.length ? pool : this.heroes;
-      const hero = forced || list[(Math.random() * list.length) | 0];
-      let char = this.disguises.get(hero.id);
-      if (!char) {
-        char = hero.build('classic');
-        if (!shimmerTex) shimmerTex = radialTexture('rgba(150,80,230,0.55)', 'rgba(90,30,160,0)');
-        // еле заметная фиолетовая дымка у ног — внимательный игрок раскусит
-        const sh = new THREE.Sprite(new THREE.SpriteMaterial({ map: shimmerTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.5 }));
-        sh.scale.set(hero.radius * 3, 0.9, 1);
-        sh.position.y = 0.35;
-        char.root.add(sh);
-        char.shimmer = sh;
-        this.disguises.set(hero.id, char);
-      }
-      this.scene.add(char.root);
-      char.root.visible = true;
-      this.disguise = { hero, char, t: C.disguise.time };
+    if (!this.heroes.length) return false;
+    // притворяемся тем, кого сейчас нет рядом (чтобы не было двух одинаковых Маш бок о бок)
+    const aliveIds = new Set(targets.filter(a => a.alive).map(a => a.hero.id));
+    const pool = this.heroes.filter(h => !aliveIds.has(h.id));
+    const list = pool.length ? pool : this.heroes;
+    const hero = forced || list[(Math.random() * list.length) | 0];
+    let char = this.disguises.get(hero.id);
+    if (!char) {
+      char = hero.build('classic');
+      if (!shimmerTex) shimmerTex = radialTexture('rgba(150,80,230,0.55)', 'rgba(90,30,160,0)');
+      // еле заметная фиолетовая дымка у ног — внимательный игрок раскусит
+      const sh = new THREE.Sprite(new THREE.SpriteMaterial({ map: shimmerTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.5 }));
+      sh.scale.set(hero.radius * 3, 0.9, 1);
+      sh.position.y = 0.35;
+      char.root.add(sh);
+      char.shimmer = sh;
+      this.disguises.set(hero.id, char);
     }
+    this.scene.add(char.root);
+    char.root.visible = true;
+    this.disguise = { hero, char, t: C.disguise.time };
     this.root.visible = false;
     this.poof = true;              // игра покажет облачко
     return true;
@@ -233,7 +223,7 @@ export class Ghost {
     const left = this.disguise.t;
     this.#hideDisguise();
     this.disguise = null; this.disguiseCd = 0;
-    const ok = this.useDisguise([], 'hero', hero);
+    const ok = this.useDisguise([], hero);
     if (ok) this.disguise.t = Math.max(left, 4);
     return ok;
   }
@@ -312,7 +302,6 @@ export class Ghost {
 
     const c = this.ctrl;
     c.moveMul = this.stunT > 0 ? 0 : 1;
-    if (this.disguise?.prop && move) { c.moveMul *= CONFIG.abilities.prop.walk; move = { ...move, run: false, jumpHold: false, jump: false }; }
     c.slowMul = (this.slowT > 0 ? 0.45 : 1) * (this.clumsyT > 0 ? 0.78 : 1) * (this.wetT > 0 ? C_RAIN().slow : 1) * (this.rageT > 0 ? C.rage.speed : 1) * (1 + C.absorb.speed * this.feedN) * (1 + C.lateBoost * roundT) * (this.speedMul ?? 1);
     c.turnMul = this.clumsyT > 0 ? 0.14 : 1;
     // мокрый Безлик летает с трудом и невысоко
@@ -405,13 +394,7 @@ export class Ghost {
     // Теневой гнев: давно никого не видит — раз за раунд выгоняет всех из кустов
     if (!this.rageUsed && this.state === 'search' && this.unseen > 6 && Math.random() < dt * 0.05) this.rage();
     // Маскировка: никого не видит — прикидывается героем и тихо идёт к ближайшему
-    if (!pick && this.disguiseReady && Math.random() < dt * 0.25) this.useDisguise(targets, Math.random() < 0.3 ? 'prop' : 'hero');
-    // в маске-предмете стоит тихо и ждёт, пока кто-нибудь подойдёт
-    if (this.disguise?.prop) {
-      const prey = nearestAlive(targets, this.pos);
-      if (prey && prey.ctrl.pos.distanceTo(this.pos) < 4.5) { this.reveal(); this.target = prey; this.state = 'hunt'; this.lastSeen = prey.ctrl.pos.clone(); }
-      else return inp;
-    }
+    if (!pick && this.disguiseReady && Math.random() < dt * 0.25) this.useDisguise(targets);
 
     let goal, sneaking = false;
     if (this.disguise) {
@@ -589,7 +572,7 @@ export class Ghost {
     if (dz) {
       const r = dz.char.root;
       r.position.copy(this.pos);
-      if (!dz.prop) r.rotation.y = this.yaw;
+      r.rotation.y = this.yaw;
       dz.char.update(dt, this.ctrl.animState(st.t));
       if (dz.char.shimmer) dz.char.shimmer.material.opacity = 0.35 + Math.sin(st.t * 3) * 0.15;
       return;

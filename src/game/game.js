@@ -39,8 +39,7 @@ const MAX_GHOSTS = 5;
 const GHOST_ABILITIES = [
   { id: 'dash', key: 'E', icon: '💨', name: 'Рывок' },
   { id: 'mask-hero', key: '1', icon: '🎭', name: 'Мистическая маска' },
-  { id: 'mask-prop', key: '2', icon: '📦', name: 'Стать вещью' },
-  { id: 'rage', key: '3', icon: '👹', name: 'Теневой гнев' },
+  { id: 'rage', key: '2', icon: '👹', name: 'Теневой гнев' },
   { id: 'fly', key: '␣', icon: '🪶', name: 'Взлететь' },
 ];
 
@@ -198,8 +197,7 @@ export class Game {
       const pg = this.round.playerGhost;
       if (pg) {
         if (key === '1') this.#useAbility('mask-hero');
-        if (key === '2') this.#useAbility('mask-prop');
-        if (key === '3') this.#useAbility('rage');
+        if (key === '2') this.#useAbility('rage');
         const masked = this.round.maskAbilities(pg).find(a => a.key === key);
         if (masked) this.#useAbility(masked.id);
       } else if (this.round.player?.alive) {
@@ -1116,7 +1114,7 @@ export class Game {
         if (id === 'rage') return { k: pg.rageUsed && pg.rageT <= 0 ? 1 : 0, n: pg.rageT > 0 ? Math.ceil(pg.rageT) : '' };
         if (id.startsWith('m:')) { const a = id.slice(2); return { k: (pg.maskCd[a] || 0) / (CONFIG.abilities[a]?.cd || 10) }; }
         if (id === 'dash') return { k: c.dashCharges > 0 ? c.dashCd / d.cooldown : 1 - c.chargeT / d.recharge, n: c.dashCharges };
-        if (id === 'mask-hero' || id === 'mask-prop') return { k: pg.disguised ? 0 : pg.disguiseCd / CONFIG.ghost.disguise.cd, n: pg.disguised ? Math.ceil(pg.disguise.t) : '' };
+        if (id === 'mask-hero') return { k: pg.disguised ? 0 : pg.disguiseCd / CONFIG.ghost.disguise.cd, n: pg.disguised ? Math.ceil(pg.disguise.t) : '' };
         if (id === 'fly') return { k: 1 - c.flyEnergy };
       });
     } else if (R.player) {
