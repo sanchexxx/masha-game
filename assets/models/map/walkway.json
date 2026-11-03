@@ -1,0 +1,16 @@
+{
+ "colliders": [
+  {
+   "type": "box",
+   "x": 0,
+   "z": 0,
+   "w": 1.8,
+   "d": 6.0,
+   "h": 0.0,
+   "bottom": -0.2,
+   "relative": "height"
+  }
+ ],
+ "model": "walkway.glb",
+ "triangles": 288
+}

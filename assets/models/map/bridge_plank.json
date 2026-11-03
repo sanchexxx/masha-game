@@ -1,0 +1,17 @@
+{
+ "colliders": [
+  {
+   "type": "arch",
+   "x": 0,
+   "z": 0,
+   "w": 3.0,
+   "d": 10.0,
+   "along": "z",
+   "endY": 0.25,
+   "peak": 0.7,
+   "thickness": 0.16
+  }
+ ],
+ "model": "bridge_plank.glb",
+ "triangles": 660
+}

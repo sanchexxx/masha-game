@@ -1,0 +1,18 @@
+{
+ "colliders": [
+  {
+   "type": "sag",
+   "x": 0,
+   "z": 0,
+   "w": 1.8,
+   "d": 11.0,
+   "along": "z",
+   "sag": 0.6,
+   "thickness": 0.1,
+   "note": "верх = height + (-sag * (1 - (2z/d)^2)); перила по краям 1 м"
+  }
+ ],
+ "note": "ставить на высоту площадок (y = height из layout)",
+ "model": "bridge_rope.glb",
+ "triangles": 1396
+}

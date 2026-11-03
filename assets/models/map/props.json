@@ -1,0 +1,174 @@
+{
+ "nodes": {
+  "StoneLantern": {
+   "collider": {
+    "type": "circle",
+    "r": 0.5,
+    "h": 2.0
+   },
+   "light": {
+    "y": 1.6,
+    "color": "#ffb060"
+   }
+  },
+  "PostLantern": {
+   "collider": {
+    "type": "circle",
+    "r": 0.2,
+    "h": 2.6
+   },
+   "light": {
+    "y": 2.3,
+    "color": "#ffb060"
+   }
+  },
+  "Crate": {
+   "collider": {
+    "type": "box",
+    "w": 1.0,
+    "d": 1.0,
+    "h": 1.0
+   }
+  },
+  "Barrel": {
+   "collider": {
+    "type": "circle",
+    "r": 0.45,
+    "h": 0.95
+   }
+  },
+  "Pumpkin": {
+   "collider": {
+    "type": "circle",
+    "r": 0.5,
+    "h": 0.6
+   }
+  },
+  "Fence": {
+   "collider": {
+    "type": "box",
+    "w": 3.0,
+    "d": 0.2,
+    "h": 1.2
+   },
+   "note": "3 м вдоль x"
+  },
+  "BambooFence": {
+   "collider": {
+    "type": "box",
+    "w": 3.0,
+    "d": 0.2,
+    "h": 1.3
+   },
+   "note": "3 м вдоль x"
+  },
+  "Signpost": {
+   "collider": {
+    "type": "circle",
+    "r": 0.15,
+    "h": 2.2
+   }
+  },
+  "BambooFountain": {
+   "collider": {
+    "type": "circle",
+    "r": 0.8,
+    "h": 0.6
+   }
+  },
+  "Bench": {
+   "collider": {
+    "type": "box",
+    "w": 2.0,
+    "d": 0.6,
+    "h": 0.5
+   }
+  },
+  "PotPlant": {
+   "collider": {
+    "type": "circle",
+    "r": 0.35,
+    "h": 0.5
+   }
+  },
+  "PotFlower": {
+   "collider": {
+    "type": "circle",
+    "r": 0.35,
+    "h": 0.5
+   }
+  },
+  "Rock1": {
+   "collider": {
+    "type": "circle",
+    "r": 0.85,
+    "h": 0.54
+   }
+  },
+  "Rock2": {
+   "collider": {
+    "type": "circle",
+    "r": 0.59,
+    "h": 0.41
+   }
+  },
+  "Rock3": {
+   "collider": {
+    "type": "circle",
+    "r": 1.36,
+    "h": 0.9
+   }
+  },
+  "FlowerPatch": {
+   "note": "не мешает ходить"
+  },
+  "GrassTuft": {
+   "note": "не мешает ходить"
+  },
+  "Torii": {
+   "collider": {
+    "type": "pillars",
+    "x": [
+     -2.2,
+     2.2
+    ],
+    "r": 0.3,
+    "h": 5.4
+   },
+   "note": "проход 4 м"
+  },
+  "LanternString": {
+   "note": "верёвка 10 м вдоль x на высоте 4,6 м; тянуть scale.x под нужную длину"
+  },
+  "Scarecrow": {
+   "collider": {
+    "type": "circle",
+    "r": 0.2,
+    "h": 2.4
+   },
+   "hide": {
+    "r": 0.8,
+    "kind": "scarecrow"
+   }
+  },
+  "StrawHut": {
+   "collider": {
+    "type": "circle",
+    "r": 1.9,
+    "h": 3.0,
+    "door": "+z"
+   },
+   "hide": {
+    "r": 1.4,
+    "kind": "hut"
+   },
+   "note": "круглый шалаш у тыквенного поля, вход спереди"
+  },
+  "Leaves": {
+   "note": "опавшие листья, плоско"
+  }
+ },
+ "note": "у каждого узла начало координат на земле в центре",
+ "model": "props.glb",
+ "triangles": 4664
+}

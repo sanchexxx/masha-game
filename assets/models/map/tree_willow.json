@@ -1,0 +1,26 @@
+{
+ "colliders": [
+  {
+   "type": "circle",
+   "x": 0,
+   "z": 0,
+   "r": 0.6,
+   "h": 4.0
+  }
+ ],
+ "hides": [
+  {
+   "x": 0.6,
+   "z": -0.2,
+   "r": 2.2,
+   "kind": "willow",
+   "note": "под ветками ивы"
+  }
+ ],
+ "crownFade": {
+  "r": 3.2,
+  "bottom": 1.5
+ },
+ "model": "tree_willow.glb",
+ "triangles": 1092
+}

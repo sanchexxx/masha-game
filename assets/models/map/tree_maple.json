@@ -1,0 +1,17 @@
+{
+ "colliders": [
+  {
+   "type": "circle",
+   "x": 0,
+   "z": 0,
+   "r": 0.5,
+   "h": 4.0
+  }
+ ],
+ "crownFade": {
+  "r": 3.4,
+  "bottom": 3.8
+ },
+ "model": "tree_maple.glb",
+ "triangles": 1464
+}

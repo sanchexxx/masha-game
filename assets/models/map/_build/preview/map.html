@@ -1,0 +1,50 @@
+<!doctype html><html><body style="margin:0">
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+const q=new URLSearchParams(location.search);
+const W=+(q.get('w')||1600),H=+(q.get('h')||1000);
+const r=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+r.setSize(W,H); r.toneMapping=THREE.ACESFilmicToneMapping; r.toneMappingExposure=1.15; r.shadowMap.enabled=q.get('shadow')!=='0';
+document.body.appendChild(r.domElement);
+const sc=new THREE.Scene(); sc.background=new THREE.Color(0x0d1030); sc.fog=new THREE.FogExp2(0x151a3e,+(q.get('fog')??0.016));
+sc.add(new THREE.HemisphereLight(0x7a86d8,0x1d1830,1.05));
+const c=q.get('cam').split(',').map(Number);
+const target=new THREE.Vector3(c[3],c[4],c[5]);
+const moon=new THREE.DirectionalLight(0xc2ccff,1.35); moon.position.set(target.x-18,30,target.z-14); moon.target.position.copy(target); moon.castShadow=true;
+const ss=+(q.get('ss')||30); moon.shadow.mapSize.set(2048,2048); Object.assign(moon.shadow.camera,{left:-ss,right:ss,top:ss,bottom:-ss,far:120}); moon.shadow.bias=-0.0008; sc.add(moon,moon.target);
+const L=await (await fetch('../../layout.json')).json();
+const tl=new THREE.TextureLoader();
+const tex=(f,rep)=>{const t=tl.load('../../tex/'+f); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.colorSpace=THREE.SRGBColorSpace; if(rep) t.repeat.set(rep,rep); return t;};
+const gn=tl.load('../../tex/map_grass_n.jpg'); gn.wrapS=gn.wrapT=THREE.RepeatWrapping; gn.repeat.set(26,26);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(160,160),new THREE.MeshStandardMaterial({map:tex('map_grass.jpg',26),normalMap:gn,roughness:1}));
+ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; sc.add(ground);
+function ribbon(pts,w,mat,y,cap){for(let i=0;i<pts.length-1;i++){const [ax,az]=pts[i],[bx,bz]=pts[i+1]; const len=Math.hypot(bx-ax,bz-az);
+  const g=new THREE.PlaneGeometry(w,len); const uv=g.attributes.uv; for(let k=0;k<uv.count;k++){uv.setXY(k,uv.getX(k)*w/3,uv.getY(k)*len/3);}
+  const m=new THREE.Mesh(g,mat); m.rotation.x=-Math.PI/2; m.rotation.z=Math.atan2(bx-ax,bz-az)+Math.PI; m.position.set((ax+bx)/2,y,(az+bz)/2); m.receiveShadow=true; sc.add(m);}
+ if(cap) for(const [x,z] of pts){const m=new THREE.Mesh(new THREE.CircleGeometry(w/2,20),mat); m.rotation.x=-Math.PI/2; m.position.set(x,y,z); m.receiveShadow=true; sc.add(m);} }
+const sn=tl.load('../../tex/map_stone_n.jpg'); sn.wrapS=sn.wrapT=THREE.RepeatWrapping;
+const stone=new THREE.MeshStandardMaterial({map:tex('map_stone.jpg'),normalMap:sn,roughness:0.95,polygonOffset:true,polygonOffsetFactor:-1});
+for(const rd of L.roads) ribbon(rd.pts,rd.w,stone,0.02,true);
+const bank=new THREE.MeshStandardMaterial({color:0x2a2a22,roughness:1,polygonOffset:true,polygonOffsetFactor:-2});
+const water=new THREE.MeshStandardMaterial({map:tex('map_water.jpg'),color:0x9fc8e0,roughness:0.12,metalness:0.1,transparent:true,opacity:0.88,polygonOffset:true,polygonOffsetFactor:-3});
+ribbon(L.river.points,L.river.width+1.6,bank,0.025,true); ribbon(L.river.points,L.river.width,water,L.river.level,true);
+const cache={}; const loader=new GLTFLoader();
+for(const f of [...new Set(L.instances.map(i=>i.model))]) cache[f]=(await loader.loadAsync('../../'+f)).scene;
+let n=0;
+for(const it of L.instances){let o; if(q.get('mobile')&&it.mobile===false) continue;
+ if(it.node){const src=cache[it.model].getObjectByName(it.node); if(!src) continue; o=src.clone(); o.position.set(0,0,0); o.rotation.set(0,0,0); o.scale.set(1,1,1);}
+ else o=cache[it.model].clone();
+ const g=new THREE.Group(); g.add(o); g.position.set(it.x,it.y||0,it.z); g.rotation.y=(it.rotY||0)*Math.PI/180; const s=it.scale||1; g.scale.set(s*(it.scaleX||1),s,s);
+ if(q.get('hidecrown')&&Math.hypot(it.x-target.x,it.z-target.z)<6) g.traverse(m=>{if(m.name==='Crown'){m.visible=false;}});
+ g.traverse(m=>{if(m.isMesh){m.castShadow=true;m.receiveShadow=true;}}); sc.add(g); n++;}
+const lights=L.lights.slice().sort((a,b)=>Math.hypot(a.x-target.x,a.z-target.z)-Math.hypot(b.x-target.x,b.z-target.z)).slice(0,+(q.get('nl')||12));
+for(const l of lights){const p=new THREE.PointLight(l.color,16,13,1.8); p.position.set(l.x,l.y,l.z); sc.add(p);}
+if(q.get('kid')){const [x,z,y]=q.get('kid').split(',').map(Number); const k=new THREE.Mesh(new THREE.CapsuleGeometry(0.3,1.0,4,8),new THREE.MeshStandardMaterial({color:0xd04040,emissive:0x400000})); k.position.set(x,0.8+(y||0),z); sc.add(k);}
+const cam=q.get('ortho')?new THREE.OrthographicCamera(-70*W/H,70*W/H,70,-70,1,300):new THREE.PerspectiveCamera(+(q.get('fov')||50),W/H,0.1,400);
+cam.position.set(c[0],c[1],c[2]); if(q.get('ortho')) cam.up.set(0,0,-1); cam.lookAt(target);
+r.render(sc,cam);
+let tris=0; sc.traverse(m=>{if(m.isMesh&&m.geometry){const g=m.geometry; tris+=(g.index?g.index.count:g.attributes.position.count)/3;}});
+window.STATS={instances:n,tris:Math.round(tris),calls:r.info.render.calls}; console.log('STATS '+JSON.stringify(window.STATS)); window.DONE=true;
+</script></body></html>

@@ -23,47 +23,7 @@ export function buildMap(scene, { isMobile }) {
   const glowTex = radialTexture('rgba(255,190,110,0.9)', 'rgba(255,140,40,0)');
   const lanternSpots = [];
 
-  // ---------- Небо, луна, звёзды, туман ----------
-  scene.background = new THREE.Color(0x0d1030);
-  scene.fog = new THREE.FogExp2(0x151a3e, 0.022);
-
-  const skyGeo = new THREE.SphereGeometry(180, 32, 16);
-  const skyMat = new THREE.ShaderMaterial({
-    side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { top: { value: new THREE.Color(0x070a22) }, bottom: { value: new THREE.Color(0x3a3470) } },
-    vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }',
-    fragmentShader: 'uniform vec3 top; uniform vec3 bottom; varying vec3 vP; void main(){ float h = smoothstep(-0.05, 0.55, vP.y); gl_FragColor = vec4(mix(bottom, top, h), 1.); }',
-  });
-  scene.add(new THREE.Mesh(skyGeo, skyMat));
-
-  const moon = new THREE.Mesh(new THREE.SphereGeometry(7, 32, 16), new THREE.MeshBasicMaterial({ color: 0xf4f1dc, fog: false }));
-  moon.position.set(-60, 70, -120);
-  scene.add(moon);
-  const moonGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTexture('rgba(220,225,255,0.55)', 'rgba(120,130,220,0)'), fog: false, depthWrite: false, blending: THREE.AdditiveBlending }));
-  moonGlow.scale.set(60, 60, 1);
-  moonGlow.position.copy(moon.position);
-  scene.add(moonGlow);
-
-  const starGeo = new THREE.BufferGeometry();
-  const sp = [];
-  for (let i = 0; i < 700; i++) {
-    const th = Math.random() * Math.PI * 2, ph = Math.random() * 1.2 + 0.15;
-    sp.push(Math.cos(th) * Math.cos(ph) * 170, Math.sin(ph) * 170, Math.sin(th) * Math.cos(ph) * 170);
-  }
-  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
-  scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xdfe4ff, size: 1.1, fog: false, sizeAttenuation: false, transparent: true, opacity: 0.8 })));
-
-  // ---------- Свет ----------
-  scene.add(new THREE.HemisphereLight(0x7a86d8, 0x1d1830, 1.05));
-  const moonLight = new THREE.DirectionalLight(0xc2ccff, 1.35);
-  moonLight.position.set(-18, 30, -14);
-  moonLight.castShadow = true;
-  moonLight.shadow.mapSize.set(isMobile ? 1024 : 2048, isMobile ? 1024 : 2048);
-  const sc = moonLight.shadow.camera;
-  sc.left = -26; sc.right = 26; sc.top = 26; sc.bottom = -26; sc.near = 1; sc.far = 90;
-  moonLight.shadow.bias = -0.0008;
-  moonLight.shadow.normalBias = 0.03;
-  scene.add(moonLight, moonLight.target);
+  const moonLight = nightSky(scene, isMobile);
 
   // ---------- Земля и дорожки ----------
   const grassTex = canvasTexture(256, 256, (c, w, h) => {
@@ -548,4 +508,50 @@ export function buildMap(scene, { isMobile }) {
     playerSpawn: new THREE.Vector3(0, 0, 22),
     ghostSpawn: new THREE.Vector3(0, 0, -21),
   };
+}
+
+// Небо, луна, звёзды, туман и лунный свет — общие для деревень. Вернёт лунный свет (он ездит за игроком).
+export function nightSky(scene, isMobile) {
+  // ---------- Небо, луна, звёзды, туман ----------
+  scene.background = new THREE.Color(0x0d1030);
+  scene.fog = new THREE.FogExp2(0x151a3e, 0.022);
+
+  const skyGeo = new THREE.SphereGeometry(180, 32, 16);
+  const skyMat = new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, fog: false,
+    uniforms: { top: { value: new THREE.Color(0x070a22) }, bottom: { value: new THREE.Color(0x3a3470) } },
+    vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }',
+    fragmentShader: 'uniform vec3 top; uniform vec3 bottom; varying vec3 vP; void main(){ float h = smoothstep(-0.05, 0.55, vP.y); gl_FragColor = vec4(mix(bottom, top, h), 1.); }',
+  });
+  scene.add(new THREE.Mesh(skyGeo, skyMat));
+
+  const moon = new THREE.Mesh(new THREE.SphereGeometry(7, 32, 16), new THREE.MeshBasicMaterial({ color: 0xf4f1dc, fog: false }));
+  moon.position.set(-60, 70, -120);
+  scene.add(moon);
+  const moonGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTexture('rgba(220,225,255,0.55)', 'rgba(120,130,220,0)'), fog: false, depthWrite: false, blending: THREE.AdditiveBlending }));
+  moonGlow.scale.set(60, 60, 1);
+  moonGlow.position.copy(moon.position);
+  scene.add(moonGlow);
+
+  const starGeo = new THREE.BufferGeometry();
+  const sp = [];
+  for (let i = 0; i < 700; i++) {
+    const th = Math.random() * Math.PI * 2, ph = Math.random() * 1.2 + 0.15;
+    sp.push(Math.cos(th) * Math.cos(ph) * 170, Math.sin(ph) * 170, Math.sin(th) * Math.cos(ph) * 170);
+  }
+  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
+  scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xdfe4ff, size: 1.1, fog: false, sizeAttenuation: false, transparent: true, opacity: 0.8 })));
+
+  // ---------- Свет ----------
+  scene.add(new THREE.HemisphereLight(0x7a86d8, 0x1d1830, 1.05));
+  const moonLight = new THREE.DirectionalLight(0xc2ccff, 1.35);
+  moonLight.position.set(-18, 30, -14);
+  moonLight.castShadow = true;
+  moonLight.shadow.mapSize.set(isMobile ? 1024 : 2048, isMobile ? 1024 : 2048);
+  const sc = moonLight.shadow.camera;
+  sc.left = -26; sc.right = 26; sc.top = 26; sc.bottom = -26; sc.near = 1; sc.far = 90;
+  moonLight.shadow.bias = -0.0008;
+  moonLight.shadow.normalBias = 0.03;
+  scene.add(moonLight, moonLight.target);
+  return moonLight;
 }

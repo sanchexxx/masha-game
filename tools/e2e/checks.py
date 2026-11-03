@@ -130,7 +130,7 @@ async def check_totoro(b, errs):
     await page.screenshot(path=f'{OUT}/totoro_roar.png')
     # друга ловит Безлик (малышей-обманок убираем, чтобы Безлик не отвлёкся на них); держим погоню 3 с
     await E(f'''(() => {{ const R = window.__game.round; R.nature.decoys.forEach(d => R.nature.decoyCaught(d));
-        const ally = R.agents.find(a => !a.isPlayer && a.alive); ally.invulnerableT = 30;
+        const ally = R.agents.find(a => !a.isPlayer && a.alive && !a.protected);
         const g = R.activeGhosts.find(g => g.active); R.player.abilities.get('nekohelp').cdLeft = 0;
         const hold = () => {{ if (R.nature.decoys.some(d => d.name === 'НэкоБус')) return;   // НэкоБус уже увёл — не мешаем
           g.clumsyT = 0; g.stunT = 0; g.target = ally; g.state = 'hunt'; g.lastSeen = ally.ctrl.pos.clone();

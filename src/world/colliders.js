@@ -22,7 +22,7 @@ export class CollisionWorld {
     const bottom = opt.bottom ?? 0;
     const b = {
       minX: cx - w / 2, maxX: cx + w / 2, minZ: cz - d / 2, maxZ: cz + d / 2,
-      bottom, top, topAt: opt.topAt || null,
+      bottom, top, topAt: opt.topAt || null, bottomAt: opt.bottomAt || null,
       sight: opt.sight ?? top - bottom > 1.4, nav: opt.nav ?? bottom < 1.2,
     };
     this.boxes.push(b);
@@ -47,7 +47,8 @@ export class CollisionWorld {
     return c;
   }
 
-  addBush(x, z, r, kind = 'bush') { this.bushes.push({ x, z, r, kind }); }
+  // y — укрытие на этаже или в кроне (на высоте y); без y — на земле
+  addBush(x, z, r, kind = 'bush', y = null) { this.bushes.push({ x, z, r, kind, y }); }
 
   addLadder(x, z, nx, nz, w, top) { this.ladders.push({ x, z, nx, nz, w, top }); }
 
@@ -73,10 +74,11 @@ export class CollisionWorld {
   }
 
   topOf(b, x, z) { return b.topAt ? b.topAt(x, z) : b.top; }
+  // низ меняется у мостов-арок: под серединой горбатого моста можно пройти
+  bottomOf(b, x, z) { return b.bottomAt ? b.bottomAt(x, z) : b.bottom; }
 
   inBush(x, z, y = 0) {
-    if (y > 1.2) return false;
-    return this.bushes.some(b => (x - b.x) ** 2 + (z - b.z) ** 2 < (b.r * 0.9) ** 2);
+    return this.bushes.some(b => (b.y == null ? y <= 1.2 : Math.abs(y - b.y) < 1.4) && (x - b.x) ** 2 + (z - b.z) ** 2 < (b.r * 0.9) ** 2);
   }
 
   // Высота опоры под точкой (для приземления). maxTop — выше этого не считаем опорой.
@@ -104,8 +106,9 @@ export class CollisionWorld {
     const rr = r * 0.7;
     const cell = this.near(x, z);
     for (const b of cell.boxes) {
-      if (b.bottom <= y + 0.05 || b.bottom >= c) continue;
-      if (x + rr > b.minX && x - rr < b.maxX && z + rr > b.minZ && z - rr < b.maxZ) c = b.bottom;
+      if (!(x + rr > b.minX && x - rr < b.maxX && z + rr > b.minZ && z - rr < b.maxZ)) continue;
+      const bot = this.bottomOf(b, Math.max(b.minX, Math.min(x, b.maxX)), Math.max(b.minZ, Math.min(z, b.maxZ)));
+      if (bot > y + 0.05 && bot < c) c = bot;
     }
     for (const k of cell.circles) {
       if (k.platform || k.bottom <= y + 0.05 || k.bottom >= c) continue;
@@ -122,9 +125,9 @@ export class CollisionWorld {
     for (let iter = 0; iter < 3; iter++) {
       let moved = false;
       for (const b of cell.boxes) {
-        if (b.bottom >= headY) continue;
         const cx = Math.max(b.minX, Math.min(pos.x, b.maxX));
         const cz = Math.max(b.minZ, Math.min(pos.z, b.maxZ));
+        if (this.bottomOf(b, cx, cz) >= headY) continue;
         const dx = pos.x - cx, dz = pos.z - cz;
         const d2 = dx * dx + dz * dz;
         if (d2 >= r * r) continue;
@@ -170,7 +173,7 @@ export class CollisionWorld {
     for (const b of cell.boxes) {
       if (x <= b.minX || x >= b.maxX || z <= b.minZ || z >= b.maxZ) continue;
       const top = this.topOf(b, x, z);
-      if (top > y + 0.3 && top <= y + reach && b.bottom < y + height && top > T) T = top;
+      if (top > y + 0.3 && top <= y + reach && this.bottomOf(b, x, z) < y + height && top > T) T = top;
     }
     for (const c of cell.circles) {
       if ((x - c.x) ** 2 + (z - c.z) ** 2 >= c.r * c.r) continue;
@@ -180,7 +183,7 @@ export class CollisionWorld {
     // место над уступом свободно?
     for (const b of cell.boxes) {
       if (x <= b.minX || x >= b.maxX || z <= b.minZ || z >= b.maxZ) continue;
-      if (this.topOf(b, x, z) > T + 0.05 && b.bottom < T + height * 0.8) return null;
+      if (this.topOf(b, x, z) > T + 0.05 && this.bottomOf(b, x, z) < T + height * 0.8) return null;
     }
     for (const c of cell.circles) {
       if ((x - c.x) ** 2 + (z - c.z) ** 2 >= c.r * c.r) continue;
@@ -211,7 +214,7 @@ export class CollisionWorld {
       const cell = this.near(x, z);
       for (const b of cell.boxes) {
         if (!b.sight || x <= b.minX || x >= b.maxX || z <= b.minZ || z >= b.maxZ) continue;
-        if (y > b.bottom && y < this.topOf(b, x, z)) return false;
+        if (y > this.bottomOf(b, x, z) && y < this.topOf(b, x, z)) return false;
       }
       for (const c of cell.circles) if (c.sight && y > c.bottom && y < c.top && (x - c.x) ** 2 + (z - c.z) ** 2 < c.r * c.r) return false;
       if (!ignoreBushes && y < 1.6) for (const k of this.bushes) if ((x - k.x) ** 2 + (z - k.z) ** 2 < (k.r * 0.8) ** 2) return false;

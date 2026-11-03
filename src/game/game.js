@@ -7,6 +7,7 @@ import { CONFIG } from '../config/config.js?v=2026100901';
 import { HEROES, GHOST } from '../characters/index.js?v=2026100901';
 import { buildMap } from '../world/map.js?v=2026100901';
 import { buildForest } from '../world/forest.js?v=2026100901';
+import { loadVillageAssets, buildVillage } from '../world/village.js';
 import { loadForestAssets } from '../world/forest-assets.js?v=2026101003';
 import { buildFireflies, buildSoot } from '../world/effects.js?v=2026100901';
 import { createRain } from '../fx/rain.js';
@@ -77,6 +78,7 @@ export class Game {
     loadSavedPhysics();
     const models = loadTotoroModels();
     const nofaceModel = loadNofaceModel();
+    const villageModels = loadVillageAssets();
     const ui = this.ui;
     ui.progress(0.1, 'Строим деревню…');
     await frame();
@@ -93,12 +95,13 @@ export class Game {
     this.rain = createRain(this.scene);
     this.camera = new THREE.PerspectiveCamera(CONFIG.camera.fov, innerWidth / innerHeight, 0.1, 400);
     this.insetCamera = new THREE.PerspectiveCamera(72, 16 / 9, 0.08, 180);
-    this.map = buildMap(this.scene, { isMobile });
+    await villageModels;
+    this.map = buildVillage(this.scene, { isMobile }) || buildMap(this.scene, { isMobile });
     this.world = this.map.world;
     ui.progress(0.4, 'Зажигаем фонарики…');
     await frame();
 
-    this.fireflies = buildFireflies(this.scene, isMobile ? 50 : CONFIG.graphics.fireflies, 28);
+    this.fireflies = buildFireflies(this.scene, isMobile ? 50 : CONFIG.graphics.fireflies, Math.min(56, this.world.half - 12));
     this.soot = buildSoot(this.scene, this.world, isMobile ? 10 : 16);
     await nofaceModel;   // Безликов строим сразу из настоящей модели
     const ghostNav = this.navFor(GHOST.radius);
@@ -257,9 +260,9 @@ export class Game {
       if (id === 'forest') {
         this.ui.progress(0.24, 'Загружаем лесные материалы…');
         await loadForestAssets();
-      }
+      } else await loadVillageAssets();
       const nextScene = new THREE.Scene();
-      const nextMap = id === 'forest' ? buildForest(nextScene, { isMobile }) : buildMap(nextScene, { isMobile });
+      const nextMap = id === 'forest' ? buildForest(nextScene, { isMobile }) : buildVillage(nextScene, { isMobile }) || buildMap(nextScene, { isMobile });
       this.ui.progress(0.43, 'Прокладываем маршруты…');
       await frame();
       this.#releaseAll();
@@ -271,7 +274,7 @@ export class Game {
       this.map = nextMap;
       this.world = nextMap.world;
       this.navs.clear();
-      this.fireflies = buildFireflies(this.scene, isMobile ? 50 : CONFIG.graphics.fireflies, 28);
+      this.fireflies = buildFireflies(this.scene, isMobile ? 50 : CONFIG.graphics.fireflies, Math.min(56, this.world.half - 12));
       this.soot = buildSoot(this.scene, this.world, isMobile ? 10 : 16);
       const ghostNav = this.navFor(GHOST.radius);
       this.ghostPool = Array.from({ length: MAX_GHOSTS }, () => new Ghost(GHOST, this.world, this.scene, ghostNav, { heroes: HEROES }));
@@ -788,7 +791,7 @@ export class Game {
 
     const center = this.state === 'play' ? this.#posOf(this.#focusTarget()) : this.state === 'guest' ? this.mp.focusPos || this.map.playerSpawn : this.map.playerSpawn;
     this.map.updateLights(center);
-    this.map.updateVisuals?.(t);
+    this.map.updateVisuals?.(t, this.camera.position);
     if (this.state === 'play') this.lanternView?.update(this.round.delivery, this.round.agents, t);
     if (this.state === 'play') this.round.nature?.cameraFade(this.camera.position);
     else if (this.state === 'guest') {

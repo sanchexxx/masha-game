@@ -1,0 +1,13 @@
+{
+ "colliders": [
+  {
+   "type": "circle",
+   "x": 0,
+   "z": 0,
+   "r": 0.5,
+   "h": 4.0
+  }
+ ],
+ "model": "tree_forest.glb",
+ "triangles": 180
+}
