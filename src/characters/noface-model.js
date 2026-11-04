@@ -5,6 +5,7 @@
 //  • скины — замена текстуры балахона; у «духовного» вокруг летают маски и огоньки.
 import * as THREE from 'three';
 import { GLTFLoader } from 'jsm/loaders/GLTFLoader.js';
+import { liteLoad, liteScene } from '../util/lite.js';
 import { clone as cloneSkinned } from 'jsm/utils/SkeletonUtils.js';
 
 const BASE = '/assets/models/noface/';
@@ -21,14 +22,14 @@ let assets = null;      // { gltf, skins: {id: Texture} }
 
 export async function loadNofaceModel(timeoutMs = 12000) {
   try {
-    const tex = new THREE.TextureLoader();
-    const skin = id => tex.loadAsync(`${BASE}skins/${id}.jpg?v=${VER}`).then(t => {
+    const skin = id => liteLoad(`${BASE}skins/${id}.jpg?v=${VER}`).then(t => {
       t.flipY = false; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return [id, t];
     });
     const all = Promise.all([new GLTFLoader().loadAsync(`${BASE}noface.glb?v=${VER}`), ...Object.keys(NOFACE_SKINS).map(skin)]);
     const timeout = new Promise((_, no) => setTimeout(() => no(new Error('timeout')), timeoutMs));
     const [gltf, ...skins] = await Promise.race([all, timeout]);
     gltf.scene.traverse(o => { if (o.isMesh) { o.castShadow = o.name === 'Body'; o.frustumCulled = false; } });
+    liteScene(gltf.scene);
     assets = { gltf, skins: Object.fromEntries(skins) };
     return true;
   } catch (e) {

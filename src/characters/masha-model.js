@@ -5,6 +5,7 @@
 //  • кожа и волосы — мягкий «бархатный» свет по краям (sheen), чтобы не выглядела пластиковой куклой.
 import * as THREE from 'three';
 import { GLTFLoader } from 'jsm/loaders/GLTFLoader.js';
+import { liteLoad, liteScene } from '../util/lite.js';
 import { squash } from './common.js?v=2026100901';
 import { instance, setFace, baseSwitcher } from './totoro-model.js';
 
@@ -22,13 +23,13 @@ let assets = null;
 
 export async function loadMashaModel(timeoutMs = 15000) {
   try {
-    const tex = new THREE.TextureLoader();
-    const load = f => tex.loadAsync(`${BASE}skins/${f}.jpg?v=${VER}`).then(t => { t.flipY = false; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; });
+    const load = f => liteLoad(`${BASE}skins/${f}.jpg?v=${VER}`).then(t => { t.flipY = false; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; });
     const skins = Promise.all(Object.keys(MASHA_SKINS).map(async id => [id, Object.fromEntries(await Promise.all(
       Object.entries(PARTS).map(async ([m, f]) => [m, await load(`${id}_${f}`)])))]));
     const all = Promise.all([new GLTFLoader().loadAsync(`${BASE}masha.glb?v=${VER}`), skins]);
     const timeout = new Promise((_, no) => setTimeout(() => no(new Error('timeout')), timeoutMs));
     const [gltf, sk] = await Promise.race([all, timeout]);
+    liteScene(gltf.scene);
     gltf.scene.traverse(o => {
       if (!o.isMesh) return;
       o.castShadow = true; o.frustumCulled = false;

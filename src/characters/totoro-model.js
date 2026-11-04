@@ -4,6 +4,7 @@
 //  • скины — замена текстуры у материала Body; лицо — атлас 2×2 (обычное, моргание, улыбка, рёв).
 import * as THREE from 'three';
 import { GLTFLoader } from 'jsm/loaders/GLTFLoader.js';
+import { liteLoad, liteScene } from '../util/lite.js';
 import { clone as cloneSkinned } from 'jsm/utils/SkeletonUtils.js';
 import { squash } from './common.js?v=2026100901';
 
@@ -21,15 +22,15 @@ export function totoroModelsReady() { return !!assets; }
 export async function loadTotoroModels(timeoutMs = 15000) {
   try {
     const loader = new GLTFLoader();
-    const tex = new THREE.TextureLoader();
     const gltf = f => loader.loadAsync(`${BASE}${f}.glb?v=${VER}`);
-    const skin = id => tex.loadAsync(`${BASE}skins/${id}.jpg?v=${VER}`).then(t => {
+    const skin = id => liteLoad(`${BASE}skins/${id}.jpg?v=${VER}`).then(t => {
       t.flipY = false; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return [id, t];
     });
     const all = Promise.all([gltf('totoro'), gltf('totoro_mini'), gltf('totoro_chibi'), ...SKINS.map(skin)]);
     const timeout = new Promise((_, no) => setTimeout(() => no(new Error('timeout')), timeoutMs));
     const [big, mini, chibi, ...skins] = await Promise.race([all, timeout]);
     for (const g of [big, mini, chibi]) g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+    for (const g of [big, mini, chibi]) liteScene(g.scene);
     assets = { big, mini, chibi, skins: Object.fromEntries(skins) };
     return true;
   } catch (e) {

@@ -3,6 +3,7 @@
 // Если модели не загрузились — игра берёт прежнюю деревню из кода (map.js).
 import * as THREE from 'three';
 import { GLTFLoader } from 'jsm/loaders/GLTFLoader.js';
+import { LITE, shrink, liteScene } from '../util/lite.js';
 import { CollisionWorld } from './colliders.js?v=2026100901';
 import { radialTexture } from '../characters/noface.js?v=2026100901';
 import { nightSky } from './map.js?v=2026100901';
@@ -19,8 +20,14 @@ export async function loadVillageAssets(timeoutMs = 25000) {
       const loader = new GLTFLoader();
       const files = [...new Set(L.instances.map(i => i.model))];
       const scenes = {};
-      await Promise.all(files.map(async f => { scenes[f] = (await loader.loadAsync(`${BASE}${f}?v=${VER}`)).scene; }));
+      const pics = new Map();                 // tex/xxx.jpg → одна картинка на все файлы
+      await Promise.all(files.map(async f => {
+        const g = await loader.loadAsync(`${BASE}${f}?v=${VER}`);
+        scenes[f] = g.scene;
+        sharePictures(g, pics);
+      }));
       shareMaterials(Object.values(scenes));
+      for (const sc of Object.values(scenes)) liteScene(sc, 512, true);
       return { L, scenes };
     })();
     const timeout = new Promise((_, no) => setTimeout(() => no(new Error('timeout')), timeoutMs));
@@ -30,6 +37,21 @@ export async function loadVillageAssets(timeoutMs = 25000) {
     console.warn('Новая деревня не загрузилась, остаётся прежняя:', e?.message || e);
     return false;
   }
+}
+
+// Одна и та же картинка (tex/map_wood.jpg) в разных файлах грузится заново — оставляем первую.
+function sharePictures(gltf, pics) {
+  const { json, associations } = gltf.parser;
+  gltf.scene.traverse(o => {
+    if (!o.isMesh) return;
+    for (const m of [].concat(o.material)) for (const k in m) {
+      const t = m[k], a = t?.isTexture && associations.get(t);
+      const uri = a && json.images?.[json.textures?.[a.textures]?.source]?.uri;
+      if (!uri) continue;
+      if (!pics.has(uri)) pics.set(uri, t.source);
+      else if (t.source !== pics.get(uri)) { t.source = pics.get(uri); t.needsUpdate = true; }
+    }
+  });
 }
 
 // Одинаковые материалы (Wood, Roof…) в разных файлах — один материал: меньше отрисовок и памяти.
@@ -64,17 +86,17 @@ export function buildVillage(scene, { isMobile }) {
 
   // ---------- Земля, дорожки, речка ----------
   const tex = name => {
-    const t = new THREE.TextureLoader().load(`${BASE}tex/${name}?v=${VER}`);
+    const t = new THREE.TextureLoader().load(`${BASE}tex/${name}?v=${VER}`, t => shrink(t, 512));
     t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = name.endsWith('_n.jpg') ? THREE.NoColorSpace : THREE.SRGBColorSpace;
     return t;
   };
   const rep = (t, n) => { t = t.clone(); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(n, n); t.needsUpdate = true; return t; };
   const grass = new THREE.Mesh(new THREE.PlaneGeometry(half * 2 + 70, half * 2 + 70),
-    new THREE.MeshStandardMaterial({ map: rep(tex('map_grass.jpg'), 34), normalMap: rep(tex('map_grass_n.jpg'), 34), roughness: 1, color: 0xb8c4b0 }));
+    new THREE.MeshStandardMaterial({ map: rep(tex('map_grass.jpg'), 34), normalMap: LITE ? null : rep(tex('map_grass_n.jpg'), 34), roughness: 1, color: 0xb8c4b0 }));
   grass.rotation.x = -Math.PI / 2;
   grass.receiveShadow = true;
   scene.add(grass);
-  const stoneMat = new THREE.MeshStandardMaterial({ map: tex('map_stone.jpg'), normalMap: tex('map_stone_n.jpg'), roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+  const stoneMat = new THREE.MeshStandardMaterial({ map: tex('map_stone.jpg'), normalMap: LITE ? null : tex('map_stone_n.jpg'), roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
   for (const rd of L.roads) ribbon(stat, rd.pts, rd.w, stoneMat, 0.02);
   const R = L.river;
   const bankMat = new THREE.MeshStandardMaterial({ color: 0x2a2a22, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
